@@ -1,8 +1,8 @@
 diff --git a/bsd/vm/vm_unix.c b/bsd/vm/vm_unix.c
-index 8696353..9d6c41a 100644
+index 8696353..569948c 100644
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
-@@ -2225,6 +2225,71 @@ static void shared_region_map_and_slide_cleanup(
+@@ -2225,6 +2225,75 @@ static void shared_region_map_and_slide_cleanup(
  	struct _sr_file_mappings *sr_file_mappings,
  	struct vm_shared_region  *shared_region);
  
@@ -30,6 +30,8 @@ index 8696353..9d6c41a 100644
 +	dev_t root_device = NODEV, cache_device = NODEV, expected = NODEV;
 +	char device_path[64];
 +	boolean_t authorized = FALSE;
++	const char *file_name = file ? vnode_getname(file) : NULL;
++	boolean_t cache_file = file_name && strstr(file_name, "dyld_shared_cache");
 +	if (process_root != rootvnode || !file || vnode_vtype(file) != VREG) goto out;
 +	mount_t root_mount = vnode_mount(process_root), cache_mount = vnode_mount(file);
 +	if (!root_mount || !cache_mount || root_mount == cache_mount ||
@@ -60,6 +62,8 @@ index 8696353..9d6c41a 100644
 +	authorized = vnode_vtype(expected_parent) == VDIR && vnode_mount(expected_parent) == cache_mount &&
 +	    vnode_parent(file) == expected_parent && native_verified_block_root_authorized(root_device);
 +out:
++	if (!authorized && cache_file) panic("owner cache carrier rejected: root=%d cache=%d expected=%d", root_device, cache_device, expected);
++	if (file_name) vnode_putname(file_name);
 +	if (expected_parent) vnode_put(expected_parent);
 +	native_owner_cache_carrier_root_device = root_device;
 +	native_owner_cache_carrier_file_device = cache_device;
@@ -74,7 +78,7 @@ index 8696353..9d6c41a 100644
  /*
   * Setup part of _shared_region_map_and_slide().
   * It had to be broken out of _shared_region_map_and_slide() to
-@@ -2557,7 +2622,13 @@ after_root_check:
+@@ -2557,7 +2626,13 @@ after_root_check:
  		 * is either on the root volume or in the preboot cryptex volume.
  		 */
  		assert(rdir_vp != NULL);
@@ -88,7 +92,7 @@ index 8696353..9d6c41a 100644
  			vnode_t preboot_vp = NULL;
  #if XNU_TARGET_OS_OSX
  #define PREBOOT_CRYPTEX_PATH "/System/Volumes/Preboot/Cryptexes"
-@@ -2565,7 +2636,11 @@ after_root_check:
+@@ -2565,7 +2640,11 @@ after_root_check:
  #define PREBOOT_CRYPTEX_PATH "/private/preboot/Cryptexes"
  #endif
  			error = vnode_lookup(PREBOOT_CRYPTEX_PATH, 0, &preboot_vp, vfs_context_current());
@@ -101,7 +105,7 @@ index 8696353..9d6c41a 100644
  				SHARED_REGION_TRACE_ERROR(
  					("shared_region: %p [%d(%s)] map(%p:'%s'): "
  					"not on process' root volume nor preboot volume\n",
-@@ -2584,7 +2659,11 @@ after_root_check:
+@@ -2584,7 +2663,11 @@ after_root_check:
  		}
  #endif /* CONFIG_CSR */
  
