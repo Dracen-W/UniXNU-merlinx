@@ -1,8 +1,8 @@
 diff --git a/bsd/vm/vm_unix.c b/bsd/vm/vm_unix.c
-index 8696353..af08e60 100644
+index 8696353..6d6c939 100644
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
-@@ -2225,6 +2225,75 @@ static void shared_region_map_and_slide_cleanup(
+@@ -2225,6 +2225,83 @@ static void shared_region_map_and_slide_cleanup(
  	struct _sr_file_mappings *sr_file_mappings,
  	struct vm_shared_region  *shared_region);
  
@@ -11,6 +11,8 @@ index 8696353..af08e60 100644
 +#error The independent owner cache carrier is a development instrument
 +#endif
 +extern int native_verified_block_root_authorized(dev_t);
++extern volatile dev_t native_owner_cache_original_root_device;
++extern volatile uintptr_t native_owner_cache_original_root;
 +extern int native_verified_block_volume_device(const char *, dev_t *, char *, size_t);
 +unsigned long native_owner_cache_carrier_accepts = 0;
 +unsigned long native_owner_cache_carrier_rejects = 0;
@@ -25,14 +27,19 @@ index 8696353..af08e60 100644
 +#else
 +	const char *cache_uuid = "8846FE78-2910-4297-AF97-D59BB6F8FC16";
 +#endif
++#if defined(XNU_OWNER_UNION_SYSTEMOS) && XNU_OWNER_UNION_SYSTEMOS
++	const char *directory = "/System/Library/Caches/com.apple.dyld";
++#else
 +	const char *directory = "/private/preboot/System/Library/Caches/com.apple.dyld";
++#endif
 +	vnode_t expected_parent = NULLVP, device_vnode;
 +	dev_t root_device = NODEV, cache_device = NODEV, expected = NODEV;
 +	char device_path[64];
 +	boolean_t authorized = FALSE;
 +	const char *file_name = file ? vnode_getname(file) : NULL;
 +	boolean_t cache_file = file_name && strncmp(file_name, "dyld_shared_cache_", 18) == 0;
-+	if (process_root != rootvnode || !file || vnode_vtype(file) != VREG) goto out;
++	if ((process_root != rootvnode && (uintptr_t)process_root != native_owner_cache_original_root) ||
++	    !file || vnode_vtype(file) != VREG) goto out;
 +	mount_t root_mount = vnode_mount(process_root), cache_mount = vnode_mount(file);
 +	if (!root_mount || !cache_mount || root_mount == cache_mount ||
 +	    !(vfs_flags(root_mount) & MNT_RDONLY) || !(vfs_flags(cache_mount) & MNT_RDONLY) ||
@@ -48,6 +55,7 @@ index 8696353..af08e60 100644
 +		cache_device = vnode_specrdev(device_vnode);
 +		vnode_put(device_vnode);
 +	}
++	if (root_device == NODEV) root_device = native_owner_cache_original_root_device;
 +	if (root_device == NODEV || cache_device == NODEV ||
 +	    !native_verified_block_volume_device(cache_uuid, &expected, device_path, sizeof(device_path)) ||
 +	    expected != cache_device || !native_verified_block_root_authorized(root_device)) {
@@ -78,7 +86,7 @@ index 8696353..af08e60 100644
  /*
   * Setup part of _shared_region_map_and_slide().
   * It had to be broken out of _shared_region_map_and_slide() to
-@@ -2557,7 +2626,13 @@ after_root_check:
+@@ -2557,7 +2634,13 @@ after_root_check:
  		 * is either on the root volume or in the preboot cryptex volume.
  		 */
  		assert(rdir_vp != NULL);
@@ -92,7 +100,7 @@ index 8696353..af08e60 100644
  			vnode_t preboot_vp = NULL;
  #if XNU_TARGET_OS_OSX
  #define PREBOOT_CRYPTEX_PATH "/System/Volumes/Preboot/Cryptexes"
-@@ -2565,7 +2640,11 @@ after_root_check:
+@@ -2565,7 +2648,11 @@ after_root_check:
  #define PREBOOT_CRYPTEX_PATH "/private/preboot/Cryptexes"
  #endif
  			error = vnode_lookup(PREBOOT_CRYPTEX_PATH, 0, &preboot_vp, vfs_context_current());
@@ -105,7 +113,7 @@ index 8696353..af08e60 100644
  				SHARED_REGION_TRACE_ERROR(
  					("shared_region: %p [%d(%s)] map(%p:'%s'): "
  					"not on process' root volume nor preboot volume\n",
-@@ -2584,7 +2663,11 @@ after_root_check:
+@@ -2584,7 +2671,11 @@ after_root_check:
  		}
  #endif /* CONFIG_CSR */
  
