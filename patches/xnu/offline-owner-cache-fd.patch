@@ -1,8 +1,23 @@
 diff --git a/bsd/kern/kern_descrip.c b/bsd/kern/kern_descrip.c
-index c966085..4da41ba 100644
+index c966085..477ceb3 100644
 --- a/bsd/kern/kern_descrip.c
 +++ b/bsd/kern/kern_descrip.c
-@@ -4098,6 +4098,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
+@@ -2740,6 +2740,14 @@ outdrop:
+ 	return sys_fcntl_outdrop(p, fd, fp, vp, error);
+ }
+ 
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++extern volatile int native_owner_cache_last_fd;
++extern volatile int native_owner_cache_fstat_calls;
++extern volatile int native_owner_cache_fstat_last_error;
++extern volatile int native_owner_cache_fcntl_calls;
++extern volatile int native_owner_cache_fcntl_last_error;
++#endif
++
+ int
+ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
+ {
+@@ -4098,6 +4106,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
  		}
  
  		(void) vnode_put(vp);
@@ -15,7 +30,7 @@ index c966085..4da41ba 100644
  		break;
  	}
  #if CONFIG_SUPPLEMENTAL_SIGNATURES
-@@ -5391,6 +5397,14 @@ close_nocancel(proc_t p, kauth_cred_t p_cred, int fd)
+@@ -5391,6 +5405,14 @@ close_nocancel(proc_t p, kauth_cred_t p_cred, int fd)
   *		XXX switch on node type is bogus; need a stat in struct
   *		XXX fileops instead.
   */
@@ -30,7 +45,7 @@ index c966085..4da41ba 100644
  static int
  fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
      user_addr_t xsecurity_size, int isstat64)
-@@ -5574,7 +5588,14 @@ sys_fstat_extended(proc_t p, struct fstat_extended_args *uap, __unused int32_t *
+@@ -5574,7 +5596,14 @@ sys_fstat_extended(proc_t p, struct fstat_extended_args *uap, __unused int32_t *
  int
  sys_fstat(proc_t p, struct fstat_args *uap, __unused int32_t *retval)
  {
