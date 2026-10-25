@@ -34,7 +34,7 @@ def main():
     for name, digest in release['evidence_sha256'].items():
         require(sha(ROOT/name) == digest, 'Changed evidence: '+name)
     previous = load(ROOT/'build/ufs-root-diagnostics/va64/release.json')
-    ufs = ROOT/'drivers/NativeUfs'
+    ufs = ROOT/'drivers/ShengUfs'
     require(subprocess.check_output(['git','-C',str(ufs),'rev-parse','HEAD'],text=True).strip() ==
             previous['native_ufs_commit'], 'Changed UFS revision')
     for name, digest in previous['source_sha256'].items():

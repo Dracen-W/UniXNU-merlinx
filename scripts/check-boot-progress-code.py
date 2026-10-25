@@ -13,7 +13,7 @@ out.mkdir(parents=True,exist_ok=True)
 (out/'report.json').unlink(missing_ok=True)
 objdump=shutil.which('llvm-objdump') or '/opt/homebrew/opt/llvm/bin/llvm-objdump'
 nm=shutil.which('llvm-nm') or '/opt/homebrew/opt/llvm/bin/llvm-nm'
-objects=[root/'build/boot-progress/BootProgress.o',root/'build/boot-progress/BootFaultProbe.o',root/'build/boot-progress/BootWatchdogPolicy.o',root/'build/native-ufs/NativeUfs.o',root/'build/native-legacy-display/BootUiTraceProbe.o']
+objects=[root/'build/boot-progress/BootProgress.o',root/'build/boot-progress/BootFaultProbe.o',root/'build/boot-progress/BootWatchdogPolicy.o',root/'build/sheng-ufs/NativeUfs.o',root/'build/native-legacy-display/BootUiTraceProbe.o']
 for obj in objects:
     text=subprocess.check_output([objdump,'-d',str(obj)],text=True,timeout=30)
     operands='\n'.join(re.findall(r'^[ \t]*[0-9a-f]+:[ \t]+[0-9a-f]{8}[ \t]+\w+[ \t]+([^\n]+)',text,re.M))

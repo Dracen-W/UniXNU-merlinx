@@ -12,7 +12,7 @@ def require(value,reason):
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 # This is the immutable historical failure, independent of subsequent owned
 # driver builds. Keep its exact candidate identity and original image input.
-candidate=ROOT/'build/native-prelink/native-owner-legacy-display-info-candidate.macho'
+candidate=ROOT/'build/xnu-prelink/native-owner-legacy-display-info-candidate.macho'
 plan=json.loads(candidate.with_suffix('.json').read_text())
 require(sha(candidate)==plan['candidate_sha256']=='195cbd11ae3f63d8589c2c931c09ed292bb1e599398bcd920b13a893ec48c23e' and
         plan['original_sha256']=='f18b4df865405f2a287b84977d7aca745e056d656d9fc9df1662970ce2969de7',

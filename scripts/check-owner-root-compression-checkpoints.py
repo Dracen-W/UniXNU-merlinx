@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 from emit_prelink import ADLER32_VECTOR_DIGEST, VECTOR_REPEAT_DIGEST, pc_relative_target
 
@@ -29,7 +29,7 @@ for d, symbol, value in ((permissions, '_vnode_authorize', 0), (refusal, '_decmp
             'Require real permission success and actual unsupported compressed-file return')
 require(int(permissions['function_entry_arguments'][2], 16) == 8, 'Observe the actual executable permission request')
 
-candidate = ROOT / 'build/native-prelink/native-owner-root-fscompression-candidate'
+candidate = ROOT / 'build/xnu-prelink/native-owner-root-fscompression-candidate'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 kernel = candidate.with_suffix('.macho').read_bytes()
 require(positive['kernel_sha256'] == plan['candidate_sha256'] == hashlib.sha256(kernel).hexdigest() ==

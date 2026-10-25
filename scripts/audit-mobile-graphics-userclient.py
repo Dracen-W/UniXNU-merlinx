@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import backed_offset, exports, macho
 
 
@@ -18,7 +18,7 @@ def require(value, message):
         raise SystemExit(message)
 
 
-candidate = ROOT / 'build/native-prelink/native-owner-mobile-graphics-candidate.macho'
+candidate = ROOT / 'build/xnu-prelink/native-owner-mobile-graphics-candidate.macho'
 image = candidate.read_bytes()
 plan = json.loads(candidate.with_suffix('.json').read_text())
 original = (ROOT / '.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed').read_bytes()

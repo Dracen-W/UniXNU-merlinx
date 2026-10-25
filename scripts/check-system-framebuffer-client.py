@@ -11,17 +11,17 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'build/native-legacy-display'
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--profile',choices=['pitch','info','scale'],default='scale');args=parser.parse_args()
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset,unserialize_xml
 def require(v,reason):
     if not v:raise SystemExit(reason)
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 build=json.loads((OUT/'build-report.json').read_text())
 for name,digest in build['source_sha256'].items():require(sha(ROOT/name)==digest,'Exact current compiled source '+name)
-revision=subprocess.check_output(['git','-C',ROOT/'drivers/NativeMobileDisplay','rev-parse','HEAD'],text=True).strip()
+revision=subprocess.check_output(['git','-C',ROOT/'drivers/GopFramebuffer','rev-parse','HEAD'],text=True).strip()
 for name in ['NativeLegacyDisplay.cpp','NativeGOPPresenter.cpp','NativeGOPWire.h']:
-    data=subprocess.check_output(['git','-C',ROOT/'drivers/NativeMobileDisplay','show',revision+':'+name])
-    require(hashlib.sha256(data).hexdigest()==sha(ROOT/'drivers/NativeMobileDisplay'/name),'Exact committed driver source')
+    data=subprocess.check_output(['git','-C',ROOT/'drivers/GopFramebuffer','show',revision+':'+name])
+    require(hashlib.sha256(data).hexdigest()==sha(ROOT/'drivers/GopFramebuffer'/name),'Exact committed driver source')
 require(sha(OUT/'libNativeLegacyDisplay.late.a')==build['archive_sha256'] and
         sha(OUT/'OriginalLegacyFramebufferABI.h')==build['generated_abi_sha256'],'Exact late archive and generated ABI')
 require(build['virtual_entries']==358 and build['owned_entries']==[0,1,7,14,84,87,141,184,188,211,213,245,246,288,306,307,337,338,345],
@@ -29,7 +29,7 @@ require(build['virtual_entries']==358 and build['owned_entries']==[0,1,7,14,84,8
 audit=json.loads((ROOT/'build/display-analysis/mobile-graphics-legacy-abi.json').read_text())
 require(int(build['bindings']['__ZTV25IOMobileFramebufferLegacy'],16)==int(audit['legacy_vptr'],16)-16,
         'Apple-kext qualified super calls bind the real original vtable header')
-candidate=ROOT/('build/native-prelink/native-owner-legacy-display-'+args.profile+'-candidate.macho');plan=json.loads(candidate.with_suffix('.json').read_text())
+candidate=ROOT/('build/xnu-prelink/native-owner-legacy-display-'+args.profile+'-candidate.macho');plan=json.loads(candidate.with_suffix('.json').read_text())
 raw=candidate.read_bytes();image=macho(raw)
 require(sha(candidate)==plan['candidate_sha256'] and sha(ROOT/'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf')==plan['native_sha256'],
         'Exact current source kernel and original-family candidate')

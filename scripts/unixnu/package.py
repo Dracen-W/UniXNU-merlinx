@@ -5,6 +5,13 @@ import shutil
 from .util import Error, clang_bin, expand, log, run, tool
 
 
+def output_dir(tree, target='DEBUG'):
+    """Locate package outputs for an assembled tree or a standalone checkout."""
+    candidates = [tree.parent / 'package/Build/Out' / f'AARCH64-{target}',
+                  tree / 'package/Build/Out' / f'AARCH64-{target}']
+    return next((path for path in candidates if path.is_dir()), candidates[0])
+
+
 def edk2_dir(ctx, modules):
     given = ctx.option('edk2', 'UNIXNU_EDK2')
     if given:

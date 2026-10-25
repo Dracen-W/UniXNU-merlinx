@@ -1,6 +1,6 @@
 # 输出布局
 
-全部构建输出位于 `out/`。驱动只在设备仓库写入 `unixnu.lock`。
+格式 2 按设备、OS 配置和 defconfig 隔离 `out/` 下的输出。格式 1 使用 `out/<board>/`。拉取的源码和 IPSW 成员共用缓存，设备仓库的 `unixnu.lock` 记录源码版本。
 
 ## 目录
 
@@ -9,10 +9,12 @@ out/
   state.json
   feeds/
   ipsw/<build>/
-  <board>/
+  <device>/<os_profile>/<config>/
     .config
     tree/
     logs/
+    device-tree/
+      hardware.dtb
     kernel/
       kernel.macho
     package/

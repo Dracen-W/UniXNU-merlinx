@@ -14,36 +14,9 @@ import platform
 import subprocess
 
 
-def node(name, properties=(), children=()):
-    properties = [('name', name.encode() + b'\0'), *properties]
-    result = struct.pack('<II', len(properties), len(children))
-    for key, data in properties:
-        result += struct.pack('<32sI', key.encode(), len(data))
-        result += data + bytes(-len(data) % 4)
-    return result + b''.join(children)
-
-
-def empty_nvram_proxy():
-    """A fresh volatile CHRP bank for upstream IODTNVRAM, with no controller."""
-    def header(name, size):
-        raw = bytearray(struct.pack('<BBH12s', 0x70, 0, size // 16, name))
-        checksum = sum(raw)
-        while checksum > 255:
-            checksum = (checksum & 255) + (checksum >> 8)
-        raw[1] = checksum
-        return raw
-
-    image = bytearray(8192)
-    image[:16] = header(b'nvram', 32)
-    image[32:48] = header(b'common', 16 + 2048)
-    free_at = 32 + 16 + 2048
-    image[free_at:free_at + 16] = header(b'free', len(image) - free_at)
-    struct.pack_into('<I', image, 16, zlib.adler32(image[20:]))
-    return [('nvram-bank-size', struct.pack('<I', len(image))),
-            ('nvram-bank-count', struct.pack('<I', 1)),
-            ('nvram-current-bank', struct.pack('<I', 0)),
-            ('nvram-proxy-data', bytes(image))]
-
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from unixnu.devicetree import node, empty_nvram_proxy, read_fdt, registers
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, default=Path(__file__).resolve().parents[2] / 'build/xnu-entry/qemu-test.adt')
@@ -95,43 +68,20 @@ virtio_nodes = []
 if args.virtio_mmio_fdt:
     if not args.armvirt:
         parser.error('--virtio-mmio-fdt requires --armvirt')
-    blob = args.virtio_mmio_fdt.read_bytes()
-    magic, total, structure, strings, _, version, _, _, string_bytes, structure_bytes = struct.unpack_from('>10I', blob)
-    if magic != 0xd00dfeed or total > len(blob) or version != 17 or strings + string_bytes > total or structure + structure_bytes > total:
-        raise SystemExit('Unexpected actual QEMU FDT')
-    stack, entries = [], []
-    cursor = structure
-    while cursor < structure + structure_bytes:
-        tag = struct.unpack_from('>I', blob, cursor)[0]
-        cursor += 4
-        if tag == 1:
-            end = blob.index(b'\0', cursor)
-            stack.append(dict(name=blob[cursor:end].decode(), properties={}))
-            cursor = (end + 4) & ~3
-        elif tag == 2:
-            entry = stack.pop()
-            properties = entry['properties']
-            if b'virtio,mmio' in properties.get('compatible', b'').split(b'\0'):
-                parent = stack[-1]['properties']
-                if (parent.get('#address-cells'), parent.get('#size-cells')) != (struct.pack('>I', 2), struct.pack('>I', 2)):
-                    raise SystemExit('Unexpected QEMU VirtIO parent address encoding')
-                values = struct.unpack('>4I', properties['reg'])
-                address, size = (values[0] << 32) | values[1], (values[2] << 32) | values[3]
-                if not 0x08000000 <= address < address + size <= 0x0c000000 or size < 0x108 or 'dma-coherent' not in properties:
-                    raise SystemExit('VirtIO resource is outside the established QEMU bus or not coherent')
-                entries.append((address, size))
-        elif tag == 3:
-            length, name_offset = struct.unpack_from('>II', blob, cursor)
-            cursor += 8
-            if name_offset >= string_bytes or cursor + length > structure + structure_bytes:
-                raise SystemExit('Malformed QEMU FDT property')
-            name = blob[strings + name_offset:blob.index(b'\0', strings + name_offset)].decode()
-            stack[-1]['properties'][name] = blob[cursor:cursor + length]
-            cursor = (cursor + length + 3) & ~3
-        elif tag == 9:
-            break
-        elif tag != 4:
-            raise SystemExit('Unknown QEMU FDT tag')
+    root = read_fdt(args.virtio_mmio_fdt.read_bytes())
+    entries = []
+    for entry in root.walk():
+        if 'virtio,mmio' not in entry.strings('compatible'):
+            continue
+        if (entry.parent.scalar('#address-cells'), entry.parent.scalar('#size-cells')) != (2, 2):
+            raise SystemExit('Unexpected QEMU VirtIO parent address encoding')
+        regions = registers(entry)
+        if len(regions) != 1:
+            raise SystemExit('VirtIO requires one resource window')
+        address, size = regions[0]
+        if not 0x08000000 <= address < address + size <= 0x0c000000 or size < 0x108 or 'dma-coherent' not in entry.properties:
+            raise SystemExit('VirtIO resource is outside the established QEMU bus or not coherent')
+        entries.append((address, size))
     if not entries or len(entries) != len(set(entries)):
         raise SystemExit('Missing or repeated actual VirtIO resource windows')
     for index, (address, size) in enumerate(sorted(entries)):

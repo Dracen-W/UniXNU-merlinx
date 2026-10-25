@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -19,7 +19,7 @@ def require(value, message):
 host = json.loads((ROOT / 'build/verified-root-systemos/verification.json').read_text())
 inputs = json.loads((ROOT / 'build/verified-root-xnu/inputs.json').read_text())
 d = json.loads((ROOT / 'build/darwinboot-owner-crypto-native/gdb-stop.json').read_text())
-plan = json.loads((ROOT / 'build/native-prelink/native-owner-crypto-candidate.json').read_text())
+plan = json.loads((ROOT / 'build/xnu-prelink/native-owner-crypto-candidate.json').read_text())
 require(host['real_c_signature_and_block_verification'] and host['blocks_verified'] == 806400 and
         host['image_sha256'] == 'b4908cde41d23e6bc05e6af51a2c9eeb00cf0f863a6a18b1600c96a3fd70414f',
         'Host evidence must cover every original data block')
@@ -47,7 +47,7 @@ for name in ('0:0:40', '1:0:20'):
             'Actual captured metadata/key PTEs must be read-only, NX and native 4K')
 require(d['entry_indirect_memory']['0:0:40']['bytes'].startswith('56524f4f54303100') and
         d['entry_indirect_memory']['1:0:20']['bytes'].startswith('56524f4f544b4559'), 'Observe the actual original input/anchor prefixes')
-kernel = (ROOT / 'build/native-prelink/native-owner-crypto-candidate.macho').read_bytes()
+kernel = (ROOT / 'build/xnu-prelink/native-owner-crypto-candidate.macho').read_bytes()
 original = (ROOT / '.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed').read_bytes()
 meta, old = np.macho(kernel), np.macho(original)
 require(hashlib.sha256(kernel).hexdigest() == plan['candidate_sha256'] and hashlib.sha256(original).hexdigest() == plan['original_sha256'],

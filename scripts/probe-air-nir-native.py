@@ -21,8 +21,8 @@ output='build/darwinboot-owner-hvf-'+name
 trust='build/original-static-system-trust/original-static-system.bundle' if a.case=='no-trust' else 'build/'+kind+'/offline-trust.bundle'
 data='build/'+kind+'/compiler-data'+('-bad-input' if a.case=='bad-input' else '')+'-32.cdr'
 cmd=['python3','scripts/probe-darwinboot-xnu.py',
- '--kernel','build/native-prelink/native-owner-air-outer-candidate.macho',
- '--prelink-report','build/native-prelink/native-owner-air-outer-candidate.json',
+ '--kernel','build/xnu-prelink/native-owner-air-outer-candidate.macho',
+ '--prelink-report','build/xnu-prelink/native-owner-air-outer-candidate.json',
  '--output',output,'--virtio-udif-image','.cache/firmware/target-volumes/044-76040-038.dmg',
  '--virtio-extra-block-image','.cache/firmware/target-volumes/044-76034-038.dmg',
  '--virtio-mmio-fdt','build/virtio-block-fixture/qemu-virt.dtb',

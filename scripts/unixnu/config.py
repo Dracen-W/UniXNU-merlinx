@@ -15,7 +15,7 @@ from pathlib import Path
 from .util import Error, expand
 
 ROOT = Path(__file__).resolve().parents[2]
-KINDS = {'driver': 'drivers', 'kit': 'kits', 'patch': 'patches', 'script': 'scripts', 'package': 'package', 'refer': 'refer'}
+KINDS = {'driver': 'drivers', 'kit': 'kits', 'patch': 'patches', 'script': 'scripts', 'package': 'package', 'refer': 'refer', 'soc': 'socs'}
 LOCAL_KINDS = ('drivers', 'kits', 'patches', 'scripts', 'package')
 
 
@@ -27,6 +27,56 @@ def load_toml(path):
         raise Error(f'missing file: {path}') from None
     except tomllib.TOMLDecodeError as error:
         raise Error(f'{path}: {error}') from None
+
+
+BUILD_PATHS = {'device', 'out', 'uefi', 'edk2', 'kernelcache', 'kernel',
+               'trust_cache', 'owner_trust_cache', 'data_ramdisk', 'gpu_addon',
+               'dtb', 'fd', 'ramdisk', 'output'}
+BUILD_ENV = {'device': 'UNIXNU_DEVICE', 'out': 'UNIXNU_OUT', 'uefi': 'UNIXNU_UEFI',
+             'edk2': 'UNIXNU_EDK2', 'kernelcache': 'UNIXNU_KERNELCACHE',
+             'dtb': 'UNIXNU_DTB', 'ipsw': 'UNIXNU_IPSW',
+             'unique_chip_id': 'UNIXNU_UNIQUE_CHIP_ID', 'jobs': 'JOBS'}
+
+
+def load_build_options(args):
+    """Apply local build inputs below explicit flags and environment variables."""
+    explicit = getattr(args, 'config', None)
+    path = expand(explicit) if explicit else ROOT / 'unixnu.local.toml'
+    args.build_config = None
+    if not explicit and not path.is_file():
+        args.target = args.target or 'DEBUG'
+        return
+    document = load_toml(path)
+    if set(document) - {'build'} or not isinstance(document.get('build'), dict):
+        raise Error(f'{path}: expected a [build] table')
+    options = document['build']
+    allowed = BUILD_PATHS | {'ipsw', 'unique_chip_id', 'jobs', 'target', 'kernel_args'}
+    for key, value in options.items():
+        if key not in allowed:
+            raise Error(f'{path}: unknown build option {key}')
+        if key == 'kernel_args':
+            if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                raise Error(f'{path}: kernel_args must be an array of strings')
+            extra = getattr(args, 'kernel_arg', None) or []
+            names = {item.split('=', 1)[0] for item in extra}
+            args.kernel_arg = [item for item in value if item.split('=', 1)[0] not in names] + extra
+            continue
+        if key == 'jobs':
+            if type(value) is not int or value < 1:
+                raise Error(f'{path}: jobs must be a positive integer')
+        elif not isinstance(value, str) or not value:
+            raise Error(f'{path}: {key} must be a nonempty string')
+        if key == 'target' and value not in ('DEBUG', 'RELEASE'):
+            raise Error(f'{path}: target must be DEBUG or RELEASE')
+        if getattr(args, key, None) is not None or os.environ.get(BUILD_ENV.get(key, '')):
+            continue
+        if key in BUILD_PATHS or (key == 'ipsw' and '://' not in value):
+            if not (key == 'ramdisk' and value == 'none'):
+                local = Path(os.path.expandvars(value)).expanduser()
+                value = str((path.parent / local).resolve())
+        setattr(args, key, value)
+    args.target = args.target or 'DEBUG'
+    args.build_config = str(path)
 
 
 def parse_config(text):
@@ -62,6 +112,7 @@ class Context:
 
     def __init__(self, args):
         self.root = ROOT
+        load_build_options(args)
         self.args = args
         self.out_root = expand(args.out or os.environ.get('UNIXNU_OUT') or ROOT / 'out')
         self.state_path = self.out_root / 'state.json'
@@ -72,21 +123,52 @@ class Context:
         self.device = expand(device)
         if not (self.device / 'board.toml').is_file():
             raise Error(f'{self.device} has no board.toml')
-        self.board = load_toml(self.device / 'board.toml')
+        self.raw_board = load_toml(self.device / 'board.toml')
+        self.schema_version = self.raw_board.get('schema_version', 1)
+        if self.schema_version not in (1, 2):
+            raise Error(f'unsupported schema_version: {self.schema_version}')
+        self.feeds_dir = self.out_root / 'feeds'
+        self.lock_path = self.device / 'unixnu.lock'
+        self.soc = None
+        self.profile_roots = {'device': self.device}
+        self.profile_files = [self.device / 'board.toml']
+        self.component_specs = []
+        self.board = self.raw_board
+        if self.schema_version == 2:
+            from . import profiles
+            self.board = profiles.load(self, allow_fetch=args.command in ('fetch', 'tree', 'build', 'defconfig'))
         self.name = self.board.get('board', {}).get('name')
         if not self.name:
             raise Error('board.toml needs [board] name')
         self.example = bool(self.board['board'].get('example'))
+        if Path(self.name).name != self.name or self.name in ('.', '..'):
+            raise Error('[board] name must be a directory name')
         self.work = self.out_root / self.name
+        self.config_name = None
+        if self.schema_version == 2:
+            configurations = state.get('configurations', {})
+            selected = (getattr(args, 'name', None) if args.command == 'defconfig' else None)
+            selected = selected or configurations.get(str(self.device)) or self.board.get('kernel', {}).get('defconfig')
+            if not selected or Path(selected).name != selected or selected in ('.', '..'):
+                raise Error('schema_version = 2 needs [kernel] defconfig or a selected defconfig')
+            self.config_name = selected
+            self.work /= self.board['board']['os_profile']
+            self.work /= selected.removesuffix('_defconfig')
         self.tree = self.work / 'tree'
         self.logs = self.work / 'logs'
-        self.feeds_dir = self.out_root / 'feeds'
         self.config_path = self.work / '.config'
         self.uefi = None
         self.jobs = args.jobs or int(os.environ.get('JOBS', 0)) or os.cpu_count() or 2
-        self._save_state({'device': str(self.device)})
+        if args.command != 'status':
+            self._save_state({**state, 'device': str(self.device)})
         self.config = parse_config(self.config_path.read_text()) if self.config_path.is_file() else {}
-        self.lock_path = self.device / 'unixnu.lock'
+
+    def remember_config(self, name):
+        state = self._load_state()
+        configurations = state.setdefault('configurations', {})
+        configurations[str(self.device)] = name
+        state['device'] = str(self.device)
+        self._save_state(state)
 
     def _load_state(self):
         try:

@@ -2,6 +2,13 @@
 
 QEMU 在没有设备时测试 UniXNU、注入路径、DarwinBoot 和内核入口。
 
+## 操作步骤 {#procedure}
+
+1. 安装[所需工具](#前提)及 AArch64 固件，确定要验证公共 UEFI、指定 ESP 还是 XNU 入口。
+2. 公共 UEFI 使用维护中的[冒烟测试](#冒烟测试)；指定 EFI 输入先[准备 ESP](#准备-esp)，再按[运行](#运行)设置预期日志标记。
+3. 验证内核入口时，准备 [XNU 入口 fixture](#xnu-入口-fixture)，按对应运行参数执行，记录所用内核和 ADT。
+4. 检查所选场景的日志与截图，记录实际到达的预期标记；未到达时记录超时或错误。板级资源按[设备启动顺序](/zh/porting/bring-up)继续验证。
+
 ## 前提
 
 | 工具 | 用途 |
@@ -18,9 +25,9 @@ QEMU 在没有设备时测试 UniXNU、注入路径、DarwinBoot 和内核入口
 ```sh
 python3 package/Scripts/stage-esp.py -o out/esp \
   package/UniXNUPkg/Test/Qemu/esp \
-  --put out/<board>/package/Build/Out/UniXNU.efi=EFI/BOOT/BOOTAA64.EFI \
-  --put out/<board>/package/Build/Out/HelloPayload.efi=EFI/UniXNU/Payloads/HelloPayload.efi \
-  --put out/<board>/package/Build/Out/SampleDriver.efi=EFI/UniXNU/Kits/SampleDriver.kit/SampleDriver.efi
+  --put out/<device>/<os_profile>/<config>/package/Build/Out/AARCH64-DEBUG/UniXNU.efi=EFI/BOOT/BOOTAA64.EFI \
+  --put out/<device>/<os_profile>/<config>/package/Build/Out/AARCH64-DEBUG/HelloPayload.efi=EFI/UniXNU/Payloads/HelloPayload.efi \
+  --put out/<device>/<os_profile>/<config>/package/Build/Out/AARCH64-DEBUG/SampleDriver.efi=EFI/UniXNU/Kits/SampleDriver.kit/SampleDriver.efi
 ```
 
 `stage-esp.py` 复制树，把 `.dts` 编译为 `.dtb`，`.dtso` 编译为 `.dtbo`，并把每个 `--put` 文件放到目标位置。

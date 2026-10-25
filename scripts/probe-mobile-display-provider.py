@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--case',choices=['query','headless','default-off'],required=True)
 a=p.parse_args()
-base='build/native-prelink/native-owner-mobile-provider-query-candidate'
+base='build/xnu-prelink/native-owner-mobile-provider-query-candidate'
 cmd=['python3','scripts/probe-darwinboot-xnu.py','--kernel',base+'.macho',
     '--prelink-report',base+'.json','--output','build/darwinboot-owner-hvf-mobile-provider-'+a.case,
     '--virtio-udif-image','.cache/firmware/target-volumes/044-76040-038.dmg',

@@ -88,7 +88,7 @@ build -p UniXNUPkg/UniXNUPkg.dsc -a "$ARCH" -b "$TARGET" -t "$TOOLCHAIN" -n "$JO
 OUT=$BUILD_DIR/Build/Out/$ARCH-$TARGET
 mkdir -p "$OUT"
 BIN=$BUILD_DIR/Build/UniXNU/${TARGET}_$TOOLCHAIN/$ARCH
-for m in UniXNU UniXNUDxe HelloPayload SampleDriver XnuTest; do
+for m in UniXNU UniXNUDxe UniXNURamDiskDxe HelloPayload SampleDriver XnuTest; do
   cp "$BIN/$m.efi" "$OUT/"
 done
 

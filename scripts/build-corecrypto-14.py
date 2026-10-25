@@ -9,12 +9,14 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import platform
 import subprocess
 import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
+import pbxproj
 from xnu_symbols import kernel_names
 SOURCE = ROOT / 'refer/corecrypto-2023'
 REVISION = '11fba65b12d8830630e248dfa8344caf8b065f26'
@@ -34,8 +36,11 @@ if subprocess.check_output(['git', '-C', SOURCE, 'rev-parse', 'HEAD'], text=True
 if subprocess.check_output(['git', '-C', SOURCE, 'status', '--porcelain'], text=True):
     raise SystemExit('The crypto reference must stay immutable')
 OUT.mkdir(parents=True, exist_ok=True)
-subprocess.run(['plutil', '-convert', 'json', '-o', OUT / 'project.json',
-                SOURCE / 'corecrypto.xcodeproj/project.pbxproj'], check=True)
+if platform.system() == 'Darwin':
+    subprocess.run(['plutil', '-convert', 'json', '-o', OUT / 'project.json',
+                    SOURCE / 'corecrypto.xcodeproj/project.pbxproj'], check=True)
+else:
+    (OUT / 'project.json').write_text(json.dumps(pbxproj.load(SOURCE / 'corecrypto.xcodeproj/project.pbxproj')))
 project = json.loads((OUT / 'project.json').read_text())
 objects = project['objects']
 parents = {child: key for key, value in objects.items() for child in value.get('children', [])}

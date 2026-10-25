@@ -6,16 +6,16 @@ from pathlib import Path
 import struct
 import sys
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset,exports
 def require(v,why):
     if not v:raise SystemExit(why)
-path=ROOT/'build/native-prelink/native-owner-mobile-graphics-candidate.macho'
+path=ROOT/'build/xnu-prelink/native-owner-mobile-graphics-candidate.macho'
 FAMILY_TEXT_SHA='2e044ee68c1650397e1435234ca6459206262e4c7ed709cb7131c6f664f9bd9b'
 if not path.exists():
     # Build products are pruned: any later candidate built from the same original kernelcache carries the identical original
     # IOMobileGraphicsFamily executable (checked by hash below), and every layout check in this audit runs against it.
-    later=sorted((ROOT/'build/native-prelink').glob('native-owner-ufs-cpu-desktop-*-candidate.macho'),key=lambda f:f.stat().st_mtime)
+    later=sorted((ROOT/'build/xnu-prelink').glob('native-owner-ufs-cpu-desktop-*-candidate.macho'),key=lambda f:f.stat().st_mtime)
     require(later,'No reference candidate available')
     path=later[-1]
 blob=path.read_bytes();plan=json.loads(path.with_suffix('.json').read_text());image=macho(blob)

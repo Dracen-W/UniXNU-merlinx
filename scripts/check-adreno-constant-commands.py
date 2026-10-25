@@ -10,7 +10,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import macho
 OUT = ROOT / 'build/adreno-constant-commands'
 OUT.mkdir(parents=True, exist_ok=True)

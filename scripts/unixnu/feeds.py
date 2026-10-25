@@ -15,6 +15,7 @@ Module submodules are checked out by `git submodule update --init --recursive`. 
 separate checkouts. Nothing fetched or linked is copied into either repository.
 """
 import hashlib
+import os
 from pathlib import Path
 
 from .config import KINDS, LOCAL_KINDS, load_toml
@@ -37,17 +38,51 @@ class Module:
 def read_sources(ctx):
     """Entries of every feeds.toml (this repository, then the device repository) and the device local.toml."""
     sources, local = {}, {}
-    for base in (ctx.root, ctx.device):
+
+    def source_path(base, value):
+        path = Path(os.path.expandvars(value)).expanduser()
+        if ctx.schema_version == 2 and not path.is_absolute():
+            path = base / path
+        return str(expand(path))
+
+    def add_sources(path, content):
+        for item in content.get('source', []):
+            entry = dict(item)
+            kind, name = entry.get('kind'), entry.get('name')
+            if kind not in KINDS or not name:
+                raise Error(f'{path}: every [[source]] needs name and kind in {sorted(KINDS)}')
+            if entry.get('local'):
+                entry['local'] = source_path(path.parent, entry['local'])
+            sources[(kind, name)] = entry
+
+    roots = getattr(ctx, 'profile_roots', {})
+    bases = [ctx.root] + [roots[key] for key in ('arch', 'soc', 'os') if key in roots] + [ctx.device]
+    for base in bases:
         path = base / 'feeds.toml'
-        if path.is_file():
-            for entry in load_toml(path).get('source', []):
-                kind = entry.get('kind')
-                if kind not in KINDS or not entry.get('name'):
-                    raise Error(f'{path}: every [[source]] needs name and kind in {sorted(KINDS)}')
-                sources[(kind, entry['name'])] = entry
+        files = [path]
+        if base != ctx.root and base != ctx.device:
+            files.insert(0, base / ('soc.toml' if base == roots.get('soc') else 'profile.toml'))
+        for path in files:
+            if not path.is_file():
+                continue
+            add_sources(path, load_toml(path))
+    os_profile = ctx.board.get('os', {}) if ctx.schema_version == 2 else {}
+    if os_profile and ('refer', 'xnu') in sources:
+        xnu = dict(sources[('refer', 'xnu')])
+        for key, field in (('xnu_revision', 'commit'), ('xnu_version', 'version'), ('darwin', 'darwin'),
+                           ('driverkit_tag', 'driverkit_tag'), ('trustcache_tag', 'trustcache_tag')):
+            if os_profile.get(key):
+                xnu[field] = os_profile[key]
+        if os_profile.get('xnu_version'):
+            xnu['ref'] = 'xnu-' + os_profile['xnu_version']
+        sources[('refer', 'xnu')] = xnu
     path = ctx.device / 'local.toml'
     if path.is_file():
         local = load_toml(path)
+        if ctx.schema_version == 2:
+            add_sources(path, local)
+            local['local'] = {kind: source_path(ctx.device, value)
+                              for kind, value in local.get('local', {}).items()}
     return sources, local
 
 
@@ -112,6 +147,10 @@ def resolve(ctx):
         _need(path, f'--local-module {name}')
         targets = [kind] if kind else [k for k in KINDS if (k, name) in sources or any(
             (base / plural[k] / name).is_dir() for base in (ctx.device, ctx.root))]
+        if not targets and (ctx.root / 'components.toml').is_file():
+            from .components import catalog
+            targets = list({spec['kind'] for spec in catalog(ctx).values()
+                            if name in (spec['id'], spec.get('legacy_name'))})
         if not targets:
             raise Error(f'--local-module {name}: unknown module; use KIND:NAME=PATH to add a new one')
         if len(targets) > 1:
@@ -123,7 +162,7 @@ def resolve(ctx):
         origin = f'local (--local-{plural[kind]})'
         if directory is None and cli_root is not None and (cli_root / plural[kind]).is_dir():
             directory, origin = cli_root / plural[kind], 'local (--local)'
-        if directory is None or kind in ('refer', 'script'):
+        if directory is None or kind in ('refer', 'script', 'soc'):
             continue
         if kind == 'package':
             add('package', 'main', _need(directory, '--local-package'), origin)
@@ -139,9 +178,13 @@ def resolve(ctx):
             for name in _children(_need(expand(directory), f'local.toml {kind}')):
                 add({v: k for k, v in KINDS.items()}[kind], name, expand(directory) / name, 'local (local.toml)')
     # 5 and 6: the device repository, then this repository
-    for base, label in ((ctx.device, 'device'), (ctx.root, 'base')):
+    bases = [(ctx.device, 'device')]
+    if getattr(ctx, 'soc', None):
+        bases.append((ctx.soc.path, 'soc'))
+    bases.append((ctx.root, 'base'))
+    for base, label in bases:
         for kind, folder in KINDS.items():
-            if kind in ('refer', 'script'):
+            if kind in ('refer', 'script', 'soc'):
                 continue
             if kind == 'package':
                 if (base / 'package').is_dir():
@@ -151,23 +194,87 @@ def resolve(ctx):
                 add(kind, name, base / folder / name, label)
     # 7: git sources
     for (kind, name), entry in sources.items():
-        if entry.get('git'):
+        if entry.get('git') and kind != 'soc':
             add(kind, name, None, 'git', entry)
+    result = {key: module for key, module in result.items() if key[0] != 'soc'}
+    if ctx.schema_version == 2:
+        from . import components
+        result = components.resolve(ctx, result)
+    attach_cached(ctx, result)
+    ctx.modules = result
     return result
 
 
 def update_submodules(ctx):
     """Check out module submodules recorded by this repository and the device repository."""
-    for base in (ctx.root, ctx.device):
+    bases = [ctx.root, ctx.device]
+    if getattr(ctx, 'soc', None):
+        bases.append(ctx.soc.path)
+    for base in bases:
         if not (base / '.gitmodules').is_file():
             continue
         log(f'submodules {base}')
         git(base, 'submodule', 'update', '--init', '--recursive')
 
 
-def _clone_dir(ctx, entry):
-    key = hashlib.sha1(f'{entry["git"]}\n{entry.get("ref", "")}'.encode()).hexdigest()[:8]
+def _clone_dir(ctx, entry, revision=None):
+    # Commit-specific directories allow targets to resolve different source pins.
+    revision = (revision or entry.get('commit') or entry.get('ref', '')) if ctx.schema_version == 2 else entry.get('ref', '')
+    key = hashlib.sha1(f'{entry["git"]}\n{revision}'.encode()).hexdigest()[:8]
     return ctx.feeds_dir / f'{Path(entry["git"]).stem}-{key}'
+
+
+def pinned_revision(ctx, module, locked):
+    entry = module.source or {}
+    recorded = locked.get(module.name) or locked.get(entry.get('name'))
+    if ctx.schema_version == 2:
+        return entry.get('commit') or recorded
+    return recorded or entry.get('commit')
+
+
+def attach_cached(ctx, modules):
+    locked = lock_read(ctx)
+    for module in modules.values():
+        if module.origin != 'git':
+            continue
+        wanted = pinned_revision(ctx, module, locked)
+        directory = _clone_dir(ctx, module.source, wanted)
+        if not (directory / '.git').exists():
+            continue
+        try:
+            current = git(directory, 'rev-parse', 'HEAD').strip()
+        except Error:
+            continue
+        if wanted and current != wanted:
+            continue
+        path = directory / module.source.get('path', '')
+        if path.exists():
+            module.path, module.commit = path, current
+
+
+def resolve_soc(ctx, name, allow_fetch):
+    sources, local = read_sources(ctx)
+    cli_modules, _, cli_root = _cli_locals(ctx.args)
+    entry = sources.get(('soc', name))
+    override = cli_modules.get(('soc', name)) or cli_modules.get(('', name))
+    if override:
+        return Module('soc', name, _need(override, f'soc {name}'), 'local (--local-module)')
+    if cli_root and (cli_root / 'socs' / name).is_dir():
+        return Module('soc', name, cli_root / 'socs' / name, 'local (--local)')
+    if entry and entry.get('local'):
+        return Module('soc', name, _need(entry['local'], f'soc {name}'), 'local (feeds)')
+    if not entry or not entry.get('git'):
+        raise Error(f'feeds.toml needs a source with kind = "soc" and name = "{name}"')
+    if not (entry.get('commit') or lock_read(ctx).get(name)):
+        raise Error(f'soc source {name} needs a pinned commit')
+    module = Module('soc', name, None, 'git', entry)
+    modules = {('soc', name): module}
+    attach_cached(ctx, modules)
+    if module.path is None and allow_fetch:
+        fetch(ctx, modules)
+    if module.path is None:
+        raise Error(f'SoC {name} is not cached; run unixnu fetch -D {ctx.device}')
+    return module
 
 
 def fetch(ctx, modules, update=False, only=None):
@@ -178,13 +285,13 @@ def fetch(ctx, modules, update=False, only=None):
     groups = {}
     for module in modules.values():
         if module.origin == 'git' and (only is None or module.name in only):
-            groups.setdefault(_clone_dir(ctx, module.source), []).append(module)
+            groups.setdefault(_clone_dir(ctx, module.source, pinned_revision(ctx, module, locked)), []).append(module)
     commits = {}
     for directory, members in groups.items():
         entry = members[0].source
         paths = sorted({m.source['path'] for m in members if m.source.get('path')})
         sparse = bool(paths) and all(m.source.get('path') for m in members)
-        target = next((locked[m.name] for m in members if m.name in locked), None) or entry.get('commit') or entry.get('ref') or 'HEAD'
+        target = next((pinned_revision(ctx, m, locked) for m in members if pinned_revision(ctx, m, locked)), None) or entry.get('ref') or 'HEAD'
         current = None
         if (directory / '.git').is_dir():
             try:

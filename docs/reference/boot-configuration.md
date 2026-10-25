@@ -2,6 +2,15 @@
 
 The UniXNU boot manager reads `\EFI\UniXNU\unixnu.toml` from the volume it was started from, then from every other volume. A kit directory contains `Kit.toml` with the same match and injection sections.
 
+Boot arguments are stored in the payload's `EFI/UniXNU/unixnu.toml`. After changing them, run `./unixnu payload` and `./unixnu bootimg`, then boot the new image. See [apply boot arguments](/xnu/boot-arguments#apply-arguments) for precedence and inspection commands.
+
+## Procedure {#procedure}
+
+1. Locate the configuration on the payload volume: `EFI/UniXNU/unixnu.toml`. For generated device payloads, edit the source `[payload]` settings in `board.toml` or local build inputs before rebuilding.
+2. Use the [unixnu.toml fields](#unixnu-toml) to define the entry and its paths. Check that each referenced kernel, sidecar, driver and initrd is present in the volume.
+3. For a kit, fill [Kit.toml](#kit-toml) and verify every match rule against the target. Keep paths relative to the configuration or kit as specified below.
+4. Rebuild the payload and boot image. Inspect the packaged configuration with `mtype -i <payload.img> ::/EFI/UniXNU/unixnu.toml`, then check [menu behavior](#menu-behavior) on boot.
+
 ## unixnu.toml
 
 ```toml
@@ -161,14 +170,14 @@ enabled = true
 | `confirm` | Question shown before the entry boots. The entry never boots by countdown |
 | `confirm_titles` | Optional choice titles. Requires `confirm` and `confirm_args` |
 | `confirm_args` | One argument string per choice. The chosen string is appended to `args` |
-| `action` | `reset`, `shutdown` or `exit` for `action` entries |
+| `action` | `reset`, `shutdown`, `exit` or `tools` for `action` entries |
 | `enabled` | `false` skips the entry |
 
 An entry with `confirm` boots only when Enter is pressed. Without choices, any other key cancels, and a machine without an input device cancels. With `confirm_titles`, Up and Down step through the choices and Cancel is selected first. The chosen `confirm_args` entry is appended to a copy of the entry's `args`.
 
 When the default entry requires confirmation, the countdown falls back to the first entry that does not.
 
-The built-in configuration has `exit`, `reset` and `shutdown` entries. When no file is found, removable loaders are added in front of them.
+The built-in configuration has `exit`, `reset`, `shutdown` and `tools` entries. `tools` opens a second-level menu listing the installed menu plugins. When no file is found, removable loaders are added in front of them.
 
 ### [entry.chosen]
 

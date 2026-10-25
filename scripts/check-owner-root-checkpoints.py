@@ -8,7 +8,7 @@ import sys
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -43,8 +43,8 @@ reports = {}
 for name, candidate, identity, enabled, decision, accepted in cases:
     d = json.loads((ROOT / ('build/darwinboot-owner-root-' + name) / 'gdb-stop.json').read_text())
     reports[name] = d
-    plan = json.loads((ROOT / 'build/native-prelink' / (candidate + '.json')).read_text())
-    kernel = (ROOT / 'build/native-prelink' / (candidate + '.macho')).read_bytes()
+    plan = json.loads((ROOT / 'build/xnu-prelink' / (candidate + '.json')).read_text())
+    kernel = (ROOT / 'build/xnu-prelink' / (candidate + '.macho')).read_bytes()
     require(d['kernel_sha256'] == plan['candidate_sha256'] == hashlib.sha256(kernel).hexdigest() == identity and
             not d['bounded_timeout_interrupted'] and len(plan['components']) == 14, 'Require exact bounded native candidates')
     meta = np.macho(kernel)
@@ -100,7 +100,7 @@ require(d['stop_symbol'] == '_panic' and d['argument_memory']['x0'].startswith('
         bytes.fromhex(d['stack_pointer_memory']['0']['bytes']).split(b'\0')[0] == b'/sbin/launchd' and
         any(e['symbol'] == '_native_owner_root_accepted_checkpoint' for e in d['trace_events']),
         'Record genuine later original launchd exec ENOTSUP; do not report userspace success')
-binding = json.loads((ROOT / 'build/native-virtio-block-verified/bindings.json').read_text())
+binding = json.loads((ROOT / 'build/virtio-mmio-block-verified/bindings.json').read_text())
 require(binding['virtual_methods_checked'] == 190 and binding['concrete_overrides'] == 25 and
         binding['unresolved_original_imports'] == 0, 'Require real IOStorage dispatch ABI')
 print('PASS: native-4K original OS root accepted only through real owner signature, verified I/O and mounted-media identity')

@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def require(value,reason):
     if not value:raise SystemExit(reason)
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-plan=json.loads((ROOT/'build/native-prelink/native-owner-legacy-display-scale-candidate.json').read_text())
+plan=json.loads((ROOT/'build/xnu-prelink/native-owner-legacy-display-scale-candidate.json').read_text())
 query_path=ROOT/'build/darwinboot-owner-hvf-legacy-display-start-scale-query/gdb-stop.json'
 screen_path=ROOT/'build/darwinboot-owner-hvf-legacy-display-start-scale-exception-SpringBoard-screen/gdb-stop.json'
 d=json.loads(query_path.read_text());screen=json.loads(screen_path.read_text())

@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -25,8 +25,8 @@ require(hashlib.sha256(source).hexdigest() == 'f18b4df865405f2a287b84977d7aca745
 policy = (ROOT / 'build/verified-root-systemos/manifest.bin').read_bytes()
 key = (ROOT / 'build/verified-root-systemos/trusted-key.bin').read_bytes()
 for d, (name, identity) in zip((positive, negative), expected):
-    plan = json.loads((ROOT / 'build/native-prelink' / (name + '.json')).read_text())
-    kernel = (ROOT / 'build/native-prelink' / (name + '.macho')).read_bytes()
+    plan = json.loads((ROOT / 'build/xnu-prelink' / (name + '.json')).read_text())
+    kernel = (ROOT / 'build/xnu-prelink' / (name + '.macho')).read_bytes()
     meta = np.macho(kernel)
     require(d['kernel_sha256'] == plan['candidate_sha256'] == identity == hashlib.sha256(kernel).hexdigest() and
             not d['bounded_timeout_interrupted'], 'Require exact bounded real candidates')
@@ -74,11 +74,11 @@ require(negative['function_return_stack_matched'] and int(negative['x0'], 16) ==
         negative['native_virtio_globals']['_native_virtio_read_failures'] == 0,
         'Authentic DMA with a changed private snapshot must return actual I/O refusal before publication')
 for mode in ('', '-verified', '-verified-fault'):
-    binding = json.loads((ROOT / ('build/native-virtio-block' + mode) / 'bindings.json').read_text())
+    binding = json.loads((ROOT / ('build/virtio-mmio-block' + mode) / 'bindings.json').read_text())
     require(binding['virtual_methods_checked'] == 190 and binding['concrete_overrides'] == 25 and
             binding['unresolved_original_imports'] == 0, 'All actual concrete storage ABIs must remain qualified')
-require('-DNATIVE_VERIFIED_BLOCK_INJECT_FAULT=1' in json.loads((ROOT / 'build/native-virtio-block-verified-fault/compile-command.json').read_text()) and
-        '-DNATIVE_VERIFIED_BLOCK_INJECT_FAULT=1' not in json.loads((ROOT / 'build/native-virtio-block-verified/compile-command.json').read_text()),
+require('-DNATIVE_VERIFIED_BLOCK_INJECT_FAULT=1' in json.loads((ROOT / 'build/virtio-mmio-block-verified-fault/compile-command.json').read_text()) and
+        '-DNATIVE_VERIFIED_BLOCK_INJECT_FAULT=1' not in json.loads((ROOT / 'build/virtio-mmio-block-verified/compile-command.json').read_text()),
         'The negative source-only snapshot injection must be explicit and absent from the positive build')
 print('PASS: owner-authenticated real DMA -> CPU snapshot -> original APFS -> original cache code at native 4K')
 print('PASS: one changed DMA snapshot byte returns genuine kIOReturnNotPrivileged before media publication')

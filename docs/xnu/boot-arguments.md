@@ -1,6 +1,21 @@
 # Boot arguments
 
-The kernel command line comes from `[payload] kernel_args` in the board file. An extra `--kernel-arg NAME=VALUE` replaces the board argument with the same name. The payload step writes the joined line into `unixnu.toml`, and DarwinBoot copies it into `boot_args`.
+## Apply boot arguments {#apply-arguments}
+
+The effective command line combines `[payload] kernel_args` in the board profile, `[build] kernel_args` in `unixnu.local.toml`, and `--kernel-arg` overrides. Later sources replace arguments with the same name. The payload builder writes it to `EFI/UniXNU/unixnu.toml` as the XNU entry's `args`. UniXNU passes the selected entry to DarwinBoot, which copies the line into XNU's `boot_args.CommandLine` at boot. Kernel configuration switches are compiled by `./unixnu kernel`.
+
+With [local build inputs](/reference/configuration#local-build-inputs) saved:
+
+```sh
+./unixnu payload --kernel-arg serial=3 --kernel-arg debug=0x14e
+./unixnu bootimg
+jq -r .kernel_args out/<device>/<os_profile>/<config>/payload/payload.json
+mtype -i out/<device>/<os_profile>/<config>/payload/payload.img ::/EFI/UniXNU/unixnu.toml
+```
+
+Boot the newly generated `boot/boot.img`. `bootimg` copies the current payload into that file. Editing a payload after packaging requires running `bootimg` again. A custom `--ramdisk FILE` selects that file's configuration. Check the XNU entry you select and any appended `confirm_args`. When several volumes contain `unixnu.toml`, check the configuration on the boot manager's own volume first.
+
+The payload command prints `kernel args:` and DarwinBoot prints `DARWINBOOT: command line:` before handoff. If they differ, inspect the selected volume and entry. If they match and behavior is unchanged, check that the kernel or selected driver implements the argument. A green handoff bar is covered in [early boot diagnosis](/guide/debugging#green-bar).
 
 ## Format
 

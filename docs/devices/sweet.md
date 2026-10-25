@@ -1,15 +1,20 @@
 # Redmi Note 10 Pro (sweet)
 
-sweet is the Redmi Note 10 Pro with the SM7150 SoC, Snapdragon 732G and Adreno 618. The port below is an independent community project. The UniXNU organization does not maintain it.
+A community-maintained port for SM7150. Current results are based on the maintainer records at the revisions linked below.
 
-| Repository | Maintainer | State |
-| --- | --- | --- |
-| [UniXNU-sweet](https://github.com/dipa-studio/UniXNU-sweet) | [dipa-studio](https://github.com/dipa-studio) | Platform and loader bring-up |
-| [UniXNU-sweet](https://github.com/CrackerCat/UniXNU-sweet) | [CrackerCat](https://github.com/CrackerCat) | Alternate sweet repository; status not documented |
+| Repository | Maintainer |
+| --- | --- |
+| [UniXNU-sweet](https://github.com/CrackerCat/UniXNU-sweet) | [CrackerCat](https://github.com/CrackerCat) |
 
 ## State
 
-The port has a Sweet ADT, an ArmCpu override, a DarwinBoot override and an A618 legacy HFI transport. Host checks and EFI loader checks pass. There is no bootable sweet image and no accelerated desktop yet. Existing phone partitions are unchanged.
+The source includes the Sweet ADT, ArmCpu and DarwinBoot overrides, and an Adreno 618 HFI transport. The maintained snapshot records source-kernel and platform-archive builds, plus QEMU CPU registration and advancing timer interrupts. Self-IPI delivery remains unqualified.
+
+Device firmware integration, Apple component prelink and a root target remain pending. Run the host checks from the repository root before preparing an image.
+
+## Sources
+
+- [README: CrackerCat/UniXNU-sweet](https://github.com/CrackerCat/UniXNU-sweet/blob/d3dd6fdf9e889f08b2564d92f7fef5b5c913263e/README.md)
 
 ## Build
 
@@ -27,6 +32,9 @@ python3 ../UniXNU/unixnu defconfig sweet_defconfig -D . --out out/driver
 python3 ../UniXNU/unixnu status -D . --out out/driver
 ```
 
-## Maintenance
+## Use this port
 
-The maintainer owns the repository and its release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+1. Read the repository build instructions and pinned records. Prepare its firmware, system images and board inputs.
+2. Build with that repository's commands. Use [Build and boot](/building) for common configuration.
+3. Follow the [bring-up order](/porting/bring-up) and save results through [log capture](/porting/log-capture).
+4. Update the [porting record](/porting/records) with the source revisions and last confirmed stage.

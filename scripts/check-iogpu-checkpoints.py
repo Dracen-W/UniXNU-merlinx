@@ -8,7 +8,7 @@ import struct
 import subprocess
 import sys
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import backed_offset, macho
 
 
@@ -20,7 +20,7 @@ def require(value, message):
 source_hash = '257c6f553e0a30a577e8a53623fc742b46f337f55b912b5ff466c19b4c049828'
 positive_hash = 'a66a3c60c82330cba7915a6dfd028cf6b2332e3919021f1fce9c0d0526498f99'
 negative_hash = '043ec08b8ab0761412409fd2975e5a7d94ce8153ca1cd149bfe19f3053a72eb6'
-directory = ROOT / 'build/native-prelink'
+directory = ROOT / 'build/xnu-prelink'
 plans = {}
 for stem, expected in (('native-owner-iogpu-candidate', positive_hash),
                        ('native-owner-iogpu-missing-candidate', negative_hash)):

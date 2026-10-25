@@ -1,6 +1,58 @@
 # Device configuration
 
-A device repository has four configuration files: `board.toml`, `configs/<name>_defconfig`, `feeds.toml` and `local.toml`.
+Format 2 uses `schema_version = 2` at the top of `board.toml`. Files without
+this field use format 1. See the [device repository specification](/porting/device-repository)
+for profile ownership and examples.
+
+## Local build inputs {#local-build-inputs}
+
+Copy `unixnu.example.toml` to `unixnu.local.toml` in the UniXNU checkout and fill in your device paths. The file is ignored by Git. Use `--config /path/to/build.toml` to select another file.
+
+```toml
+[build]
+device = "../UniXNU-<device>"
+uefi = "../uefi-<device>"
+dtb = "/path/to/firmware.dtb"
+kernelcache = "/path/to/kernelcache"
+trust_cache = "/path/to/trustcache.bundle"
+data_ramdisk = "/path/to/data-seed.dbr"
+unique_chip_id = "<hex>"
+jobs = 8
+target = "DEBUG"
+kernel_args = ["-v", "serial=3", "debug=0x14e"]
+```
+
+Replace the placeholders with your port's inputs. Relative paths start at the configuration file's directory. Command-line flags take priority, followed by environment variables, then this file, then device defaults. `kernel_args` overrides board arguments by name; `--kernel-arg` overrides local arguments by name.
+
+Supported path keys are `device`, `out`, `uefi`, `edk2`, `kernelcache`, `kernel`, `trust_cache`, `owner_trust_cache`, `data_ramdisk`, `gpu_addon`, `dtb`, `fd`, `ramdisk`, and `output`. Other keys are `ipsw` (path or URL), `unique_chip_id` (hex string), `jobs` (positive integer), `target` (`DEBUG` or `RELEASE`), and `kernel_args` (string array). `ramdisk = "none"` selects an empty boot-image ramdisk.
+
+```sh
+./unixnu defconfig <device>_defconfig
+./unixnu kernel
+./unixnu firmware
+./unixnu payload
+./unixnu bootimg
+./unixnu status --json
+```
+
+`status` reports the selected file as `build_config`. Build inputs use `unixnu.local.toml`; module source overrides use the device repository's `local.toml`.
+
+## Profile fields
+
+| Table | Key | Meaning |
+| --- | --- | --- |
+| `board` | `soc_source` | Name of a pinned `kind = "soc"` source |
+| `board` | `os_profile` | Directory under `profiles/os/` |
+| `components` | `include` | Canonical component IDs; dependencies are resolved in build order |
+| `kernel` | `config_fragments` | Ordered profile-relative configuration files |
+| `kernel` | `patch_series` | Ordered profile-relative series files |
+| `device_tree` | `source` | DTS entry point, such as `device:dts/sheng.dts` |
+| `device_tree` | `include_dirs` | DTS include paths, such as `soc:dts` |
+
+Layers apply as ARM64, SoC, OS, device. Tables merge by key; arrays replace.
+The selected defconfig applies after `config_fragments`. File prefixes are
+`arch:`, `soc:`, `os:`, and `device:`. Series entries also accept
+`component:<ID>/path`. `unixnu status --json` reports the effective configuration.
 
 ## board.toml
 
@@ -111,6 +163,7 @@ Types are `s` for string, `x` for hex cells, `i` for decimal cells, `u` for unsi
 | `panic_screen` | boolean | Patch the panic screen into the payload kernel |
 | `trust_cache_sha256` | array | Accepted trust cache hashes. An owner bundle passed with `--owner-trust-cache` skips this list |
 | `kernel_args` | array | Default kernel arguments |
+| `tools` | boolean | Add Tools to the generated menu; configure plugins with [log capture](/porting/log-capture#firmware-setup) |
 | `timeout` | integer | Menu timeout |
 | `skip_setup_tool` | string | Script used by `--skip-setup` |
 
@@ -145,7 +198,7 @@ Each `CONFIG_XNU_<NAME>` becomes `XNU_<NAME>`. `{tree}` in a string becomes the 
 ```toml
 [[source]]
 name = "Name"
-kind = "driver"          # driver, kit, patch, package, refer
+kind = "driver"          # driver, kit, patch, script, package, refer, soc
 git = "https://github.com/ORG/REPO"
 ref = "main"
 path = "drivers/Name"
@@ -185,7 +238,7 @@ package = "/path/to/package"
 commit = "0123456789abcdef"
 ```
 
-Written by `unixnu fetch`. A build uses the locked commit. The lock records git sources only.
+Written by `unixnu fetch` for Git sources. Format 2 gives an explicit source commit priority over the lock, including the selected OS XNU revision. Format 1 uses lock-first precedence. Official aliases can reuse lock entries recorded under their accepted source names.
 
 ## Module resolution
 

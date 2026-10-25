@@ -6,12 +6,12 @@ from pathlib import Path
 import struct
 import sys
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset
 def require(v,s):
     if not v:raise SystemExit(s)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-kernel=ROOT/'build/native-prelink/native-owner-legacy-display-scale-candidate.macho'
+kernel=ROOT/'build/xnu-prelink/native-owner-legacy-display-scale-candidate.macho'
 raw=kernel.read_bytes();image=macho(raw);plan=json.loads(kernel.with_suffix('.json').read_text())
 require(sha(kernel)==plan['candidate_sha256'],'Exact observed kernel')
 def read(a,n):

@@ -14,7 +14,7 @@ build=json.loads((OUT/'build-report.json').read_text())
 manifest=json.loads((OUT/'test-inputs.json').read_text())
 data=json.loads((OUT/'data-report.json').read_text())
 path=ROOT/'build/darwinboot-owner-hvf-fp-context-system-final/gdb-stop.json';d=json.loads(path.read_text())
-plan=json.loads((ROOT/'build/native-prelink/native-owner-legacy-display-info-candidate.json').read_text())
+plan=json.loads((ROOT/'build/xnu-prelink/native-owner-legacy-display-info-candidate.json').read_text())
 require(sha(OUT/'air-native')==sha(OUT/'launchd.macho')==build['process_sha256']==data['process_sha256']==d['native_user_image_sha256'] and
         sha(OUT/'test-inputs.json')==build['manifest_sha256']==data['manifest_sha256'] and
         sha(ROOT/'scripts/qemu-entry/native-fp-context.inc')==manifest['source_sha256'],

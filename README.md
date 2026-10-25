@@ -19,42 +19,30 @@
 
 # UniXNU
 
-🎉 **News:** The native Metal GPU driver is now fully working on the Xiaomi Pad 6S Pro (sheng). The render server composites the system UI through the Adreno 740, and listed processes get their own Metal devices. See the [Adreno 740 driver documentation](https://unixnu.com/drivers/native-adreno).
+> **Migration notice:** Update your device repository for shared SoC support and canonical component names. Follow the [migration guide](https://unixnu.com/porting/migration).
 
-An independent project to run iOS and macOS on non-Apple ARM64 hardware through UEFI.
+An independent project to run iOS and macOS on non-Apple ARM64 hardware through UEFI. Like OpenCore, UniXNU is a general UEFI environment and driver loading system: it loads the drivers a device needs and boots the OS through a common UEFI layer.
 
-## Documentation
+UniXNU provides shared build tools, ARM64 support, OS profiles and reusable components for ports across SoCs and devices. SoC repositories supply common platform support, and device repositories supply board configuration and hardware integration.
 
-The documentation is at [unixnu.com](https://unixnu.com). It covers the boot chain, the build driver, device porting, driver development, the 4 KiB XNU page patches, boot arguments and per-device notes.
+**🎉 News:** Adreno740 and AdrenoMetal provide GPU acceleration on sheng. See the [Adreno 740 driver documentation](https://unixnu.com/drivers/adreno740).
 
-- [Overview](https://unixnu.com/guide/overview)
-- [Build](https://unixnu.com/building)
-- [Boot the image](https://unixnu.com/guide/boot)
-- [Debugging and logs](https://unixnu.com/guide/debugging)
-- [Porting](https://unixnu.com/porting/)
-- [Drivers](https://unixnu.com/drivers/overview)
-- [XNU and 4 KiB pages](https://unixnu.com/xnu/four-k-page-tables)
-- [Devices](https://unixnu.com/devices/)
+Documentation: [unixnu.com](https://unixnu.com). Start with [Port a device](https://unixnu.com/porting/) or [Build and boot](https://unixnu.com/building).
 
 ## Repositories
 
 | Repository | Contents |
 | --- | --- |
-| [UniXNU](https://github.com/UniXNU/UniXNU) | Build driver, UEFI boot manager, module submodules and patches |
-| [UniXNU-sheng](https://github.com/UniXNU/UniXNU-sheng) | Device repository for the Xiaomi Pad 6S Pro |
-| [uefi-sheng](https://github.com/UniXNU/uefi-sheng) | UEFI firmware port for the Xiaomi Pad 6S Pro |
+| [UniXNU](https://github.com/UniXNU/UniXNU) | Build tools, component catalog, ARM64 support, OS profiles, UEFI package, documentation |
+| [UniXNU-sm8550-common](https://github.com/UniXNU/UniXNU-sm8550-common) | Shared SM8550 support |
+| [UniXNU-sheng](https://github.com/UniXNU/UniXNU-sheng) | Xiaomi Pad 6S Pro |
+| [uefi-sheng](https://github.com/UniXNU/uefi-sheng) | UEFI firmware for the Xiaomi Pad 6S Pro |
 
-Drivers and kits are independent public repositories under the UniXNU organization, included as submodules. Clone with `--recurse-submodules`, or run `git submodule update --init --recursive`.
-
-Device repositories use the same layout as this repository. Their modules override modules with the same name, and their `package/` becomes a kit in the build tree.
+Clone with `--recurse-submodules`.
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for the repository scope, the development workflow, the commit format and the documentation rules.
-
-## Private blobs
-
-Do not add Apple IPSW files, kernelcaches, disk images, trust caches, Data seeds or vendor firmware to this repository. Keep them in a local cache or external storage.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

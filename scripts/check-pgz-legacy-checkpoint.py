@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 def require(value, text):
     if not value: raise SystemExit(text)
-p = ROOT / 'build/native-prelink/native-owner-pgz-legacy-probe-candidate'
+p = ROOT / 'build/xnu-prelink/native-owner-pgz-legacy-probe-candidate'
 plan = json.loads(p.with_suffix('.json').read_text())
 require(plan['native_sha256'] == 'bd62a6409a7ba85849dc8d5bcfe844dcd8d92308d56ca1500ebebe0a9b38e066' and
         hashlib.sha256(p.with_suffix('.macho').read_bytes()).hexdigest() == plan['candidate_sha256'] ==

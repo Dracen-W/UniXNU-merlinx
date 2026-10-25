@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 a=argparse.ArgumentParser(description="Inspect original backboardd's haptic group wait; static analysis only")
 a.add_argument('--backboardd',type=Path,required=True);a.add_argument('--report',type=Path,required=True);args=a.parse_args()
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'));from native_prelink import macho,backed_offset
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'));from native_prelink import macho,backed_offset
 raw=args.backboardd.read_bytes();sha=hashlib.sha256(raw).hexdigest()
 assert sha=='6e362a46a2b46eb2741ecc6fcb50ffecb2fbc299641159045475361e62b34634'
 m=macho(raw)

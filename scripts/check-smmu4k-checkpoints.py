@@ -6,7 +6,7 @@ from pathlib import Path
 import struct
 import sys
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import macho
 
 
@@ -16,10 +16,10 @@ def require(value, message):
 
 
 # Filled from the exact post-shareability build, never from target binaries in Git.
-plan = json.loads((ROOT / 'build/native-prelink/native-owner-smmu4k-outer-candidate.json').read_text())
+plan = json.loads((ROOT / 'build/xnu-prelink/native-owner-smmu4k-outer-candidate.json').read_text())
 source_hash = 'ad9041065a939cdc04235faa1f88bda693a04666cae66625cb5fa1c01ebc0fe7'
 candidate_hash = '5a838595de36a70224e2a21b24f42db62b734f7b35376ff7a0b1ee699b51efb0'
-image = (ROOT / 'build/native-prelink/native-owner-smmu4k-outer-candidate.macho').read_bytes()
+image = (ROOT / 'build/xnu-prelink/native-owner-smmu4k-outer-candidate.macho').read_bytes()
 require(plan['native_sha256'] == source_hash and plan['candidate_sha256'] == candidate_hash ==
         hashlib.sha256(image).hexdigest() and plan['original_sha256'] ==
         'f18b4df865405f2a287b84977d7aca745e056d656d9fc9df1662970ce2969de7' and

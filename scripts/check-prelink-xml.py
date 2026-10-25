@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import macho
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -23,7 +23,7 @@ source = (ROOT / 'refer/xnu/libkern/libkern/c++/OSUnserializeXMLSharedImplementa
 start = source.index('#define TAG_MAX_LENGTH')
 end = source.index('static long long\ngetNumber', start)
 lexer = source[start:end]
-output = ROOT / 'build/native-prelink/xml-lexer'
+output = ROOT / 'build/xnu-prelink/xml-lexer'
 output.mkdir(parents=True, exist_ok=True)
 (output / 'metadata.xml').write_bytes(xml)
 program = r'''#include <stdbool.h>

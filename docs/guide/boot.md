@@ -1,22 +1,44 @@
 # Boot the image
 
-The boot image runs from RAM. The workflow starts the image and leaves the installed boot partition unchanged.
+Follow [Building](/building) through boot-image assembly first. The procedure below starts the image from RAM and checks the menu, loader and kernel in order.
 
-## Prerequisites
+Build the firmware with `./unixnu build firmware --uefi ../uefi-<device>` and include `UniXNURamDiskDxe` plus DiskIoDxe and FAT support for a Mu-Silicium initrd payload. Build the payload before `./unixnu bootimg`. The [firmware integration guide](/porting/uefi-firmware#required-integration) lists the required DSC/FDF entries and menu checks.
+
+For repeated builds, save paths in [unixnu.local.toml](/reference/configuration#local-build-inputs). After changing boot arguments, rebuild the payload and boot image using the [argument workflow](/xnu/boot-arguments#apply-arguments). Follow the [green-bar diagnosis](/guide/debugging#green-bar) for a stall at loader handoff.
+
+## 1. Check inputs {#prerequisites}
 
 - An unlocked bootloader with `fastboot`.
 - A device with a UEFI port that matches the board configuration.
 - A built boot image with a payload, or an empty ramdisk for the boot manager smoke test.
 - A serial console when the board exposes a UART.
 
-## Start the image
+## 2. Prepare root storage {#first-boot}
+
+Ports using the userdata root layout need that image installed before their first root boot. The image supplies the OS and SystemOS volumes and the root volume UUID that the kernel matches.
+
+Run the flash command when installing or replacing the root image. With the matching root image already installed, continue at step 3.
+
+Flashing `userdata` overwrites that partition. Confirm the target device, its partition geometry and the report's image path, and save any data needed from that partition before running the command.
 
 ```sh
 fastboot devices
-fastboot boot out/<board>/boot/boot.img
+fastboot flash userdata out/<device>/<os_profile>/<config>/userdata/userdata-root.img
+fastboot reboot bootloader
 ```
 
-`fastboot boot` transfers the image and starts it one time. The stock boot partition and the installed OS stay unchanged.
+The userdata image is large. Build it with `unixnu build userdata` and flash it from the device repository report.
+
+The Data seed supplies the writable Data volume. The `--skip-setup` option marks Setup as done in a copy of the seed, so the Hello pages do not run. The procedure and the preference changes are in [Skip Setup](/guide/skip-setup).
+
+## 3. Start the image {#start-the-image}
+
+```sh
+fastboot devices
+fastboot boot out/<device>/<os_profile>/<config>/boot/boot.img
+```
+
+`fastboot boot` transfers the image and starts it once. The running payload follows its configured storage and installation policy.
 
 The boot image contains:
 
@@ -28,7 +50,7 @@ The boot image contains:
 
 The stock Android bootloader loads the image, verifies the ARM64 header in BootShim, and jumps to the shim. BootShim starts the firmware volume.
 
-## Boot manager
+## 4. Check the boot menu {#boot-manager}
 
 UniXNU prints its version and configuration summary to the serial port and draws the menu. The default configuration uses a timeout, a default entry and a countdown.
 
@@ -47,7 +69,7 @@ The menu entries come from `\EFI\UniXNU\unixnu.toml`. An entry can start an EFI 
 
 If UniXNU finds no configuration, it scans every volume for `\EFI\BOOT\BOOTAA64.EFI` and adds those entries in front of the built-in actions.
 
-## Darwin boot
+## 5. Check loader handoff {#darwin-boot}
 
 For an entry of type `xnu`, DarwinBoot reads these files from the entry directory:
 
@@ -62,21 +84,7 @@ DarwinBoot copies the kernel segments into a contiguous physical window, builds 
 
 The default window is 256 MiB. The ADT property `/chosen/darwinboot-memory-size` can request a larger window.
 
-## First boot
-
-The first boot needs a userdata image. The image supplies the OS and SystemOS volumes and the root volume UUID that the kernel matches.
-
-```sh
-fastboot flash userdata out/<board>/userdata/userdata-root.img
-fastboot reboot bootloader
-fastboot boot out/<board>/boot/boot.img
-```
-
-The userdata image is large. Build it with `unixnu build userdata` and flash it from the device repository report.
-
-The Data seed supplies the writable Data volume. The `--skip-setup` option marks Setup as done in a copy of the seed, so the Hello pages do not run. The procedure and the preference changes are in [Skip Setup](/guide/skip-setup).
-
-## Logs
+## 6. Save logs {#logs}
 
 The UEFI firmware logs to `EFI_SERIAL_IO_PROTOCOL` when the board exposes a UART. UniXNU prefixes its lines with `UNIXNU:`.
 
@@ -86,34 +94,31 @@ Useful logs:
 
 | Source | Location |
 | --- | --- |
-| Build driver | `out/<board>/logs/*.log` |
+| Build driver | `out/<device>/<os_profile>/<config>/logs/*.log` |
 | Boot manager | Serial console, lines with `UNIXNU:` |
 | DarwinBoot | Serial console, lines with `DARWINBOOT:` |
 | XNU | Serial console, kernel output |
 
 ## Recovery
 
-The image runs from RAM. Reset the device to return to the stock bootloader and the installed OS.
+Use the device's hardware reset sequence to return to its bootloader. Once fastboot responds, the following command restarts that bootloader:
 
 ```sh
 fastboot reboot bootloader
 ```
 
-If the firmware stalls before the menu, reset the device and start the same image again. A firmware stall leaves the device in the bootloader; a second `fastboot boot` uses the same image.
+If firmware stalls before the menu, capture the last output, reset into the bootloader and confirm `fastboot devices`. Check the firmware inputs using [bring-up](/porting/bring-up) before another attempt.
 
 ## macOS
 
-The boot pipeline is driven by the IPSW. A macOS restore image provides `KernelCache`, `DeviceTree`, `OS`, `Cryptex1,SystemOS`, `StaticTrustCache` and `Cryptex1,SystemTrustCache` in the same member layout.
+A macOS port needs an OS profile matching its XNU version, kernelcache, prelink
+roots, private driver ABIs, trust caches and root layout. Qualify those inputs
+with [kernel preparation](/guide/build-kernel) and [prelink](/concepts/prelink).
+The supplied `ipados-17.7.11-21H461` profile describes its named iPadOS build.
 
-To boot macOS:
-
-1. Point `[ipsw]` in the board file at a macOS IPSW and set the product, version, build, device class, chip ID and board ID of that image.
-2. Pin the member hashes in `[ipsw.sha256]`.
-3. Set `[userdata] windows` to `OS` and `Cryptex1,SystemOS`.
-4. Build the kernel, payload, boot image and userdata image.
-5. Flash the userdata image and start the boot image.
-
-The device tree and the platform drivers supply the hardware description. The userland comes from the macOS disk images.
+Select the completed OS profile in `board.os_profile`, inspect `status --json`,
+then repeat the build and bring-up sequence. Record macOS results against that
+profile and the target device.
 
 ## Next steps
 

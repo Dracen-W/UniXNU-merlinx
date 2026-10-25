@@ -95,6 +95,7 @@ def build(ctx, kernel=None):
     names = {item.split('=', 1)[0] for item in extra}
     arguments = [item for item in spec.get('kernel_args', []) if item.split('=', 1)[0] not in names] + extra
     line = check_args(arguments)
+    log(f'kernel args: {line}')
     check_native_root(kernel, arguments)
     owner_trust = getattr(args, 'owner_trust_cache', None)
     trust = expand(owner_trust or args.trust_cache) if (owner_trust or getattr(args, 'trust_cache', None)) else None
@@ -146,29 +147,35 @@ def build(ctx, kernel=None):
         shutil.copyfile(addon, payloads / 'kernel.macho.gpuaddon')
     if data:
         shutil.copyfile(data, payloads / 'scratch-data.img')
-    command = ['python3', ctx.tree / adt['tool'], '--output', payloads / 'kernel.macho.adt', '--dram-size', str(spec['dram_size'])]
-    for key, flag in (('owned_memory_size', '--owned-memory-size'), ('root_match_volume_uuid', '--root-match-volume-uuid'),
-                      ('chip_id', '--chip-id'), ('cpu_regs', '--cpu-regs'), ('psci_method', '--psci-method')):
-        if adt.get(key) is not None:
-            command += [flag, str(adt[key])]
-    if seed:
-        command += ['--unique-chip-id', seed]
-    if data:
-        command.append('--packed-data-ramdisk' if adt.get('packed_data_ramdisk') else '--data-ramdisk')
-    if trust:
-        command.append('--trust-cache')
-    if addon:
-        command.append('--gpu-addon')
-    if adt.get('ipad_identity'):
-        command.append('--ipad-identity')
-    if data and adt.get('persistent_data'):
-        command.append('--persistent-data')
-    # Fixups of signed text (patches/xnu/native-text-fixup.patch) travel in /chosen/text-fixups, outside the 1000-byte command line.
-    for fixup in spec.get('text_fixups', []):
-        if not re.fullmatch(r'[A-Za-z0-9_.\-]{1,63},[0-9a-fA-F]{1,16},(?:[0-9a-fA-F]{2}){1,16},(?:[0-9a-fA-F]{2}){1,16}', fixup) or len(fixup) >= 160:
-            raise Error(f'malformed text fixup in board.toml [payload] text_fixups: {fixup}')
-        command += ['--text-fixup', fixup]
-    run(command, cwd=ctx.tree, env=dict(os.environ, UNIXNU_UEFI=str(ctx.uefi or '')), log_file=ctx.logs / 'payload-adt.log')
+    if ctx.schema_version == 2:
+        from .devicetree import compile_hardware, generate
+        dtb = compile_hardware(ctx)
+        (payloads / 'kernel.macho.adt').write_bytes(generate(
+            dtb, ctx.board, unique_chip_id=seed, data=bool(data), trust=bool(trust), addon=bool(addon)))
+    else:
+        command = ['python3', ctx.tree / adt['tool'], '--output', payloads / 'kernel.macho.adt', '--dram-size', str(spec['dram_size'])]
+        for key, flag in (('owned_memory_size', '--owned-memory-size'), ('root_match_volume_uuid', '--root-match-volume-uuid'),
+                          ('chip_id', '--chip-id'), ('cpu_regs', '--cpu-regs'), ('psci_method', '--psci-method')):
+            if adt.get(key) is not None:
+                command += [flag, str(adt[key])]
+        if seed:
+            command += ['--unique-chip-id', seed]
+        if data:
+            command.append('--packed-data-ramdisk' if adt.get('packed_data_ramdisk') else '--data-ramdisk')
+        if trust:
+            command.append('--trust-cache')
+        if addon:
+            command.append('--gpu-addon')
+        if adt.get('ipad_identity'):
+            command.append('--ipad-identity')
+        if data and adt.get('persistent_data'):
+            command.append('--persistent-data')
+        # Fixups of signed text (patches/xnu/native-text-fixup.patch) travel in /chosen/text-fixups, outside the 1000-byte command line.
+        for fixup in spec.get('text_fixups', []):
+            if not re.fullmatch(r'[A-Za-z0-9_.\-]{1,63},[0-9a-fA-F]{1,16},(?:[0-9a-fA-F]{2}){1,16},(?:[0-9a-fA-F]{2}){1,16}', fixup) or len(fixup) >= 160:
+                raise Error(f'malformed text fixup in board.toml [payload] text_fixups: {fixup}')
+            command += ['--text-fixup', fixup]
+        run(command, cwd=ctx.tree, env=dict(os.environ, UNIXNU_UEFI=str(ctx.uefi or '')), log_file=ctx.logs / 'payload-adt.log')
     initrd = 'initrd = "Payloads/scratch-data.img"\n' if data else ''
     loader = '' if spec.get('loader', 'firmware') == 'firmware' else '[[driver]]\npath = "Payloads/DarwinBoot.efi"\n'
     config = (f'version = 1\n[boot]\ntimeout = {spec.get("timeout", 3)}\ndefault = "xnu"\n[kits]\nautoload = false\n{loader}'
@@ -188,6 +195,8 @@ def build(ctx, kernel=None):
     # A loaded configuration replaces the built-in menu (UniXNULib Config.c) and with it that menu's Restart and Power off.
     config += ('[[entry]]\nid = "reset"\ntitle = "Restart"\ntype = "action"\naction = "reset"\n'
                '[[entry]]\nid = "shutdown"\ntitle = "Power off"\ntype = "action"\naction = "shutdown"\n')
+    if spec.get('tools'):
+        config += ('[[entry]]\nid = "tools"\ntitle = "Tools"\ntype = "action"\naction = "tools"\n')
     (stage / 'EFI/UniXNU/unixnu.toml').write_text(config)
     for path in [stage, *stage.rglob('*')]:
         os.utime(path, (EPOCH, EPOCH))
@@ -204,4 +213,5 @@ def build(ctx, kernel=None):
     report.write_text(json.dumps(data_report, indent=2) + '\n')
     shutil.rmtree(stage)
     log(f'payload: {image} ({image.stat().st_size >> 20} MiB)')
+    log('next: run ./unixnu bootimg to pack this payload into the boot image')
     return image

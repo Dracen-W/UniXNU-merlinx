@@ -60,9 +60,9 @@ require(abort['stop_symbol'] == '_abort_with_payload' and abort['function_return
 require(wrong['scratch_data']['state'] == dict(_native_owner_data_status=2, _native_owner_data_stage=1,
         _native_owner_data_readonly=-1, _native_owner_data_device=-1) and wrong['native_ram_block']['state']['_native_ram_block_writes'] == 0 and
         wrong['stop_symbol'] == '_panic' and wrong['argument_memory']['x0'].startswith('offline scratch Data mount failed'), 'Wrong expected UUID must refuse before a writable mount')
-audit = json.loads((ROOT / 'build/native-ram-block/bindings.json').read_text())
+audit = json.loads((ROOT / 'build/ram-block/bindings.json').read_text())
 require(audit['virtual_methods_checked'] == 190 and audit['concrete_overrides'] == 24 and len(audit['bindings']) == 11 and
-        audit['unresolved_original_imports'] == 0 and audit['compiled_object_sha256'] == hashlib.sha256((ROOT / 'build/native-ram-block/NativeRamBlock.o').read_bytes()).hexdigest(),
+        audit['unresolved_original_imports'] == 0 and audit['compiled_object_sha256'] == hashlib.sha256((ROOT / 'build/ram-block/NativeRamBlock.o').read_bytes()).hexdigest(),
         'Actual compiled RAM object retains original storage ABI/imports')
 print('PASS: original APFS discovers actual RAM volume; native-4K writable Data performs real reads/writes')
 print('PASS: original timezone syscall returns zero; wrong UUID refuses before writes')

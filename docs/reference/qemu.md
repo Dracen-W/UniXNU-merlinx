@@ -2,6 +2,13 @@
 
 QEMU tests UniXNU, the injection paths, DarwinBoot and the kernel entry without a device.
 
+## Procedure {#procedure}
+
+1. Install the [requirements](#requirements), including AArch64 firmware. Choose the behavior to exercise: common UEFI, a staged ESP or XNU entry.
+2. For the maintained common UEFI scenarios, run the [smoke test](#smoke-test). For custom EFI inputs, first [stage an ESP](#stage-an-esp), then use [Run](#run) with expected log markers.
+3. For kernel-entry work, prepare the [XNU entry fixture](#xnu-entry-fixture) and follow its runner options. Record the kernel and ADT used.
+4. Inspect the selected scenario's logs and screenshot. Record the exact expected marker reached and the timeout or failure when it was not reached. Continue with device [bring-up](/porting/bring-up) for board resources.
+
 ## Requirements
 
 | Tool | Purpose |
@@ -18,9 +25,9 @@ The QEMU runner looks for the firmware in the common Homebrew and distribution p
 ```sh
 python3 package/Scripts/stage-esp.py -o out/esp \
   package/UniXNUPkg/Test/Qemu/esp \
-  --put out/<board>/package/Build/Out/UniXNU.efi=EFI/BOOT/BOOTAA64.EFI \
-  --put out/<board>/package/Build/Out/HelloPayload.efi=EFI/UniXNU/Payloads/HelloPayload.efi \
-  --put out/<board>/package/Build/Out/SampleDriver.efi=EFI/UniXNU/Kits/SampleDriver.kit/SampleDriver.efi
+  --put out/<device>/<os_profile>/<config>/package/Build/Out/AARCH64-DEBUG/UniXNU.efi=EFI/BOOT/BOOTAA64.EFI \
+  --put out/<device>/<os_profile>/<config>/package/Build/Out/AARCH64-DEBUG/HelloPayload.efi=EFI/UniXNU/Payloads/HelloPayload.efi \
+  --put out/<device>/<os_profile>/<config>/package/Build/Out/AARCH64-DEBUG/SampleDriver.efi=EFI/UniXNU/Kits/SampleDriver.kit/SampleDriver.efi
 ```
 
 `stage-esp.py` copies the tree, compiles `.dts` to `.dtb` and `.dtso` to `.dtbo`, and places each `--put` file at its destination.

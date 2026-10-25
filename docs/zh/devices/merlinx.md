@@ -6,6 +6,7 @@ merlinx 是搭载联发科 MT6768/MT6769Z SoC 的 Redmi Note 9。下面的移植
 | --- | --- | --- |
 | [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | UEFI 可启动，自定义菜单和启动镜像工作；存储初始化阻塞 UniXNU 和 XNU |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | [Dracen-W](https://github.com/Dracen-W) | Mu-Silicium 移植、修复后的 BootShim 和自定义 GOP 启动菜单 |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | merlinx 的原生 eMMC 驱动 |
 
 ## 状态
 

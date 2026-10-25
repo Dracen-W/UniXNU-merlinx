@@ -2,6 +2,10 @@
 
 Bring-up proceeds in stages. Each stage has a visible result and a log line. Isolate one stage at a time.
 
+For repeated builds, save paths in [unixnu.local.toml](/reference/configuration#local-build-inputs). After changing boot arguments, rebuild the payload and boot image using the [argument workflow](/xnu/boot-arguments#apply-arguments). Follow the [green-bar diagnosis](/guide/debugging#green-bar) for a stall at loader handoff.
+
+Before enabling a peripheral, complete its [adaptation procedure](/porting/drivers). Build the image with [Building](/building), then use these checkpoints in order. After each failure, keep the image and the last log before changing inputs.
+
 ## Stage 1: UEFI
 
 Goal: the firmware reaches a UEFI shell, a boot menu or the UniXNU application.
@@ -12,15 +16,15 @@ Checks:
 - The boot image header matches the bootloader requirement.
 - `fastboot boot boot.img` starts the firmware without a reset.
 - The framebuffer shows output, or the serial port shows UEFI output.
-- Block devices and the payload volume are visible.
+- Block devices and the payload volume are visible. For a Mu-Silicium initrd payload, check `UniXNURamDiskDxe`, DiskIoDxe and FAT in the FD using the [firmware integration guide](/porting/uefi-firmware#required-integration).
 
 Tools:
 
 ```sh
-fastboot boot out/<board>/boot/boot.img
+fastboot boot out/<device>/<os_profile>/<config>/boot/boot.img
 ```
 
-A firmware stall leaves the device in the bootloader. Start the same image again.
+If firmware stops responding, reset into the device's bootloader, confirm `fastboot devices`, and capture the last firmware output before retrying.
 
 ## Stage 2: UniXNU
 
@@ -38,6 +42,10 @@ Minimal test: an empty ramdisk. UniXNU falls back to its built-in configuration 
 ```sh
 ./unixnu bootimg --uefi /path/to/Mu-Silicium --dtb board.dtb --ramdisk none
 ```
+
+Before continuing, [scan the firmware log](/porting/log-capture#qr-logs) from
+**Tools → Advanced Logger**. Prepare the platform logger and plugin with the
+[integration steps](/porting/log-capture#firmware-setup).
 
 ## Stage 3: Payload
 
@@ -77,7 +85,7 @@ Checks:
 - The platform expert matches the ADT root.
 - `/cpus`, `/arm-io`, `/defaults`, `/options` and the NVRAM proxy are present.
 
-A kernel that stops before its video console draws the color bars instead. See [Color bars](/guide/debugging#color-bars).
+With the entry probe enabled, color bars mark early kernel checkpoints. See [Color bars](/guide/debugging#color-bars).
 
 A missing platform provider produces a panic that names the provider. Add the driver or correct the ADT.
 
@@ -94,6 +102,10 @@ Checks:
 
 A root match failure leaves the kernel without a root device. Check the UUID, the window offsets and the partition capacity.
 
+Once storage works, [adapt persistent capture](/porting/log-capture#persistent-logs)
+with a kernel writer and Linux reader. Complete one manual retrieval before
+enabling timed reset and the automated cycle.
+
 ## Stage 7: Userland
 
 Goal: `launchd` runs and the first user process reaches a visible state.
@@ -109,22 +121,19 @@ Use `boot-progress=2` and the diagnostic boot arguments to see the last complete
 
 ## QEMU before hardware
 
-The QEMU fixture tests UniXNU, DarwinBoot and the kernel entry without a device:
+Follow [QEMU testing](/reference/qemu) to stage the ESP and run the menu/payload
+fixture. The XNU entry fixture needs an ARM64 kernel, its ADT sidecar and
+DarwinBoot staged together. Check the fixture's selected entry and expected
+checkpoint before running it.
 
 ```sh
-python3 scripts/qemu-entry/make-dt.py --armvirt --armcpu --smp 2 \
-  --owned-memory-size 0x20000000 --output build/qemu.dtb
-
-python3 package/Scripts/stage-esp.py -o out/esp \
-  package/UniXNUPkg/Test/Qemu/esp \
-  --put out/<board>/package/Build/Out/UniXNU.efi=EFI/BOOT/BOOTAA64.EFI
-
-python3 package/Scripts/qemu-run.py out/esp \
-  --log out/qemu.log --screenshot out/qemu.png \
-  --expect "UNIXNU: menu: shown" --expect "DARWINBOOT:"
+JOBS=8 bash package/Scripts/smoke.sh
 ```
 
-The QEMU runner boots an AArch64 `virt` machine with AAVMF, captures the serial log and can send keys to the emulated keyboard.
+Run from the main checkout with the QEMU requirements installed. This command
+checks the UEFI package scenarios and writes logs/screenshots under
+`package/Build/Smoke/`. Use the [kernel-entry instructions](/reference/qemu#xnu-entry-fixture)
+for XNU work. Hardware peripheral results are recorded on the target device.
 
 ## Failure isolation
 

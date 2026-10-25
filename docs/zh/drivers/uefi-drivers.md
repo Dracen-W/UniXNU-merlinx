@@ -1,6 +1,19 @@
 # UEFI 驱动
 
+## 操作流程
+
+1. 准备 package DEC 和协议声明，用 `uuidgen` 分别生成文件和协议 GUID，填写下方示例标识符。
+2. 加入驱动源码和 INF，在目标 DSC 注册。公共协议头放在 package 的 `Include/Protocol/`。
+3. 通过固件派发时，将 INF 加入目标 FDF，从 UniXNU 执行 `./unixnu build firmware`，
+   步骤见[固件集成](/zh/porting/uefi-firmware)。
+4. 从文件加载时，构建 EFI 模块并按下文把路径加入 payload 配置，再打包 payload 和启动镜像。
+5. 启动消费方前，确认驱动启动日志和协议发布。
+
+
+
 UEFI 驱动是构建为 `.efi` 的 EDK II 模块，运行在 boot services，可以发布协议、绑定设备，为下一阶段准备硬件。
+
+共享模块 `UniXNURamDiskDxe` 位于 `package/UniXNUPkg/Driver/`，把 Mu-Silicium FDT 中的 initrd 发布为只读 Block I/O 设备。将它与 DiskIoDxe、FAT 支持一起加入固件 DSC 和 FDF。详见[固件集成](/zh/porting/uefi-firmware#required-integration)。
 
 ## 模块布局
 
@@ -8,7 +21,7 @@ UEFI 驱动是构建为 `.efi` 的 EDK II 模块，运行在 boot services，可
 MyDriver/
   MyDriver.c
   MyDriver.inf
-  MyProtocol.h
+  # public header: MyPkg/Include/Protocol/MyProtocol.h
 ```
 
 `MyDriver.inf`：

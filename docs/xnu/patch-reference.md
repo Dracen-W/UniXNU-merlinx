@@ -1,6 +1,6 @@
 # Patch reference
 
-Patches apply in name order from `patches/xnu/*.patch` and `kits/NativePrelink/patches/*.patch`. The late patches `zzw-*`, `zzy-*` and `zzz-*` apply last.
+Format 2 applies `[kernel] patch_series` in declared order. Series can reference profile and component patches. `unixnu status --json` reports the resolved sequence. Format 1 applies `patches/xnu/*.patch` and `kits/XnuPrelink/patches/*.patch` in filename order.
 
 ## Build and toolchain
 
@@ -64,7 +64,7 @@ Patches apply in name order from `patches/xnu/*.patch` and `kits/NativePrelink/p
 | --- | --- |
 | `offline-native-gpu-broker` | Starts the offline GPU broker |
 | `zzy-native-gpu-addon-mount` | Mounts read-only union views for GPU addon content and launch jobs |
-| `zzw-native-adreno-sandbox-grant` | Lets NativeAdreno name the render server in `NativeSandboxGrantProcess` and open its user client past the sandbox |
+| `zzw-native-adreno-sandbox-grant` | Lets Adreno740 name the render server in `NativeSandboxGrantProcess` and open its user client past the sandbox |
 | `native-aes-personality` | Registers the storage and console personalities |
 
 ## Diagnostics
@@ -98,7 +98,7 @@ Patches apply in name order from `patches/xnu/*.patch` and `kits/NativePrelink/p
 
 ## Prelink patches
 
-`kits/NativePrelink/patches/`:
+`kits/XnuPrelink/patches/`:
 
 | Patch | Purpose |
 | --- | --- |

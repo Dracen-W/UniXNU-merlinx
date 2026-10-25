@@ -1,23 +1,20 @@
 # 小米 17 Pro（pandora）
 
-pandora 是搭载 SM8850 的小米 17 Pro。下面的移植是独立的社区项目，UniXNU 组织不维护它。它在由 ios-sweet 补丁系列构建的 xnu-8796 内核上运行 iPhone X 的 iOS 16.7.16 用户态。由 `fastboot boot` 启动的小型加载器取代 UEFI 启动链。内核使用 UniXNU 的原生 4 KiB 补丁，原版 Apple kext 用 NativePrelink 预链接。
+搭载 SM8850 的社区设备移植。当前状态依据下方固定版本的维护者记录。
 
-| 仓库 | 维护者 | 状态 |
-| --- | --- | --- |
-| [ios-pandora](https://github.com/ShueiTsuki/ios-pandora) | [ShueiTsuki](https://github.com/ShueiTsuki) | 已在真机到达 iOS 16.7.16 锁屏，触控和按键可用 |
-
-## 状态
-
-| 阶段 | 状态 |
+| 仓库 | 维护者 |
 | --- | --- |
-| 启动 | `fastboot boot` 启动携带内核、ADT 和负载的加载器镜像；不修改 Android 和任何分区 |
-| CPU | 8 核，4 KiB 页 |
-| 存储 | 原生 UFS 驱动；根文件系统是 Android userdata 分区中的固定文件，按其 extent 读写，无需清除数据 |
-| 显示 | 1220x2656 面板，使用引导程序的帧缓冲；亮度通过 DSI DCS 调节 |
-| 输入 | Synaptics 触控走 GPI DMA；电源键和音量键 |
-| 用户态 | iOS 16.7.16（20H392）锁屏；壁纸和小组件缺失 |
-| 原版 kext | AMFI 及其依赖用 NativePrelink 预链接；QEMU 和真机运行进行中 |
-| GPU、音频、相机 | 不可用 |
+| [data-a-live](https://github.com/ShueiTsuki/data-a-live) | [ShueiTsuki](https://github.com/ShueiTsuki) |
+
+## 当前状态
+
+iOS 16.7.16 已进入主屏幕和锁屏，触控及物理按键可用。移植使用设备加载器、原生 UFS，以及 Android userdata 中由文件承载的根卷。
+
+Adreno 840 已集成 Vulkan 和 Metal，维护者记录了首个 GPU 渲染的主屏幕画面。快速交互会出现系统挂起，当前默认使用 CPU 渲染，GPU 稳定性仍在排查。
+
+## 来源
+
+- [README: ShueiTsuki/data-a-live](https://github.com/ShueiTsuki/data-a-live/blob/1a6c05fbc03695adb41a636210b9c48f40e14563/README.md)
 
 ## 构建
 
@@ -30,6 +27,9 @@ KERNEL=<out> tools/boot_ios.sh --file /data/local/tmp/iosroot.img --run <N> --rd
 
 `tools/boot_ios.sh` 解析固定根文件的 extent，构建负载和加载器镜像，并用 `fastboot boot` 启动。内核、kernelcache、根镜像和信任缓存是外部输入，不存放在仓库中。
 
-## 维护
+## 使用此移植
 
-维护者拥有仓库和发布决定。UniXNU 文档记录移植及其状态，不接管维护。
+1. 阅读上方仓库的构建说明和固定版本记录，准备对应的固件、系统镜像和板级输入。
+2. 按该仓库的命令构建，通用配置见[构建与启动](/zh/building)。
+3. 按[启动验证顺序](/zh/porting/bring-up)逐项验证，通过[日志抓取](/zh/porting/log-capture)保存结果。
+4. 更新[移植记录](/zh/porting/records)，记录实际使用的源码版本及最后确认的阶段。

@@ -18,8 +18,8 @@ def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def require(value,message):
     if not value:raise SystemExit(message)
 subprocess.run(['python3',ROOT/'scripts/audit-target-renderbox-device.py'],check=True,timeout=60,capture_output=True)
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'));from native_prelink import macho,backed_offset
-kernel=ROOT/('build/native-prelink/native-owner-offline-gpu-texture-copy-candidate.macho' if a.stencil_texture_refusal else 'build/native-prelink/native-owner-offline-gpu-enqueue-candidate.macho' if a.enqueue else 'build/native-prelink/native-owner-offline-gpu-priority-candidate.macho');plan=load(kernel.with_suffix('.json'));raw=kernel.read_bytes();image=macho(raw)
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'));from native_prelink import macho,backed_offset
+kernel=ROOT/('build/xnu-prelink/native-owner-offline-gpu-texture-copy-candidate.macho' if a.stencil_texture_refusal else 'build/xnu-prelink/native-owner-offline-gpu-enqueue-candidate.macho' if a.enqueue else 'build/xnu-prelink/native-owner-offline-gpu-priority-candidate.macho');plan=load(kernel.with_suffix('.json'));raw=kernel.read_bytes();image=macho(raw)
 require(sha(kernel)==plan['candidate_sha256'] and sha(ROOT/'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf')==plan['native_sha256'],'Exact current native kernel and original-component candidate')
 for module,digest in plan['original_executable_sha256'].items():
     e=next(e for e in plan['extents'] if e['module']==module and e['segment']=='__TEXT_EXEC');at=backed_offset(image['segments'],e['va'],e['size'],len(raw))

@@ -2,7 +2,7 @@
 """Derive the A740 hw_init register table (a6xx_gpu.c hw_init, a6xx_set_hwcg, a6xx_set_cp_protect) from pinned sources.
 
 Offsets come from the pinned XMLs with exact A7XX variant selection (a6xx.xml first, then adreno_common.xml); the hwcg and
-protect values from the pinned a6xx_catalog.c (a740_hwcg, a730_protect). Writes drivers/NativeAdreno/NativeAdrenoA740HwInit.h;
+protect values from the pinned a6xx_catalog.c (a740_hwcg, a730_protect). Writes build/adreno740/include/NativeAdrenoA740HwInit.h;
 --check compares instead."""
 import re, sys
 from pathlib import Path
@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / '.cache/adreno-source/drivers/gpu/drm/msm'
 XML = SRC / 'registers/adreno'
 ORDER = ['A2XX', 'A3XX', 'A4XX', 'A5XX', 'A6XX', 'A7XX', 'A8XX']
-OUT = ROOT / 'drivers/NativeAdreno/NativeAdrenoA740HwInit.h'
+OUT = ROOT / 'build/adreno740/include/NativeAdrenoA740HwInit.h'
+REFERENCE = ROOT / 'drivers/Adreno740/NativeAdrenoA740HwInit.h'
 
 def matches(variants):
     if variants is None:
@@ -101,10 +102,11 @@ def main():
     lines.append('#endif')
     text = '\n'.join(lines) + '\n'
     if '--check' in sys.argv[1:]:
-        if OUT.read_text() != text:
+        if REFERENCE.read_text() != text:
             raise SystemExit('NativeAdrenoA740HwInit.h is stale')
         print('PASS: A740 hw_init table matches the pinned sources')
         return
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text)
     print('PASS: %d registers, %d hwcg entries, %d protect writes' % (len(defines), len(hwcg), len(writes)))
 

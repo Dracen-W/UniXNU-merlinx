@@ -6,7 +6,7 @@ The prelinked kernel combines a kernel built from source with the original Apple
 
 | Input | Source |
 | --- | --- |
-| Native kernel | `out/<board>/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf` |
+| Native kernel | `out/<device>/<os_profile>/<config>/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf` |
 | Original kernelcache | IPSW `KernelCache`, or `--kernelcache FILE` |
 | Component list | `[kernel.prelink] roots` |
 | Slide | `[kernel.prelink] slide` |
@@ -16,7 +16,7 @@ The kernelcache is the LZFSE payload of the `KernelCache` IM4P. The arm64 slice 
 
 ## Prelink steps
 
-`kits/NativePrelink/emit_prelink.py` performs these steps:
+`kits/XnuPrelink/emit_prelink.py` performs these steps:
 
 1. Parse the native and original Mach-O images.
 2. Read `__PRELINK_INFO` from the original kernelcache.

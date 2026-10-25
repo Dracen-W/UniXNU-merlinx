@@ -138,8 +138,13 @@ jobs:
             fail "trust_cache_url, data_seed_url and skip_setup only apply to the payload step"
           fi
           python3 - <<'PY'
-          import os, sys, tomllib
-          board = tomllib.load(open('device/board.toml', 'rb'))
+          import os, sys
+          sys.path.insert(0, 'scripts')
+          from unixnu.cli import parser, cmd_defconfig
+          from unixnu.config import Context
+          ctx = Context(parser().parse_args(['defconfig', os.environ['DEFCONFIG']]))
+          cmd_defconfig(ctx)
+          board = ctx.board
           name = board.get('board', {}).get('name')
           if not name:
               sys.exit('::error::board.toml needs [board] name')
@@ -148,6 +153,7 @@ jobs:
               sys.exit('::error::this board needs the platform seed for its payload: set the UNIXNU_UNIQUE_CHIP_ID secret')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f'board={name}\n')
+              out.write(f'work={ctx.work}\n')
           PY
 
       - name: Install host tools
@@ -179,9 +185,6 @@ jobs:
           done
           df -h "$GITHUB_WORKSPACE"
           exit "$missing"
-
-      - name: Select the device
-        run: ./unixnu defconfig "$DEFCONFIG"
 
       - name: Prepare inputs
         if: contains(inputs.steps, 'payload')
@@ -265,13 +268,14 @@ jobs:
         env:
           UNIXNU_UNIQUE_CHIP_ID: ${{ secrets.UNIXNU_UNIQUE_CHIP_ID }}
           BOARD: ${{ steps.check.outputs.board }}
+          WORK: ${{ steps.check.outputs.work }}
         run: |
           # Only *.log files are copied here, with the secrets and the input URLs replaced. The private artifact
           # step above is gated to private repositories; public runs never upload Apple-derived images.
           python3 - <<'PY'
           import os, re, shutil
           from pathlib import Path
-          source = Path('out') / os.environ['BOARD'] / 'logs'
+          source = Path(os.environ['WORK']) / 'logs'
           target = Path(os.environ['RUNNER_TEMP']) / 'public-logs'
           shutil.rmtree(target, ignore_errors=True)
           target.mkdir(parents=True)
@@ -327,5 +331,5 @@ jobs:
       - name: Remove proprietary inputs
         if: always()
         run: |
-          rm -rf out/ipsw out/feeds device/.cache/firmware out/*/tree/.cache/firmware out/*/payload/data-skip-setup-*
+          rm -rf out/ipsw out/feeds device/.cache/firmware out/*/tree/.cache/firmware out/*/payload/data-skip-setup-* out/*/*/*/tree/.cache/firmware out/*/*/*/payload/data-skip-setup-*
           rm -f "$RUNNER_TEMP/trustcache" "$RUNNER_TEMP/data.dbr" "$RUNNER_TEMP/data-grow.dbr"

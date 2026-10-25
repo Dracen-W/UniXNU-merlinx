@@ -35,16 +35,16 @@ def main():
     manifest = output / 'Cargo.toml'
     # Only generated build files contain local dependency paths.
     manifest.write_text('\n'.join([
-        '[package]', 'name = "native-metal-vulkan-probe"', 'version = "0.1.0"',
+        '[package]', 'name = "adreno-metal-vulkan-probe"', 'version = "0.1.0"',
         'edition = "2021"', 'rust-version = "1.98"', '[workspace]',
-        '[[bin]]', 'name = "native-metal-vulkan-probe"',
-        'path = ' + json.dumps(str(ROOT / 'drivers/NativeMetal/tools/MetalVulkanProbe.rs')),
+        '[[bin]]', 'name = "adreno-metal-vulkan-probe"',
+        'path = ' + json.dumps(str(ROOT / 'drivers/AdrenoMetal/tools/MetalVulkanProbe.rs')),
         '[dependencies]',
         'metal2vulkan = { path = ' + json.dumps(str(source / 'crates/metal2vulkan')) + ', features = ["serde"] }',
         'serde_json = "=1.0.154"', '[profile.release]', 'incremental = true',
         '',
     ]))
-    shutil.copyfile(ROOT / 'drivers/NativeMetal/tools/metal-vulkan-probe.lock', output / 'Cargo.lock')
+    shutil.copyfile(ROOT / 'drivers/AdrenoMetal/tools/metal-vulkan-probe.lock', output / 'Cargo.lock')
     target = output / 'target'
     command = ['cargo', '+1.98.0', 'build', '--release', '--locked', '--manifest-path', str(manifest),
                '--target-dir', str(target), '-j4']
@@ -52,9 +52,9 @@ def main():
         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=600)
     if result.returncode:
         raise SystemExit((output / 'build.log').read_text()[-6000:])
-    binary = target / 'release/native-metal-vulkan-probe'
+    binary = target / 'release/adreno-metal-vulkan-probe'
     report = dict(translator_revision=revision, rustc=toolchain,
-                  source_sha256=digest(ROOT / 'drivers/NativeMetal/tools/MetalVulkanProbe.rs'),
+                  source_sha256=digest(ROOT / 'drivers/AdrenoMetal/tools/MetalVulkanProbe.rs'),
                   cargo_lock_sha256=digest(output / 'Cargo.lock'), binary_sha256=digest(binary),
                   policy='exact_answers+exact_sampling', gpu_execution=False,
                   hardware_capabilities_observed=False, binary=str(binary))

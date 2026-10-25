@@ -10,11 +10,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--candidate', type=Path, default=ROOT / 'build/native-prelink/native-defaults-candidate.macho')
+parser.add_argument('--candidate', type=Path, default=ROOT / 'build/xnu-prelink/native-defaults-candidate.macho')
 parser.add_argument('--output', type=Path, default=ROOT / 'build/image4-ignition/audit.json')
 args = parser.parse_args()
 original = (ROOT / '.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed').read_bytes()

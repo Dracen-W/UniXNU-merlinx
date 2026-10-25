@@ -1,22 +1,22 @@
 # OnePlus Ace 5 Pro (hummer)
 
-hummer is the OnePlus Ace 5 Pro (PKR110) with the SM8750 SoC. The port below is an independent community project. The UniXNU organization does not maintain it.
+A community-maintained port for SM8750. Current results are based on the maintainer records at the revisions linked below.
 
-| Repository | Maintainer | State |
-| --- | --- | --- |
-| [UniXNU-hummer](https://github.com/2426120557/UniXNU-hummer) | [2426120557](https://github.com/2426120557) | UEFI works; XNU SMP and bootstrap checkpoints on the panel |
+| Repository | Maintainer |
+| --- | --- |
+| [UniXNU-hummer](https://github.com/2426120557/UniXNU-hummer) | [2426120557](https://github.com/2426120557) |
 
 ## State
 
-| Area | State |
-| --- | --- |
-| UEFI firmware and menu | works on hardware; GOP display and key input |
-| XNU kernel | SMP works; secondaries reach the scheduler; kernel bootstrap checkpoints draw on the panel; root not reached |
-| GPU (Adreno 830) | not started |
-| Persistent Data | not started |
+UEFI display and keys work on hardware. XNU starts six CPUs through PSCI, and the 160 MiB payload builds. The current device run waits for the root device. The root UUID adjustment requires another device run; Data, GPU and touch integration remain pending.
 
-The v51 kernel pairs the boot-progress checkpoints with `kboot` lines on the panel, so the early bootstrap is visible without the boot-progress diagnostic page. The board file still marks `[kernel]`, `[ipsw]` and `[payload]` as scaffolding. The README names the GPU as the main blocker.
+## Sources
 
-## Maintenance
+- [README: 2426120557/UniXNU-hummer](https://github.com/2426120557/UniXNU-hummer/blob/a24338025de2c8e1629f090ea4c3a51f980388a0/README.md)
 
-The maintainer owns the repository and its release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+## Use this port
+
+1. Read the repository build instructions and pinned records. Prepare its firmware, system images and board inputs.
+2. Build with that repository's commands. Use [Build and boot](/building) for common configuration.
+3. Follow the [bring-up order](/porting/bring-up) and save results through [log capture](/porting/log-capture).
+4. Update the [porting record](/porting/records) with the source revisions and last confirmed stage.

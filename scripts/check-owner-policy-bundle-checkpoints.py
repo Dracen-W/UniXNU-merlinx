@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -30,8 +30,8 @@ reports = []
 for directory, name, identity, count in cases:
     d = json.loads((ROOT / 'build' / directory / 'gdb-stop.json').read_text())
     reports.append(d)
-    plan = json.loads((ROOT / 'build/native-prelink' / (name + '.json')).read_text())
-    data = (ROOT / 'build/native-prelink' / (name + '.macho')).read_bytes()
+    plan = json.loads((ROOT / 'build/xnu-prelink' / (name + '.json')).read_text())
+    data = (ROOT / 'build/xnu-prelink' / (name + '.macho')).read_bytes()
     meta = np.macho(data)
     exports = np.exports(data, meta)
     symbols = {name: address for address, names in exports.items() for name in names}
@@ -85,7 +85,7 @@ require(refusal['stop_symbol'] == '__ZN17NativeVirtioBlock21configureVerificatio
         integrity['_native_virtio_verified_manifest_pointer'] == 0 and integrity['_native_virtio_verified_key_pointer'] == 0 and
         io['_native_virtio_ready'] == 0 and io['_native_virtio_read_requests'] == 0 and not refusal['indirect_memory'],
         'A genuine duplicated policy must return false before allocation, DMA or media publication')
-abi = json.loads((ROOT / 'build/native-virtio-block-verified-bundle/bindings.json').read_text())
+abi = json.loads((ROOT / 'build/virtio-mmio-block-verified-bundle/bindings.json').read_text())
 require(abi['virtual_methods_checked'] == 190 and abi['concrete_overrides'] == 25 and abi['unresolved_original_imports'] == 0, 'Concrete storage ABI must remain intact')
 print('PASS: both original media independently authenticate and read; actual OS root remains bound to its signed UUID')
 print('PASS: identical duplicated signed policy refuses before private allocation, DMA or readiness')

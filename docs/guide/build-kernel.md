@@ -2,20 +2,35 @@
 
 The kernel step builds Apple's XNU source with UniXNU patches, then prelinks the result against the original kernelcache.
 
+
+## Procedure
+
+1. Complete [host setup](/guide/requirements) and select the device with
+   `./unixnu defconfig <name> -D /path/to/device`.
+2. Run `./unixnu fetch` and `./unixnu status --json`. Check the OS revision,
+   archives and patch order. Supply the original kernelcache, firmware and any
+   device-specific ABI candidates from [build inputs](/porting/migration#build-inputs).
+3. Run `./unixnu build kernel`. Read the first failed step's log under the output
+   `logs/` directory if it stops. The final output is `kernel/kernel.macho`.
+4. Use `./unixnu build prelink` when only the prelink inputs changed and the
+   native kernel already exists. Rebuild the kernel for source or archive changes.
+5. Continue with [package, firmware and payload](/building#build-artifacts).
+
+
 ## Source and tree
 
 | Path | Contents |
 | --- | --- |
-| `out/<board>/tree/refer/xnu` | Pinned XNU source |
-| `out/<board>/tree/.cache/xnu-work` | Working clone with patches applied |
-| `out/<board>/tree/build/xnu/ios-obj` | Object files and compile command records |
-| `out/<board>/tree/build/xnu/ios-sym` | Symbols |
-| `out/<board>/tree/build/xnu/ios-dst` | Install headers |
-| `out/<board>/tree/.cache/fakeroot` | Kernel SDK root with restored headers |
-| `out/<board>/tree/.cache/firmware` | Device proprietary inputs, linked from the device repository |
-| `out/<board>/kernel/kernel.macho` | Prelinked kernel |
+| `out/<device>/<os_profile>/<config>/tree/refer/xnu` | Pinned XNU source |
+| `out/<device>/<os_profile>/<config>/tree/.cache/xnu-work` | Working clone with patches applied |
+| `out/<device>/<os_profile>/<config>/tree/build/xnu/ios-obj` | Object files and compile command records |
+| `out/<device>/<os_profile>/<config>/tree/build/xnu/ios-sym` | Symbols |
+| `out/<device>/<os_profile>/<config>/tree/build/xnu/ios-dst` | Install headers |
+| `out/<device>/<os_profile>/<config>/tree/.cache/fakeroot` | Kernel SDK root with restored headers |
+| `out/<device>/<os_profile>/<config>/tree/.cache/firmware` | Device proprietary inputs, linked from the device repository |
+| `out/<device>/<os_profile>/<config>/kernel/kernel.macho` | Prelinked kernel |
 
-The source version comes from `feeds.toml`:
+Format 2 selects XNU version fields from the OS profile. The source feed supplies the checkout; format 1 uses its version fields directly. A source entry has this form:
 
 ```toml
 [[source]]
@@ -59,14 +74,14 @@ Each `CONFIG_XNU_<NAME>` line becomes `XNU_<NAME>` in the kernel build environme
 | `XNU_ARM_DT_PLATFORM` | Links the Apple-format device tree platform expert | `build/armdt-platform/libArmDTPlatform.a` |
 | `XNU_ARMVIRT_PLATFORM` | Links the QEMU virt platform expert | `build/armvirt-platform/libArmVirtPlatform.a` |
 | `XNU_ARMCPU` | Links the architectural CPU and interrupt provider | `build/armcpu/libArmCpu.a` |
-| `XNU_NATIVE_UFS` | Links the UFS storage driver | `build/native-ufs/libNativeUfs.a` |
-| `XNU_NATIVE_AES` | Links the AES accelerator driver | `build/native-aes/libNativeAES.a` |
-| `XNU_NATIVE_VIRTIO_BLOCK` | Links the VirtIO block driver | `XNU_NATIVE_VIRTIO_BLOCK_ARCHIVE` or `build/native-virtio-block/libNativeVirtioBlock.a` |
-| `XNU_NATIVE_RAM_BLOCK` | Links the RAM block driver | `build/native-ram-block/libNativeRamBlock.a` |
-| `XNU_NATIVE_VIRTIO_CONSOLE` | Links the VirtIO console byte transport | `build/native-virtio-console/libNativeVirtioConsole.a` |
-| `XNU_NATIVE_MOBILE_DISPLAY` | Links the mobile display provider | `build/native-mobile-display/libNativeMobileDisplay.late.a` |
+| `XNU_NATIVE_UFS` | Links the UFS storage driver | `build/sheng-ufs/libShengUfs.a` |
+| `XNU_NATIVE_AES` | Links the AES accelerator driver | `build/software-aes/libSoftwareAES.a` |
+| `XNU_NATIVE_VIRTIO_BLOCK` | Links the VirtIO block driver | `XNU_NATIVE_VIRTIO_BLOCK_ARCHIVE` or `build/virtio-mmio-block/libVirtioMmioBlock.a` |
+| `XNU_NATIVE_RAM_BLOCK` | Links the RAM block driver | `build/ram-block/libRamBlock.a` |
+| `XNU_NATIVE_VIRTIO_CONSOLE` | Links the VirtIO console byte transport | `build/virtio-mmio-console/libVirtioMmioConsole.a` |
+| `XNU_NATIVE_MOBILE_DISPLAY` | Links the mobile display provider | `build/gop-framebuffer/libGopFramebuffer.late.a` |
 | `XNU_NATIVE_LEGACY_DISPLAY` | Links the legacy display provider | `build/native-legacy-display/libNativeLegacyDisplay.late.a` |
-| `XNU_NATIVE_ADRENO` | Links the Adreno GPU driver and kits | `build/native-adreno/libNativeAdreno.a` |
+| `XNU_NATIVE_ADRENO` | Links the Adreno GPU driver and kits | `build/adreno740/libAdreno740.a` |
 | `XNU_NATIVE_OFFLINE_GPU` | Links the offline GPU broker | `build/native-offline-gpu/libNativeOfflineGPU.late.a` |
 | `XNU_VERIFIED_ROOT_PROBE` | Links the verified root provider | `XNU_VERIFIED_ROOT_ARCHIVE` or `build/verified-root-xnu/libVerifiedRootProbe.a` |
 | `XNU_NATIVE_CS_HASH_CACHE` | Derives 4 KiB code signature hashes from verified 16 KiB blocks | none |
@@ -83,10 +98,10 @@ Each `CONFIG_XNU_<NAME>` line becomes `XNU_<NAME>` in the kernel build environme
 [kernel]
 defconfig = "sheng_defconfig"
 archives = [
-  "scripts/build-native-aes-bindings.py",
-  "scripts/build-libpthread-kernel.py",
-  "scripts/build-corecrypto-14.py",
-  "scripts/build-corecrypto-14.py --namespace",
+  "build-software-aes-bindings.py",
+  "build-libpthread-kernel.py",
+  "build-corecrypto-14.py",
+  "build-corecrypto-14.py --namespace",
 ]
 ```
 
@@ -96,7 +111,7 @@ The builders read symbol names through `scripts/xnu_symbols.py`. It uses the rec
 
 The kernel step prepares the public `IOStorageFamily` headers under `build/storage-abi/include` before the archive builders.
 
-`build-native-aes-bindings.py` and `build-native-adreno-accelerator.py` use the recorded audit results in `scripts/data/` when the original hardware evidence is absent. The recorded addresses belong to the kernelcache pinned in `board.toml`.
+`build-software-aes-bindings.py` and `build-adreno740-accelerator.py` use the recorded audit results in `scripts/data/` when the original hardware evidence is absent. The recorded addresses belong to the kernelcache pinned in `board.toml`.
 
 ## Build sequence
 
@@ -107,13 +122,13 @@ The kernel step prepares the public `IOStorageFamily` headers under `build/stora
 5. It builds and links the kernel with the archives, then prelinks it against the original kernelcache.
 6. `unixnu build prelink` repeats only the prelink. It replaces the earlier candidate and its report.
 
-The prelinked kernel is `out/<board>/kernel/kernel.macho`.
+The prelinked kernel is `out/<device>/<os_profile>/<config>/kernel/kernel.macho`.
 
 The prelink reads `[kernel.prelink]` from `board.toml`:
 
 ```toml
 [kernel.prelink]
-tool = "kits/NativePrelink/emit_prelink.py"
+tool = "kits/XnuPrelink/emit_prelink.py"
 kernel = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf"
 kernelcache_sha256 = "..."
 slide = "-0x1000000"

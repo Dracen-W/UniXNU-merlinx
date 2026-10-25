@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 build = ROOT / 'build'
 fixture = build / 'target-dyld-fixture'
 inputs = json.loads((fixture / 'inputs.json').read_text())
-candidate = json.loads((build / 'native-prelink/native-target-dyld-candidate.json').read_text())
+candidate = json.loads((build / 'xnu-prelink/native-target-dyld-candidate.json').read_text())
 
 
 def require(value, message):

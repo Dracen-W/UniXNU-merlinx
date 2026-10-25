@@ -2,6 +2,10 @@
 
 负载是一个 FAT 卷，作为 Android 启动镜像的 ramdisk。UniXNU 从中读取配置，DarwinBoot 从中读取内核、ADT 和可选 trust cache。
 
+使用 Mu-Silicium initrd 负载时，固件需嵌入 `UniXNURamDiskDxe`、DiskIoDxe 和 FAT 驱动，在 UniXNU 读取配置前发布负载卷。详见[负载发现](/zh/porting/uefi-firmware#payload-discovery)。
+
+启动参数保存在负载的 `EFI/UniXNU/unixnu.toml` 中。修改后运行 `./unixnu payload` 和 `./unixnu bootimg`，再启动新镜像。参数优先级和检查命令见[应用启动参数](/zh/xnu/boot-arguments#apply-arguments)。
+
 ## 卷布局
 
 ```
@@ -41,7 +45,9 @@ args = "-v serial=3"
 
 ## ADT sidecar
 
-ADT 使用 Apple 的扁平节点编码。`[payload.adt] tool` 指定的板级脚本生成它。负载步骤传入：
+格式 2 按包含路径编译 `[device_tree] source`。共享生成器结合硬件 DTB、解析后的 OS/板级属性和 payload 输入，写出 Apple 节点编码。参见[设备树](/zh/porting/device-tree)。
+
+格式 1 使用 `[payload.adt] tool` 指定的板级脚本，传入以下参数：
 
 | 选项 | 来源 |
 | --- | --- |

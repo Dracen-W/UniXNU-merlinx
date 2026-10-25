@@ -2,6 +2,10 @@
 
 The payload is a FAT volume that becomes the ramdisk of the Android boot image. UniXNU reads the configuration from it, and DarwinBoot reads the kernel, the ADT and the optional trust cache from it.
 
+For a Mu-Silicium initrd payload, embed `UniXNURamDiskDxe`, DiskIoDxe and the FAT driver in the firmware. They expose the payload volume before UniXNU reads its configuration. See [payload discovery](/porting/uefi-firmware#payload-discovery).
+
+Boot arguments are stored in the payload's `EFI/UniXNU/unixnu.toml`. After changing them, run `./unixnu payload` and `./unixnu bootimg`, then boot the new image. See [apply boot arguments](/xnu/boot-arguments#apply-arguments) for precedence and inspection commands.
+
 ## Volume layout
 
 ```
@@ -41,7 +45,9 @@ args = "-v serial=3"
 
 ## ADT sidecar
 
-The ADT uses Apple's flattened node encoding. The board script named in `[payload.adt] tool` generates it. The payload step calls the tool with:
+Format 2 compiles `[device_tree] source` with the declared include paths. The common generator combines the hardware DTB, resolved OS/device properties, and payload inputs, then writes Apple node encoding. See [Device tree](/porting/device-tree).
+
+Format 1 uses the board script named in `[payload.adt] tool`, with these arguments:
 
 | Option | Source |
 | --- | --- |

@@ -2,6 +2,15 @@
 
 UniXNU 启动管理器先从启动所在卷读取 `\EFI\UniXNU\unixnu.toml`，再扫描其他卷。kit 目录中的 `Kit.toml` 使用相同的 match 和注入段。
 
+启动参数保存在负载的 `EFI/UniXNU/unixnu.toml` 中。修改后运行 `./unixnu payload` 和 `./unixnu bootimg`，再启动新镜像。参数优先级和检查命令见[应用启动参数](/zh/xnu/boot-arguments#apply-arguments)。
+
+## 操作步骤 {#procedure}
+
+1. 找到 payload 卷中的 `EFI/UniXNU/unixnu.toml`。设备自动生成的 payload 先修改 `board.toml` 的 `[payload]` 或本地构建输入，再重新生成。
+2. 按 [unixnu.toml 字段](#unixnu-toml)设置启动项与路径，确认引用的内核、sidecar、驱动和 initrd 都在卷中。
+3. 使用 kit 时填写 [Kit.toml](#kit-toml)，逐项核对目标是否满足匹配规则，并按下方规范使用相对于配置或 kit 的路径。
+4. 重新构建 payload 和启动镜像。用 `mtype -i <payload.img> ::/EFI/UniXNU/unixnu.toml` 检查打包配置，启动后核对[菜单行为](#菜单行为)。
+
 ## unixnu.toml
 
 ```toml
@@ -161,14 +170,14 @@ enabled = true
 | `confirm` | 启动前显示的问题。该菜单项不会被倒计时启动 |
 | `confirm_titles` | 可选的选项标题。需要同时给出 `confirm` 和 `confirm_args` |
 | `confirm_args` | 每个选项一个参数字符串，选中项追加到 `args` |
-| `action` | `action` 类型的 `reset`、`shutdown` 或 `exit` |
+| `action` | `action` 类型的 `reset`、`shutdown`、`exit` 或 `tools` |
 | `enabled` | `false` 跳过 |
 
 带 `confirm` 的菜单项只在按 Enter 时启动。没有选项时，其他按键取消；没有输入设备的机器也取消。给出 `confirm_titles` 时，上下键切换选项，Cancel 默认选中。选中的 `confirm_args` 追加到菜单项 `args` 的副本。
 
 默认项需要确认时，倒计时改用第一个不需要确认的菜单项。
 
-内置配置包含 `exit`、`reset` 和 `shutdown`。找不到文件时，可移动加载器会加在它们之前。
+内置配置包含 `exit`、`reset`、`shutdown` 和 `tools`。`tools` 会打开二级菜单，列出已安装的菜单插件。找不到文件时，可移动加载器会加在它们之前。
 
 ### [entry.chosen]
 

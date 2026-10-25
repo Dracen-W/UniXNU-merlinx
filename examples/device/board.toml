@@ -1,49 +1,44 @@
-# Example device repository for the unixnu build driver. Copy this directory, rename it and fill in
-# your board. Try it as it is with:  ./unixnu defconfig example_defconfig -D examples/device && ./unixnu status
+schema_version = 2
 
 [board]
-example = true                     # marks a sample: unixnu will not build from it
-name = "example"                   # output goes to out/example/
-soc = "SOC"
-description = "EXAMPLE board, not a real device"
-kit = "example"                    # the package/ of the device repository appears as kits/example
+example = true
+name = "example"
+soc = "SM8550"
+soc_source = "sm8550"
+os_profile = "ipados-17.7.11-21H461"
+description = "Hardware values required"
+kit = "example"
+
+[components]
+include = ["ArmDTPlatform", "ArmCpu", "SoftwareAES", "XnuPrelink", "DarwinBoot"]
 
 [kernel]
 defconfig = "example_defconfig"
+config_fragments = ["arch:configs/common.config", "soc:configs/sm8550.config", "os:configs/ipados.config"]
+patch_series = ["arch:patches/xnu/series", "soc:patches/xnu/series", "os:patches/xnu/series", "device:patches/xnu/series"]
 
-[kernel.prelink]
-tool = "kits/NativePrelink/emit_prelink.py"
-kernel = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf"
-# kernelcache_sha256 = "..."       # optional: refuse any other original kernelcache
-slide = "-0x1000000"
-roots = [
-  # "com.apple.driver.AppleARMPlatform",   # bundle identifiers kept in the prelinked kernel
-]
+[device_tree]
+source = "device:dts/board.dts"
+include_dirs = ["soc:dts"]
 
 [firmware]
-config = "example"                 # Resources/Configs/example.toml in the Mu-Silicium checkout (--uefi)
+# Replace with this board's UEFI configuration and paths.
+config = "example"
 dsc = "Platforms/Vendor/examplePkg/example.dsc"
 fd = "Build/examplePkg/{target}_CLANGPDB/FV/SILICIUM_UEFI.fd"
-# preflight = ["scripts/check-example.py"]     # scripts of the build tree run before the firmware build
-# patches = ["Resources/MuPatches/Example.patch"]   # applied to edk2 for the build, then reverted
-packages = [                       # {uefi}, {edk2} and {tree} are replaced
-  "{uefi}",
-  "{tree}/package",
-  "{tree}/drivers/DarwinBoot",
-  "{edk2}",
-]
+packages = ["{uefi}", "{tree}/package", "{tree}/drivers/DarwinBoot", "{edk2}"]
 
 [firmware.defines]
 DEVICE_MODEL = "example"
 
-# Image parameters (base, offsets, page size, header version) come from the Mu-Silicium device
-# config; [bootimg.image] overrides them, and each [[bootimg.dtb_node]] adds a node to the device tree.
-# [bootimg.image]
-# pagesize = 4096
-#
-# [[bootimg.dtb_node]]
-# path = "/reserved-memory/example_region"
-# props = [
-#   { name = "label", type = "s", value = "example" },
-#   { name = "reg", type = "x", value = ["0x0", "0x80000000", "0x0", "0x100000"] },
-# ]
+[payload]
+volume = "EXAMPLE"
+size_mib = 192
+loader = "firmware"
+title = "UniXNU"
+kernel_args = ["-v", "serial=3"]
+
+[payload.adt]
+# Supply the board's identity seed through --unique-chip-id.
+chip_id = "207"
+unique_chip_id = "required"

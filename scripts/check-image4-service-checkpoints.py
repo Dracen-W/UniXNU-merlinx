@@ -6,13 +6,13 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 build = ROOT / 'build'
-plan = json.loads((build / 'native-prelink/native-defaults-candidate.json').read_text())
+plan = json.loads((build / 'xnu-prelink/native-defaults-candidate.json').read_text())
 audit = json.loads((build / 'image4-ignition/audit.json').read_text())
-kernel = (build / 'native-prelink/native-defaults-candidate.macho').read_bytes()
+kernel = (build / 'xnu-prelink/native-defaults-candidate.macho').read_bytes()
 native = np.macho(kernel)
 
 

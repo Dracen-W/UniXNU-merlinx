@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -21,7 +21,7 @@ def report(name):
 
 
 runs = [report(name) for name in ('owner-hvf-512-shared-region', 'owner-hvf-512-cache-permission')]
-candidate = ROOT / 'build/native-prelink/native-owner-dt-panic-candidate'
+candidate = ROOT / 'build/xnu-prelink/native-owner-dt-panic-candidate'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 kernel = candidate.with_suffix('.macho').read_bytes()
 require(hashlib.sha256(kernel).hexdigest() == plan['candidate_sha256'] ==

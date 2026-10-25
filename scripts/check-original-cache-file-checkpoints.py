@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 build = ROOT / 'build'
 fixture = build / 'native-cache-file-fixture'
 metadata = json.loads((fixture / 'file-probe.json').read_text())
-candidate = json.loads((build / 'native-prelink/native-readonly-file-candidate.json').read_text())
+candidate = json.loads((build / 'xnu-prelink/native-readonly-file-candidate.json').read_text())
 
 
 def require(value, message):

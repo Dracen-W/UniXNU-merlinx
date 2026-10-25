@@ -1,6 +1,15 @@
 # Skip Setup
 
+Requires macOS image tools, a matching packed Data seed and the board's `skip_setup_tool`. Prepare them through [Building](/building). After the payload command below, run `./unixnu bootimg` and boot the newly packed image.
+
 A fresh Data seed starts the Setup app on first boot. The payload can mark Setup as done before the image is written, so the device boots to SpringBoard.
+
+## Procedure {#procedure}
+
+1. Prepare a matching Data seed, macOS image tools and the device's `skip_setup_tool`. Check the [build version](#build-version) and [ADT identity](#device-tree) against the selected IPSW.
+2. If the seed needs resizing, complete [Data-volume preparation](/guide/userdata#data-volume) first. Record the chosen seed path.
+3. Run the [payload command](#command) with `--skip-setup` and the required device inputs. Check [output](#output): `payload.json` must contain `"skip_setup": true`.
+4. Run `./unixnu bootimg`, boot the new image and perform [verification](#verify). Record the seed, image revision and observed userland stage.
 
 ## Command
 
@@ -61,7 +70,7 @@ Update both values when the board targets a different iOS build. `LastSystemVers
 
 ## Device tree
 
-The ADT adds four `/chosen` properties with `--ipad-identity`:
+The supplied format 2 OS profile sets these typed `/chosen` properties. Format 1 ADT tools select them through `--ipad-identity`:
 
 | Property | Value |
 | --- | --- |
@@ -87,9 +96,9 @@ sheng-disable-jobs=com.apple.identityservicesd,com.apple.locationd,com.apple.Com
 The payload directory contains:
 
 ```
-out/<board>/payload/data-skip-setup-<hash>.dbr
-out/<board>/payload/payload.img
-out/<board>/payload/payload.json
+out/<device>/<os_profile>/<config>/payload/data-skip-setup-<hash>.dbr
+out/<device>/<os_profile>/<config>/payload/payload.img
+out/<device>/<os_profile>/<config>/payload/payload.json
 ```
 
 `payload.json` records:
@@ -106,7 +115,7 @@ The edited seed is cached by the hash of the original and of `skip_setup_args`. 
 
 1. Build the payload with `--skip-setup`.
 2. Check `payload.json` has `"skip_setup": true`.
-3. Boot the image.
+3. Run `./unixnu bootimg`, then boot the newly packed image.
 4. The log reaches SpringBoard instead of the Setup pages.
 
 The reference implementation is `scripts/seed-data-skip-setup.py` in this repository. The sheng port recorded the first hardware boot with these changes.

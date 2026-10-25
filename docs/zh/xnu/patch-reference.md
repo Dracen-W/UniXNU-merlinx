@@ -1,6 +1,8 @@
 # 补丁参考
 
-补丁按名称顺序应用 `patches/xnu/*.patch` 和 `kits/NativePrelink/patches/*.patch`。后置补丁 `zzw-*`、`zzy-*` 和 `zzz-*` 最后应用。
+格式 2 按 `[kernel] patch_series` 声明顺序应用配置层和组件补丁。`unixnu status --json` 显示最终序列。补丁后的 XNU 源码保存在目标独立的 `tree/.cache/xnu-work/`。
+
+补丁按名称顺序应用 `patches/xnu/*.patch` 和 `kits/XnuPrelink/patches/*.patch`。后置补丁 `zzw-*`、`zzy-*` 和 `zzz-*` 最后应用。
 
 ## 构建与工具链
 
@@ -64,7 +66,7 @@
 | --- | --- |
 | `offline-native-gpu-broker` | 启动离线 GPU broker |
 | `zzy-native-gpu-addon-mount` | 为 GPU addon 内容和启动任务挂载只读 union 视图 |
-| `zzw-native-adreno-sandbox-grant` | 让 NativeAdreno 在 `NativeSandboxGrantProcess` 中指定 render server，并使其 user client 通过沙箱打开 |
+| `zzw-native-adreno-sandbox-grant` | 让 Adreno740 在 `NativeSandboxGrantProcess` 中指定 render server，并使其 user client 通过沙箱打开 |
 | `native-aes-personality` | 注册存储和控制台 personality |
 
 ## 诊断
@@ -98,7 +100,7 @@
 
 ## 预链接补丁
 
-`kits/NativePrelink/patches/`：
+`kits/XnuPrelink/patches/`：
 
 | 补丁 | 作用 |
 | --- | --- |

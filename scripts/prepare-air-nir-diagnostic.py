@@ -112,7 +112,7 @@ try:
                 target=destination/'NativeOfflineMetal';symbols=subprocess.check_output(['xcrun','nm','-n',target],text=True)
                 method=re.search(r'^([0-9a-f]{16})\s+\S\s+-\[NativeOfflineMetalPlugin initWithAcceleratorPort:\]$',symbols,re.M)
                 if not method:raise SystemExit('Cannot identify actual own factory method')
-                sys.path.insert(0,str(ROOT/'kits/NativePrelink'));from native_prelink import macho,backed_offset
+                sys.path.insert(0,str(ROOT/'kits/XnuPrelink'));from native_prelink import macho,backed_offset
                 pristine=target.read_bytes();offset=backed_offset(macho(pristine)['segments'],int(method[1],16),4,len(pristine))
                 broken=bytearray(pristine);broken[offset]^=1;target.write_bytes(broken)
                 if sum(a!=b for a,b in zip(pristine,broken))!=1:raise SystemExit('Own negative copy must change exactly one instruction byte')

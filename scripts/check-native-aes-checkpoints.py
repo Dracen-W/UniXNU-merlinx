@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 build = ROOT / 'build'
 
@@ -18,7 +18,7 @@ def require(value, message):
 
 
 def plan(name):
-    path = build / 'native-prelink' / (name + '.macho')
+    path = build / 'xnu-prelink' / (name + '.macho')
     data = path.read_bytes()
     result = json.loads(path.with_suffix('.json').read_text())
     require(hashlib.sha256(data).hexdigest() == result['candidate_sha256'], 'candidate identity')
@@ -38,15 +38,15 @@ positive = plan('native-aes-api-candidate')
 negative = plan('native-aes-kat-negative-candidate')
 require(positive['original_executable_sha256'] == negative['original_executable_sha256'],
         'all genuine original component code retained in both controls')
-own = (ROOT / 'drivers/NativeAES/NativeAES.cpp').read_text()
-control = (build / 'native-aes-kat-negative/NativeAES.cpp').read_text()
+own = (ROOT / 'drivers/SoftwareAES/NativeAES.cpp').read_text()
+control = (build / 'software-aes-kat-negative/NativeAES.cpp').read_text()
 require(own.count('0x76,0x49,0xab,0xac') == 1 and
         control == own.replace('0x76,0x49,0xab,0xac', '0x77,0x49,0xab,0xac'),
         'negative control changes only one own known-answer byte')
-bindings = json.loads((build / 'native-aes/bindings.json').read_text())
+bindings = json.loads((build / 'software-aes/bindings.json').read_text())
 require(bindings['compiled_subclass_slots_checked'] == 181 and
         not bindings['original_instructions_modified'], 'compiled ordinary iOS subclass dispatch')
-require(hashlib.sha256((build / 'native-aes/NativeAES.o').read_bytes()).hexdigest() ==
+require(hashlib.sha256((build / 'software-aes/NativeAES.o').read_bytes()).hexdigest() ==
         bindings['compiled_subclass_sha256'], 'qualified subclass object identity')
 
 
@@ -116,6 +116,6 @@ result = dict(candidate_sha256=positive['candidate_sha256'], negative_candidate_
               original_cache_loader_success=False, original_cache_load_address=0,
               original_error_message_pointer_target='shared cache file open() failed',
               native_4k=True, target_launchd_main_executed=False, functional_ipados_booted=False, hardware_tested=False)
-(build / 'native-aes/checkpoints.json').write_text(json.dumps(result, indent=2) + '\n')
+(build / 'software-aes/checkpoints.json').write_text(json.dumps(result, indent=2) + '\n')
 print('PASS: genuine AES answers/interfaces, wrong-answer service refusal and original native-4K dyld prepare/cache loader')
 print('Cache directory is missing in the two-file root; no cache mapping, launchd main, iPadOS UI or hardware boot is claimed')

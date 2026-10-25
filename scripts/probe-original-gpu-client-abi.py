@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--missing-base',action='store_true');p.add_argument('--default-off',action='store_true');a=p.parse_args()
 if a.missing_base and a.default_off:p.error('Select one independent control')
 if subprocess.run(['pgrep','-f','qemu-system-aarch64'],capture_output=True).returncode==0:raise SystemExit('Another QEMU is running')
-base=ROOT/'build/native-prelink/native-owner-original-client-abi-candidate';fixture=ROOT/'build'/('darwinboot-owner-hvf-original-client-abi'+('-missing-base' if a.missing_base else '-default-off' if a.default_off else ''))
+base=ROOT/'build/xnu-prelink/native-owner-original-client-abi-candidate';fixture=ROOT/'build'/('darwinboot-owner-hvf-original-client-abi'+('-missing-base' if a.missing_base else '-default-off' if a.default_off else ''))
 if (fixture/'gdb-stop.json').exists():raise SystemExit('Preserve the existing observation before another run')
 build=json.loads((ROOT/'build/native-offline-accelerator/build-report.json').read_text())
 for rel,digest in build['source_sha256'].items():

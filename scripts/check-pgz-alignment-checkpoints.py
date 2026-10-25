@@ -15,7 +15,7 @@ def require(value, message):
 
 
 def candidate(stem, native, expected):
-    path = ROOT / 'build/native-prelink' / stem
+    path = ROOT / 'build/xnu-prelink' / stem
     plan = json.loads(path.with_suffix('.json').read_text())
     legacy = json.loads((path.parent / 'native-owner-pgz-legacy-probe-candidate.json').read_text())
     require(plan['native_sha256'] == native and plan['candidate_sha256'] == expected ==
@@ -62,7 +62,7 @@ print('PASS: real PGZ secondary-page allocation validates, writes through and re
 normal = candidate('native-owner-pgz-fixed-candidate',
     'ba60f353a90b61fb6d63425648aeb4475a2c237ed19800d60d2f583cea035bb3',
     'a4a5fd00dbfb3d41ffe7913cc31b14a2db58e27f5d89129d64018e534b9dc309')
-symbols = subprocess.check_output(['xcrun', 'nm', '-U', ROOT / 'build/native-prelink/native-owner-pgz-fixed-candidate.macho'], text=True)
+symbols = subprocess.check_output(['xcrun', 'nm', '-U', ROOT / 'build/xnu-prelink/native-owner-pgz-fixed-candidate.macho'], text=True)
 require('_native_zone_pgz_probe_' not in symbols, 'Allocator instrument absent from normal candidate')
 main = report('launchd-main', normal)
 require(main['stop_symbol'] == 'original-launchd-main' and main['original_launchd_main_executed'] and

@@ -1,6 +1,57 @@
 # 设备配置
 
-设备仓库有四个配置文件：`board.toml`、`configs/<name>_defconfig`、`feeds.toml` 和 `local.toml`。
+格式 2 在 `board.toml` 顶层设置 `schema_version = 2`。省略该字段时使用格式 1。
+配置归属和示例见[设备仓库规范](/zh/porting/device-repository)。
+
+## 本地构建参数 {#local-build-inputs}
+
+在 UniXNU 仓库中将 `unixnu.example.toml` 复制为 `unixnu.local.toml`，填写设备路径。Git 忽略此文件。使用 `--config /path/to/build.toml` 选择其他文件。
+
+```toml
+[build]
+device = "../UniXNU-<device>"
+uefi = "../uefi-<device>"
+dtb = "/path/to/firmware.dtb"
+kernelcache = "/path/to/kernelcache"
+trust_cache = "/path/to/trustcache.bundle"
+data_ramdisk = "/path/to/data-seed.dbr"
+unique_chip_id = "<hex>"
+jobs = 8
+target = "DEBUG"
+kernel_args = ["-v", "serial=3", "debug=0x14e"]
+```
+
+将占位符替换为设备所需输入。相对路径从配置文件所在目录解析。优先级为命令行、环境变量、本地文件、设备默认值。`kernel_args` 按名称覆盖板级参数，`--kernel-arg` 按名称覆盖本地参数。
+
+路径字段包括 `device`、`out`、`uefi`、`edk2`、`kernelcache`、`kernel`、`trust_cache`、`owner_trust_cache`、`data_ramdisk`、`gpu_addon`、`dtb`、`fd`、`ramdisk` 和 `output`。其他字段为 `ipsw`（路径或 URL）、`unique_chip_id`（十六进制字符串）、`jobs`（正整数）、`target`（`DEBUG` 或 `RELEASE`）、`kernel_args`（字符串数组）。`ramdisk = "none"` 选择空启动镜像 ramdisk。
+
+```sh
+./unixnu defconfig <device>_defconfig
+./unixnu kernel
+./unixnu firmware
+./unixnu payload
+./unixnu bootimg
+./unixnu status --json
+```
+
+`status` 的 `build_config` 字段显示选中的文件。`unixnu.local.toml` 保存构建输入，设备仓库的 `local.toml` 保存组件源码覆盖路径。
+
+## 配置字段
+
+| 表 | 键 | 含义 |
+| --- | --- | --- |
+| `board` | `soc_source` | 固定的 `kind = "soc"` 源码名称 |
+| `board` | `os_profile` | `profiles/os/` 下的目录名 |
+| `components` | `include` | 规范组件 ID，依赖按构建顺序解析 |
+| `kernel` | `config_fragments` | 有序的配置片段 |
+| `kernel` | `patch_series` | 有序的 series 文件 |
+| `device_tree` | `source` | DTS 入口，例如 `device:dts/sheng.dts` |
+| `device_tree` | `include_dirs` | DTS 包含路径，例如 `soc:dts` |
+
+配置层按 ARM64、SoC、OS、设备顺序应用。表按键合并，数组替换。
+所选 defconfig 在 `config_fragments` 之后应用。路径前缀为 `arch:`、`soc:`、`os:`
+和 `device:`。series 条目还支持 `component:<ID>/path`。
+`unixnu status --json` 显示最终配置。
 
 ## board.toml
 
@@ -111,6 +162,7 @@
 | `panic_screen` | 布尔 | 把 panic 屏幕打进负载内核 |
 | `trust_cache_sha256` | 数组 | 接受的 trust cache 哈希。用 `--owner-trust-cache` 传入的 owner 包跳过此列表 |
 | `kernel_args` | 数组 | 默认内核参数 |
+| `tools` | 布尔 | 在生成的菜单中加入 Tools；按[日志抓取步骤](/zh/porting/log-capture#firmware-setup)配置插件 |
 | `timeout` | 整数 | 菜单超时 |
 | `skip_setup_tool` | 字符串 | `--skip-setup` 使用的脚本 |
 
@@ -185,7 +237,7 @@ package = "/path/to/package"
 commit = "0123456789abcdef"
 ```
 
-由 `unixnu fetch` 写入。构建使用锁定的 commit，锁只记录 git 源码。
+由 `unixnu fetch` 写入，记录 Git 源码版本。格式 2 中显式源码 commit 优先于 lock，包括所选 OS 的 XNU 版本。格式 1 使用 lock 优先顺序。官方别名可复用兼容名称对应的 lock 条目。
 
 ## 模块解析
 

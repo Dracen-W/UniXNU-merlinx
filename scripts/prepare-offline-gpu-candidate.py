@@ -8,12 +8,12 @@ import subprocess
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',required=True,type=Path);a=p.parse_args()
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
-base=ROOT/'build/native-prelink/native-owner-offline-gpu-broker-cpu-candidate.json';old=json.loads(base.read_text())
+base=ROOT/'build/xnu-prelink/native-owner-offline-gpu-broker-cpu-candidate.json';old=json.loads(base.read_text())
 kernel=ROOT/'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf'
 original=ROOT/'.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed';output=a.output.resolve()
 if output.exists() or output.with_suffix('.json').exists():raise SystemExit('Refuse to overwrite any existing candidate or report')
 if sha(original)!=old['original_sha256'] or sha(base.with_suffix('.macho'))!=old['candidate_sha256']:raise SystemExit('Exact original target and retained base candidate required')
-cmd=['python3',ROOT/'kits/NativePrelink/emit_prelink.py','--kernel',kernel,'--prelinked',original,'--slide='+hex(old['slide']),'--output',output]
+cmd=['python3',ROOT/'kits/XnuPrelink/emit_prelink.py','--kernel',kernel,'--prelinked',original,'--slide='+hex(old['slide']),'--output',output]
 for root in old['components']:cmd+=['--root',root]
 # The emitted plan records relocated addresses; the emitter consumes ORIGINAL VAs.
 for name,address in old['early_security_initializers'].items():cmd+=['--early-security-init',name+'='+hex(address-old['slide'])]

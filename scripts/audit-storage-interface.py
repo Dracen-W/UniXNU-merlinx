@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 source = ROOT / 'refer/IOStorageFamily'
 revision = subprocess.check_output(['git', '-C', source, 'rev-parse', 'HEAD'], text=True).strip()
@@ -91,7 +91,7 @@ for at in range(vtable + 16, end, 8):
         break
     methods.append(relocations[at])
 require(len(methods) == 190 and methods.count('___cxa_pure_virtual') == 14, 'Public iOS class dispatch shape changed')
-kernel_path = ROOT / 'build/native-prelink/native-apfs-load-positive.macho'
+kernel_path = ROOT / 'build/xnu-prelink/native-apfs-load-positive.macho'
 kernel = kernel_path.read_bytes()
 plan = json.loads(kernel_path.with_suffix('.json').read_text())
 require(hashlib.sha256(kernel).hexdigest() == plan['candidate_sha256'] and

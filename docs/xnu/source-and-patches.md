@@ -1,80 +1,75 @@
 # Source and patches
 
-UniXNU builds XNU from the pinned Apple source and applies its patches in name order.
+The selected OS profile pins XNU and its ABI inputs. The iPadOS 17.7.11 profile
+uses `xnu-10063.141.1`, Darwin 23.6.0, DriverKit headers from `xnu-10063.121.3`,
+and TrustCache headers from `xnu-8796.101.5`.
 
-## Source
+`feeds.toml` supplies libplatform, libdispatch, AvailabilityVersions, libpthread,
+corecrypto, IOStorageFamily, and edk2. The format 2 OS profile's explicit XNU
+revision takes priority over a recorded source lock.
 
-`feeds.toml` pins the source:
+## Procedure {#procedure}
 
-| Source | Tag | Purpose |
-| --- | --- | --- |
-| `xnu` | `xnu-10063.141.1` | Kernel source |
-| `libplatform` | `libplatform-316.100.10` | Platform headers |
-| `libdispatch` | `libdispatch-1477.100.9` | Dispatch headers |
-| `AvailabilityVersions` | `AvailabilityVersions-141.1` | Availability macros |
-| `libpthread` | `libpthread-519.120.4` | Source pthread component |
-| `corecrypto-2023` | commit `11fba65` | Source corecrypto component |
-| `IOStorageFamily` | commit `e45fbe3` | Public storage headers for the block drivers |
-| `edk2` | `release/202608` | EDK II base for the package and firmware |
-
-The XNU entry also carries:
-
-```toml
-darwin = "23.6.0"
-version = "10063.141.1"
-driverkit_tag = "xnu-10063.121.3"
-trustcache_tag = "xnu-8796.101.5"
-```
-
-`driverkit_tag` supplies `iokit/DriverKit` headers that the current tag omits. `trustcache_tag` supplies `EXTERNAL_HEADERS/TrustCache`.
+1. Select the device and save `./unixnu status --json`. Record the OS profile, XNU source revision, configuration and ordered patches.
+2. Identify the change's [owner](#ownership). Read the relevant [patch reference](/xnu/patch-reference), source and ABI inputs before editing.
+3. Prepare the kernel once with `./unixnu kernel`. Use [Add a patch](#add-a-patch) to export the change against that prepared baseline and place it in the owning series.
+4. Run `./unixnu status --json` again, check the patch position, and rebuild `./unixnu kernel`. Confirm patch application, archive builds, link and prelink succeed.
+5. Rebuild `./unixnu payload` and `./unixnu bootimg` for boot validation. Record the affected checkpoint using [bring-up](/porting/bring-up). Use [Updating the source](#updating-the-source) when changing the pinned XNU version.
 
 ## Patch application
 
-`scripts/build-xnu-4k-baseline.sh` applies patches to `.cache/xnu-work`:
+Format 2 resolves `[kernel] patch_series` in declared order. A series lists one
+patch path per line, relative to the series file or prefixed with `arch:`, `soc:`,
+`os:`, `device:`, or `component:<ID>/`. Component patches participate in the
+same resolved order. `unixnu status --json` prints that order.
 
-1. Reverse the patches that overlap earlier contexts, when they are present:
-   - `patches/xnu/zzz-boot-progress.patch`
-   - `patches/xnu/zzy-native-gpu-addon-mount.patch`
-2. Apply every `patches/xnu/*.patch` and `kits/NativePrelink/patches/*.patch` in name order.
-3. Skip a patch that is already applied.
-4. Run `prepare-xnu-source.py` to restore omitted headers.
+Kernel preparation creates `tree/.cache/xnu-work` under the selected target,
+checks each patch, applies it, and prepares missing source headers. The target
+also owns generated headers and `tree/build` outputs.
 
-The late patches carry the `zzw`, `zzy` and `zzz` prefixes so they apply last. The reverse step lets a new build start from a clean context for the two regions that earlier patches also edit.
+Format 1 selects `patches/xnu/*.patch` and `kits/XnuPrelink/patches/*.patch` in
+filename order. Its shell preparation handles the late `zzw`, `zzy`, and `zzz`
+patches and checks already-applied patches.
 
-A patch is idempotent:
+## Ownership
 
-```sh
-git -C .cache/xnu-work apply --reverse --check "$PATCH" && skip
-git -C .cache/xnu-work apply --check "$PATCH"
-git -C .cache/xnu-work apply "$PATCH"
-```
-
-`--check` stops the build before a partial application.
-
-## Patch layout
-
-| Directory | Contents |
+| Location | Contents |
 | --- | --- |
-| `patches/xnu/` | Kernel patches |
-| `patches/libpthread/` | Source pthread patches |
-| `patches/mesa/` | Turnip and Mesa build patches |
-| `kits/NativePrelink/patches/` | Prelink ABI patches |
-
-A device repository can add `patches/` modules. The build tree links them under `tree/patches/`, and the kernel script reads `$ROOT/patches/xnu/*.patch`, which includes device patches.
+| ARM64 profile | Common architecture configuration and patch series |
+| SoC repository | Hardware operations and SoC patch series |
+| OS profile | Version-specific fixes and prelink patch selection |
+| Device repository | Board-specific patch series |
+| Component repository | Patches required by that component |
+| `patches/libpthread/`, `patches/mesa/` | Library and compiler source patches |
 
 ## Add a patch
 
-1. Build the kernel once so `.cache/xnu-work` exists.
-2. Edit the source in `.cache/xnu-work`.
-3. Generate the patch:
+1. Build the selected kernel once to prepare the target's `tree/.cache/xnu-work`.
+   Set `XNU_WORK` to that directory and `DEVICE_DIR` to the device repository.
+2. Copy the files you will edit into a temporary Git directory, preserving their
+   XNU-relative paths. Stage this baseline before editing. For `start.s`:
 
 ```sh
-git -C .cache/xnu-work diff -- <paths> > patches/xnu/my-change.patch
+PATCH_WORK=$(mktemp -d)
+git -C "$PATCH_WORK" init
+mkdir -p "$PATCH_WORK/osfmk/arm64"
+cp "$XNU_WORK/osfmk/arm64/start.s" "$PATCH_WORK/osfmk/arm64/start.s"
+git -C "$PATCH_WORK" add osfmk/arm64/start.s
 ```
 
-4. Run `unixnu build kernel` again.
+3. Edit the temporary copy, then export its changes:
 
-A patch that adds a build option follows the pattern in `native-aes-personality.patch`:
+```sh
+git -C "$PATCH_WORK" diff -- osfmk/arm64/start.s > "$DEVICE_DIR/patches/xnu/my-change.patch"
+```
+
+4. Review the patch, add `my-change.patch` to the device series and run
+   `./unixnu build kernel` from UniXNU. Put shared changes in the owning SoC,
+   architecture, OS or component series instead, at the position matching the baseline.
+5. Inspect the resolved patch order with `./unixnu status --json` and record the
+   build result. Kernel preparation reconstructs its working source when patch inputs change.
+
+A patch that adds a build option follows this personality pattern:
 
 ```c
 #if defined(XNU_MY_OPTION) && XNU_MY_OPTION
@@ -122,7 +117,7 @@ The kernel script reads the variables and adds object flags, archives and link i
 ## Source tree
 
 ```
-out/<board>/tree/
+out/<device>/<os_profile>/<config>/tree/
   refer/xnu/                 pinned source
   .cache/xnu-work/           working clone
   .cache/fakeroot/           kernel SDK root
@@ -131,18 +126,19 @@ out/<board>/tree/
   build/xnu/ios-sym/         symbols
   build/xnu/ios-dst/         install headers
   patches/xnu/               linked patches
-  kits/NativePrelink/        prelink tool and patches
+  kits/XnuPrelink/        prelink tool and patches
 ```
 
 ## Updating the source
 
-1. Set a new `ref` and `commit` in `feeds.toml`.
-2. Update `darwin`, `version`, `driverkit_tag` and `trustcache_tag`.
-3. Rebase the patches onto the new tag.
-4. Update the archive builders in `[kernel] archives` for the new compile records.
-5. Rebuild the prelink and re-qualify the kernelcache pin.
+1. Update `xnu_version` and the full `xnu_revision` under `[os]` in the selected OS `profile.toml`. Format 1 updates `ref` and `commit` in its XNU feed.
+2. Review `darwin`, `driverkit_tag`, `trustcache_tag`, IPSW identity and the prelink kernelcache pin in the same profile.
+3. Rebase the ordered patches onto the selected source and update component and auxiliary archive builders for its compile records.
+4. Run `./unixnu fetch` and `./unixnu status --json`. Confirm the resolved XNU revision matches the selected profile.
+5. Run `./unixnu kernel`, inspect link, prelink and component ABI results, then rebuild payload and boot image and record verification.
 
-The prelink output depends on the original kernelcache ABI. A new source version can require a new kernelcache pin and new roots.
+Prelink depends on the original kernelcache ABI. Qualify the matching kernelcache,
+root components and ABI inputs when changing the source version.
 
 ## Next steps
 

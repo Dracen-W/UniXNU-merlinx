@@ -55,7 +55,7 @@ def binary_identity(path):
 executable = OUT / 'pipeline_cache'
 subprocess.run(['xcrun', 'clang++', '-std=c++23', '-O1', '-Wall', '-Wextra', '-Werror',
                 '-Wno-unused-parameter', '-Wno-unused-const-variable', '-I', '/opt/homebrew/include',
-                '-I', SHADERS.parent, ROOT / 'drivers/NativeAdreno/tests/hostsim/pipeline_cache.cpp',
+                '-I', SHADERS.parent, ROOT / 'drivers/Adreno740/tests/hostsim/pipeline_cache.cpp',
                 '-o', executable], check=True)
 env = {k: v for k, v in os.environ.items() if not k.startswith(('IR3_', 'FD_MESA_', 'NIR_', 'TU_', 'HOSTSIM_', 'MESA_'))}
 env.update(DYLD_INSERT_LIBRARIES=str(SHIM), MESA_SHADER_CACHE_DISABLE='true', MESA_LOG='')

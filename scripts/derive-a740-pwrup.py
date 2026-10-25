@@ -49,7 +49,7 @@ def main():
             raise SystemExit('Ambiguous or missing ' + name + ': ' + repr(hits))
         resolved.append(offsets.pop() + plus)
     if check_only:
-        current = (ROOT / 'drivers/NativeAdreno/NativeAdrenoPwrupRegs.h').read_text()
+        current = (ROOT / 'drivers/Adreno740/NativeAdrenoPwrupRegs.h').read_text()
         expected = [int(v, 16) for v in re.findall(r'0x([0-9a-fA-F]{8}),', current)]
         if expected != resolved:
             raise SystemExit('A740 power-up register table is stale: ' + repr((expected, resolved)))
@@ -68,7 +68,9 @@ static const uint32_t NativeAdrenoA740PwrupRegs[]={
     (sizeof(NativeAdrenoA740PwrupRegs)/sizeof(NativeAdrenoA740PwrupRegs[0]))
 #endif
 '''
-    (ROOT / 'drivers/NativeAdreno/NativeAdrenoPwrupRegs.h').write_text(header)
+    generated = ROOT / 'build/adreno740/include/NativeAdrenoPwrupRegs.h'
+    generated.parent.mkdir(parents=True, exist_ok=True)
+    generated.write_text(header)
     report = dict(catalog=[{'name': n, 'plus': p} for n, p in catalog],
                   resolved=resolved, count=len(resolved),
                   xml_sha256={f: hashlib.sha256((XML / f).read_bytes()).hexdigest()

@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -22,7 +22,7 @@ def report(name):
 
 mounted, missing, continuation, file_call = (report(name) for name in (
     'owner-systemos-mounted', 'owner-systemos-missing-enforced', 'owner-original-cache-load', 'owner-cache-openat'))
-candidate = ROOT / 'build/native-prelink/native-owner-systemos-mount-candidate'
+candidate = ROOT / 'build/xnu-prelink/native-owner-systemos-mount-candidate'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 kernel = candidate.with_suffix('.macho').read_bytes()
 require(hashlib.sha256(kernel).hexdigest() == plan['candidate_sha256'] ==

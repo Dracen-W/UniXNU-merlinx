@@ -1,28 +1,22 @@
 # OnePlus 13T (oneplus13t)
 
-oneplus13t is the OnePlus 13T (PKX110, OP60F5L1) with the SM8750 SoC. The port below is an independent community project. The UniXNU organization does not maintain it. The repository was renamed from `UniXNU-oneplus13t` to `UniXNU-Pagani_SM8750` and keeps its history.
+A community-maintained port for SM8750. Current results are based on the maintainer records at the revisions linked below.
 
-| Repository | Maintainer | State |
-| --- | --- | --- |
-| [UniXNU-Pagani_SM8750](https://github.com/IssacL04/UniXNU-Pagani_SM8750) | [IssacL04](https://github.com/IssacL04) | XNU S1 to S6 reached; root device search panics; no root or userland |
+| Repository | Maintainer |
+| --- | --- |
+| [UniXNU-Pagani_SM8750](https://github.com/IssacL04/UniXNU-Pagani_SM8750) | [IssacL04](https://github.com/IssacL04) |
 
 ## State
 
-| Part | State |
-| --- | --- |
-| UEFI Shell and menu | works on hardware; side key interaction still to confirm |
-| XNU build in GitHub Actions | builds; the ninth image reaches S1 to S6 |
-| Payload and boot image | embedded payload handoff; boot image compared after unpacking |
-| DarwinBoot handoff | green handoff bar on hardware |
-| XNU entry | S1 to S6 reached; console, `zalloc` and BSD root search executed |
-| Root and userland | not available; the root search panics after 60 seconds |
-| kernelcache prelink, userdata, iOS userland | not configured |
+The stage 7 run 39 record confirms root mounting and the system interface on hardware. Touch remains unavailable. Firmware, XNU, root and UI results apply to the recorded device configuration.
 
-The panic page records `poll=0x3c`, `timer=0x1a3` and the timeout path. The single-core timer interrupt and observation thread run. Long-term stability and multi-core scheduling are not verified.
+## Sources
+
+- [README: IssacL04/UniXNU-Pagani_SM8750](https://github.com/IssacL04/UniXNU-Pagani_SM8750/blob/9a6b057527429159a531f37c3af5b7235806caf1/README.md)
 
 ## Dual-system storage
 
-On 2026-10-22, the device-specific F2FS shrink procedure created a 64 GiB `unixnu` partition on the 256 GB model. Captured primary and backup GPT copies agree and have valid CRCs. This result covers partition creation; it does not establish XNU root mounting or validate the parameterized scripts on other devices.
+The layout below is recorded from the 256 GB model.
 
 | Item | Captured value |
 | --- | --- |
@@ -38,6 +32,9 @@ Use the [dual-system partition guide](/porting/dual-system-partition) to calcula
 python3 scripts/dual_sys/partition.py inspect
 ```
 
-## Maintenance
+## Use this port
 
-The maintainer owns the repository and its release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+1. Read the repository build instructions and pinned records. Prepare its firmware, system images and board inputs.
+2. Build with that repository's commands. Use [Build and boot](/building) for common configuration.
+3. Follow the [bring-up order](/porting/bring-up) and save results through [log capture](/porting/log-capture).
+4. Update the [porting record](/porting/records) with the source revisions and last confirmed stage.

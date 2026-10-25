@@ -1,30 +1,21 @@
 # 小米平板 7 / POCO Pad X1（uke）
 
-uke 是搭载 SM7675 的小米平板 7 和 POCO Pad X1。下面的移植是独立的社区项目，UniXNU 组织不维护它。
+搭载 SM7675 的社区设备移植。当前状态依据下方固定版本的维护者记录。
 
-| 仓库 | 维护者 | 状态 |
-| --- | --- | --- |
-| [UniXNU-uke](https://github.com/Allenwdk/UniXNU-uke) | [Allenwdk](https://github.com/Allenwdk) | 设备仓库，根已挂载，launchd 启动；显示待完成 |
-| [uefi-uke](https://github.com/Allenwdk/uefi-uke) | [Allenwdk](https://github.com/Allenwdk) | Mu-Silicium UEFI 移植 |
-
-## 状态
-
-原厂 ABL 已到阶段 1 到 5：UEFI 固件、UniXNU 菜单、负载、DarwinBoot 和 XNU 入口。绿色条表示内核入口代码已执行。真机上 UFS 根已挂载，launchd 启动。屏幕停在 Apple 标志，因为 IOMFB 找不到默认 framebuffer surface。
-
-阶段 6 的完整内核用 `uke-full_defconfig` 编译并预链接。UFS 块类绑定到固定的原始候选。真机上根卷已挂载，launchd 已运行；显示和 GPU 仍是阻塞点。
-
-| 区域 | 状态 |
+| 仓库 | 维护者 |
 | --- | --- |
-| UEFI 固件 | 工作 |
-| UniXNU 菜单 | 工作 |
-| 负载和 DarwinBoot | 工作 |
-| XNU 入口 | 工作，绿色条 |
-| 根设备 | 已挂载，launchd 启动 |
-| 显示 | Apple 标志，无默认 framebuffer surface |
-| watchdog | 部分生效，watchdogd 仍触发 SIGTRAP |
-| 触控 | 仅探针，固件对象为空 |
-| GPU | 已记录 Adreno 732 数值，驱动待完成 |
-| USB、音频、Wi-Fi、传感器 | 不在当前阶段 |
+| [UniXNU-uke](https://github.com/Allenwdk/UniXNU-uke) | [Allenwdk](https://github.com/Allenwdk) |
+| [uefi-uke](https://github.com/Allenwdk/uefi-uke) | [Allenwdk](https://github.com/Allenwdk) |
+
+## 当前状态
+
+设备已显示 Apple 标志、挂载 UFS 根卷并启动 `launchd`。进度记录包含 `Early boot complete`、`driverkitd` 启动和显示 surface 接入。随后发生重启，原因未查明。
+
+GPU、物理触控和其他外设仍需分别完成实机验证。
+
+## 来源
+
+- [进度记录: Allenwdk/UniXNU-uke](https://github.com/Allenwdk/UniXNU-uke/blob/cf552816de501906082405ebb0e355d8c70f7b60/docs/PROGRESS.md)
 
 ## 构建
 
@@ -46,6 +37,9 @@ gh workflow run build-uke-kernel
 
 userdata 镜像需要 macOS `hdiutil`。当前阶段、产物和剩余工作见设备仓库的 `docs/PROGRESS.md`。
 
-## 维护
+## 使用此移植
 
-表中的维护者拥有仓库和发布决定。UniXNU 文档记录移植及其状态，不接管维护。
+1. 阅读上方仓库的构建说明和固定版本记录，准备对应的固件、系统镜像和板级输入。
+2. 按该仓库的命令构建，通用配置见[构建与启动](/zh/building)。
+3. 按[启动验证顺序](/zh/porting/bring-up)逐项验证，通过[日志抓取](/zh/porting/log-capture)保存结果。
+4. 更新[移植记录](/zh/porting/records)，记录实际使用的源码版本及最后确认的阶段。

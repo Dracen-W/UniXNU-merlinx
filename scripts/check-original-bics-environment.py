@@ -4,7 +4,7 @@ import argparse,hashlib,json,struct,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--daemon',type=Path,required=True);p.add_argument('--python-modules',type=Path,required=True);p.add_argument('--report',type=Path,required=True);a=p.parse_args()
-sys.path[:0]=[str(a.python_modules),str(ROOT/'kits/NativePrelink')]
+sys.path[:0]=[str(a.python_modules),str(ROOT/'kits/XnuPrelink')]
 from native_prelink import macho,backed_offset
 from unicorn import Uc,UC_ARCH_ARM64,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm64_const import UC_ARM64_REG_SP,UC_ARM64_REG_X0,UC_ARM64_REG_X1,UC_ARM64_REG_X2,UC_ARM64_REG_X3,UC_ARM64_REG_X29,UC_ARM64_REG_LR,UC_ARM64_REG_PC,UC_ARM64_REG_CPACR_EL1

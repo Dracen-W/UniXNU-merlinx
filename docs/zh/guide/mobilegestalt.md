@@ -2,6 +2,13 @@
 
 MobileGestalt 从 Apple 设备树（ADT）读取设备信息。负载在构建时写入 ADT，修改身份不需要改动已签名的内核和用户态镜像。
 
+## 操作步骤 {#procedure}
+
+1. 按 [iPadOS 与 iOS](#ipados-与-ios)确认用户态系列，选择匹配的 model、target 和 product 值。
+2. 按[应用](#应用)修改带类型的 ADT 属性，同时核对[属性表](#属性)和[手势要求](#全面屏手势)。
+3. 运行 `./unixnu payload` 和 `./unixnu bootimg`，再启动新镜像。
+4. 检查设备报告的身份和界面行为。结果仍为先前值时，按[缓存说明](#缓存)检查，记录受影响的缓存及镜像。
+
 ## 属性
 
 | 属性 | 节点 | 示例 | 作用 |
@@ -45,9 +52,9 @@ ADT 身份和用户态镜像属于同一设备系列。iPadOS 根使用 pad 身�
 | iPadOS | `iPad7,1` | `J120` | `iPad Pro (12.9-inch) (2nd generation)` | `pad` |
 | iOS | `iPhone10,3` | `D22` | `iPhone X` | `phone` |
 
-恢复镜像见[构建环境](/zh/guide/requirements#target-ipsw)。
+恢复镜像见[构建环境](/zh/guide/requirements#目标-ipsw)。
 
-在 UniXNU 板级文件中，`[payload.adt] ipad_identity = true` 把 `--ipad-identity` 传给板级 ADT 工具，由工具写入 iPad 身份。目标为 iPhone 时，在 ADT 工具中写入 phone 值，或增加一个选择身份的板级选项。
+格式 1 的 UniXNU 板级文件中，`[payload.adt] ipad_identity = true` 把 `--ipad-identity` 传给板级 ADT 工具，由工具写入 iPad 身份。目标为 iPhone 时，在 ADT 工具中写入 phone 值，或增加一个选择身份的板级选项。
 
 身份向用户态描述硬件。已安装的系统仍来自 IPSW，iPadOS 根保持 iPadOS，iOS 根保持 iOS。
 
@@ -55,12 +62,13 @@ ADT 身份和用户态镜像属于同一设备系列。iPadOS 根使用 pad 身�
 
 ## 应用
 
-1. 修改板级 ADT 工具，或设置 `ipad_identity`。
-2. 重新构建负载。
-3. 清除缓存的答案。
-4. 启动后检查设备名、锁屏提示、上滑手势和键盘布局。
+1. 格式 2 按[设备树属性类型](/zh/porting/device-tree)在设备或 OS profile 中设置
+   `[adt.product]` 与 `[adt.buttons]`。格式 1 使用所选板级 ADT 工具及其 `ipad_identity` 选项。
+2. 从主仓库执行 `./unixnu payload` 和 `./unixnu bootimg`。
+3. 按下文路径清理 Data 卷中的缓存答案。
+4. 启动新镜像，检查设备名称、锁屏提示、上滑手势和键盘布局。
 
-Python ADT 工具可以直接写入节点：
+格式 1 的 Python ADT 工具可直接写入节点：
 
 ```python
 node('buttons', [

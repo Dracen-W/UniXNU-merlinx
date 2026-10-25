@@ -6,8 +6,8 @@ from pathlib import Path
 import struct
 import subprocess
 import sys
-ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'build/native-mobile-display'
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'build/gop-framebuffer'
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,exports,backed_offset
 def require(v,why):
     if not v:raise SystemExit(why)
@@ -15,13 +15,13 @@ def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 build=json.loads((OUT/'build-report.json').read_text())
 revision=build['kit_revision']
 for name in ('NativeMobileDisplay.cpp','OriginalMobileFramebufferABI.h'):
-    data=subprocess.check_output(['git','-C',str(ROOT/'drivers/NativeMobileDisplay'),'show',revision+':'+name],timeout=30)
-    require(hashlib.sha256(data).hexdigest()==build['source_sha256']['drivers/NativeMobileDisplay/'+name],
+    data=subprocess.check_output(['git','-C',str(ROOT/'drivers/GopFramebuffer'),'show',revision+':'+name],timeout=30)
+    require(hashlib.sha256(data).hexdigest()==build['source_sha256']['drivers/GopFramebuffer/'+name],
             'Exact committed driver implementation')
 for name,digest in build['source_sha256'].items():require(sha(ROOT/name)==digest,'Actual provider/instrument source unchanged')
 require(sha(OUT/'NativeMobileDisplay.o')==build['compiled_object_sha256'] and sha(OUT/'NativeMobileDisplay.late.o')==build['late_object_sha256'],
         'Exact actual own objects')
-candidate=ROOT/'build/native-prelink/native-owner-mobile-provider-query-candidate.macho'
+candidate=ROOT/'build/xnu-prelink/native-owner-mobile-provider-query-candidate.macho'
 plan=json.loads(candidate.with_suffix('.json').read_text());raw=candidate.read_bytes();parsed=macho(raw)
 require(sha(candidate)==plan['candidate_sha256'],'Exact observed original-component candidate')
 names={name:va for va,ns in exports(raw,parsed).items() for name in ns}
@@ -41,7 +41,7 @@ def field(d,name,size=4):
     key=f'{names[name]:x}:{size:x}'
     require(key in d['memory'] and not d['memory'][key].startswith('E'),'Actual readable kernel field '+name)
     return int.from_bytes(bytes.fromhex(d['memory'][key]),'little')
-original=json.loads((ROOT/'build/native-prelink/native-owner-mobile-graphics-candidate.json').read_text())
+original=json.loads((ROOT/'build/xnu-prelink/native-owner-mobile-graphics-candidate.json').read_text())
 family='com.apple.iokit.IOMobileGraphicsFamily'
 extent=next(e for e in plan['extents'] if e['module']==family and e['segment']=='__TEXT_EXEC')
 at=backed_offset(parsed['segments'],extent['va'],extent['size'],len(raw))

@@ -2,13 +2,13 @@
 """Check real original client factory/task/subtype and first descriptor boundary."""
 import argparse,hashlib,json,struct,subprocess,sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset
 def require(value,why):
  if not value:raise SystemExit(why)
 def load(path):return json.loads(path.read_text())
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
-p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate-base',type=Path,default=ROOT/'build/native-prelink/native-owner-original-descriptor-refusal-candidate');args=p.parse_args();base=args.candidate_base.resolve()
+p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate-base',type=Path,default=ROOT/'build/xnu-prelink/native-owner-original-descriptor-refusal-candidate');args=p.parse_args();base=args.candidate_base.resolve()
 # This independently qualifies all unchanged operational provider addresses,
 # real original lifetime, required configureDevice hook and default-off boot.
 subprocess.run(['python3',ROOT/'scripts/check-original-gpu-provider.py','--candidate-base',base],check=True,timeout=30)

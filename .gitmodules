@@ -10,39 +10,33 @@
 [submodule "drivers/DarwinBoot"]
 	path = drivers/DarwinBoot
 	url = https://github.com/UniXNU/DarwinBoot.git
-[submodule "drivers/NativeAES"]
-	path = drivers/NativeAES
-	url = https://github.com/UniXNU/NativeAES.git
-[submodule "drivers/NativeAdreno"]
-	path = drivers/NativeAdreno
-	url = https://github.com/UniXNU/NativeAdreno.git
-[submodule "drivers/NativeGeniSpi"]
-	path = drivers/NativeGeniSpi
-	url = https://github.com/UniXNU/NativeGeniSpi.git
-[submodule "drivers/NativeHidInput"]
-	path = drivers/NativeHidInput
-	url = https://github.com/UniXNU/NativeHidInput.git
-[submodule "drivers/NativeKeyStoreEvents"]
-	path = drivers/NativeKeyStoreEvents
-	url = https://github.com/UniXNU/NativeKeyStoreEvents.git
-[submodule "drivers/NativeMetal"]
-	path = drivers/NativeMetal
-	url = https://github.com/UniXNU/NativeMetal.git
-[submodule "drivers/NativeMobileDisplay"]
-	path = drivers/NativeMobileDisplay
-	url = https://github.com/UniXNU/NativeMobileDisplay.git
-[submodule "drivers/NativeRamBlock"]
-	path = drivers/NativeRamBlock
-	url = https://github.com/UniXNU/NativeRamBlock.git
-[submodule "drivers/NativeUfs"]
-	path = drivers/NativeUfs
-	url = https://github.com/UniXNU/NativeUfs.git
-[submodule "drivers/NativeVirtioBlock"]
-	path = drivers/NativeVirtioBlock
-	url = https://github.com/UniXNU/NativeVirtioBlock.git
-[submodule "drivers/NativeVirtioConsole"]
-	path = drivers/NativeVirtioConsole
-	url = https://github.com/UniXNU/NativeVirtioConsole.git
+[submodule "drivers/SoftwareAES"]
+	path = drivers/SoftwareAES
+	url = https://github.com/UniXNU/SoftwareAES.git
+[submodule "drivers/Adreno740"]
+	path = drivers/Adreno740
+	url = https://github.com/UniXNU/Adreno740.git
+[submodule "drivers/QcomGeniSpi"]
+	path = drivers/QcomGeniSpi
+	url = https://github.com/UniXNU/QcomGeniSpi.git
+[submodule "drivers/AppleKeyStoreState"]
+	path = drivers/AppleKeyStoreState
+	url = https://github.com/UniXNU/AppleKeyStoreState.git
+[submodule "drivers/AdrenoMetal"]
+	path = drivers/AdrenoMetal
+	url = https://github.com/UniXNU/AdrenoMetal.git
+[submodule "drivers/GopFramebuffer"]
+	path = drivers/GopFramebuffer
+	url = https://github.com/UniXNU/GopFramebuffer.git
+[submodule "drivers/RamBlock"]
+	path = drivers/RamBlock
+	url = https://github.com/UniXNU/RamBlock.git
+[submodule "drivers/VirtioMmioBlock"]
+	path = drivers/VirtioMmioBlock
+	url = https://github.com/UniXNU/VirtioMmioBlock.git
+[submodule "drivers/VirtioMmioConsole"]
+	path = drivers/VirtioMmioConsole
+	url = https://github.com/UniXNU/VirtioMmioConsole.git
 [submodule "kits/AdrenoFirmware"]
 	path = kits/AdrenoFirmware
 	url = https://github.com/UniXNU/AdrenoFirmware.git
@@ -55,9 +49,9 @@
 [submodule "kits/ArmSmmu4K"]
 	path = kits/ArmSmmu4K
 	url = https://github.com/UniXNU/ArmSmmu4K.git
-[submodule "kits/NativePrelink"]
-	path = kits/NativePrelink
-	url = https://github.com/UniXNU/NativePrelink.git
+[submodule "kits/XnuPrelink"]
+	path = kits/XnuPrelink
+	url = https://github.com/UniXNU/XnuPrelink.git
 [submodule "kits/VerifiedRoot"]
 	path = kits/VerifiedRoot
 	url = https://github.com/UniXNU/VerifiedRoot.git

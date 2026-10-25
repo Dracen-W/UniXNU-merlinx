@@ -8,7 +8,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import backed_offset, macho, unserialize_xml
 from emit_prelink import instruction_inventory, pc_relative_target, MATH_LITERAL_POOLS
 

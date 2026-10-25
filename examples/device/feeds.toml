@@ -1,10 +1,6 @@
-# Sources of this device repository, in addition to the feeds.toml of UniXNU. A git source with a
-# path is fetched with a shallow, blobless, sparse checkout of that directory only.
-#
-# [[source]]
-# name = "SomeDriver"
-# kind = "driver"                  # driver, kit, patch, package or refer
-# git = "https://github.com/ORG/REPO"
-# ref = "main"
-# path = "drivers/SomeDriver"
-# commit = "..."                   # optional pin; "unixnu fetch" records the result in unixnu.lock
+[[source]]
+name = "sm8550"
+kind = "soc"
+git = "https://github.com/UniXNU/UniXNU-sm8550-common"
+# Replace with a reviewed 40-character commit from the selected SoC repository.
+commit = "REQUIRED_SOC_COMMIT"

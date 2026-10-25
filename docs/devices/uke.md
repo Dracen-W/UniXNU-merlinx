@@ -1,30 +1,21 @@
 # Xiaomi Pad 7 / POCO Pad X1 (uke)
 
-uke is the Xiaomi Pad 7 and POCO Pad X1 with the SM7675 SoC. The port below is an independent community project. The UniXNU organization does not maintain it.
+A community-maintained port for SM7675. Current results are based on the maintainer records at the revisions linked below.
 
-| Repository | Maintainer | State |
-| --- | --- | --- |
-| [UniXNU-uke](https://github.com/Allenwdk/UniXNU-uke) | [Allenwdk](https://github.com/Allenwdk) | Device repository; root mounted and launchd starts; display pending |
-| [uefi-uke](https://github.com/Allenwdk/uefi-uke) | [Allenwdk](https://github.com/Allenwdk) | Mu-Silicium UEFI port |
+| Repository | Maintainer |
+| --- | --- |
+| [UniXNU-uke](https://github.com/Allenwdk/UniXNU-uke) | [Allenwdk](https://github.com/Allenwdk) |
+| [uefi-uke](https://github.com/Allenwdk/uefi-uke) | [Allenwdk](https://github.com/Allenwdk) |
 
 ## State
 
-The stock ABL reaches stages 1 to 5: UEFI firmware, UniXNU menu, payload, DarwinBoot and the XNU entry. The green bar means the kernel entry code ran. On hardware, UFS root mounts and launchd starts. The display stays on the Apple logo because IOMFB finds no default framebuffer surface.
+The device reaches the Apple logo, mounts the UFS root and starts `launchd`. The progress record includes `Early boot complete`, `driverkitd` startup and display-surface adoption. A subsequent reboot remains under investigation; its cause is undetermined.
 
-The stage 6 full kernel compiles and prelinks with `uke-full_defconfig`. The UFS block class binds to the pinned original candidate. On hardware, the root volume mounts and launchd runs; display and GPU remain the blockers.
+GPU, physical touch and the remaining peripherals require their own device validation.
 
-| Area | State |
-| --- | --- |
-| UEFI firmware | works |
-| UniXNU menu | works |
-| Payload and DarwinBoot | works |
-| XNU entry | works, green bar |
-| Root device | mounted; launchd starts |
-| Display | Apple logo; no default framebuffer surface |
-| Watchdog | partial; watchdogd still hits SIGTRAP |
-| Touch | probe only, firmware object empty |
-| GPU | Adreno 732 values recorded, driver pending |
-| USB, audio, Wi-Fi, sensors | not part of the current pass |
+## Sources
+
+- [Progress: Allenwdk/UniXNU-uke](https://github.com/Allenwdk/UniXNU-uke/blob/cf552816de501906082405ebb0e355d8c70f7b60/docs/PROGRESS.md)
 
 ## Build
 
@@ -46,6 +37,9 @@ gh workflow run build-uke-kernel
 
 The userdata image needs macOS `hdiutil`. The current stage, artifacts and remaining work are in `docs/PROGRESS.md` in the device repository.
 
-## Maintenance
+## Use this port
 
-The maintainer named in the table owns the repositories and their release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+1. Read the repository build instructions and pinned records. Prepare its firmware, system images and board inputs.
+2. Build with that repository's commands. Use [Build and boot](/building) for common configuration.
+3. Follow the [bring-up order](/porting/bring-up) and save results through [log capture](/porting/log-capture).
+4. Update the [porting record](/porting/records) with the source revisions and last confirmed stage.

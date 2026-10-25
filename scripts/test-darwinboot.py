@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 import shutil
 import subprocess
+from unixnu.package import output_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -46,7 +47,7 @@ if args.packed_ramdisk:
     pack(raw, packed)
     packed.replace(raw)
 (ESP / 'EFI/BOOT').mkdir(exist_ok=True)
-shutil.copyfile(ROOT / 'unixnu/Build/Out/AARCH64-DEBUG/UniXNU.efi', ESP / 'EFI/BOOT/BOOTAA64.EFI')
+shutil.copyfile(output_dir(ROOT) / 'UniXNU.efi', ESP / 'EFI/BOOT/BOOTAA64.EFI')
 for name in ('DarwinBoot', 'DarwinBootValidation'):
     shutil.copyfile(ROOT / f'build/DarwinBoot/DEBUG_CLANGPDB/AARCH64/{name}.efi', PAYLOADS / f'{name}.efi')
 (ESP / 'EFI/UniXNU/unixnu.toml').write_text('''version = 1

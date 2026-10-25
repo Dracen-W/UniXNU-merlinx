@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -31,7 +31,7 @@ require(hashlib.sha256(trust[12:second]).hexdigest() == 'da88460e6e513438d5307e5
         'No original trust byte or own code entry may be substituted')
 
 def candidate(name, native_hash, image_hash):
-    stem = ROOT / 'build/native-prelink' / name
+    stem = ROOT / 'build/xnu-prelink' / name
     plan = json.loads(stem.with_suffix('.json').read_text())
     data = stem.with_suffix('.macho').read_bytes()
     require(hashlib.sha256(data).hexdigest() == plan['candidate_sha256'] == image_hash and

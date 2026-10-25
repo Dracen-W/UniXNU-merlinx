@@ -20,7 +20,7 @@ for mode, stem, count in (('legacy', 'legacy-start', 1), ('architectural', 'arch
     require(hashlib.sha256(obj).hexdigest() == r[mode + '_object_sha256'] and obj.count(sequence) == count and
             'XNU_NATIVE_ARCH_TIMER=' + str(1 - count) in args,
             'Actual assembly command/object must retain legacy or remove the complete specific MMIO sequence')
-image = (ROOT / 'build/native-prelink/native-owner-arch-timer-candidate.macho').read_bytes()
+image = (ROOT / 'build/xnu-prelink/native-owner-arch-timer-candidate.macho').read_bytes()
 require(image.count(sequence) == 0 and r['linked_sequence_count'] == 0, 'Linked candidate contains no legacy routing sequence')
 d = base['report']('owner-hvf-arch-timer-launchd-main')
 require(d['kernel_sha256'] == expected and d['native_4k_mmu_observed'] and not d['bounded_timeout_interrupted'] and

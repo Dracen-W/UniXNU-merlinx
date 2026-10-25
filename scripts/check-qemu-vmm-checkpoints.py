@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -60,7 +60,7 @@ require(d['original_crypto_initialized_observed'] and d['original_crypto_table_o
 r = {k: int(v, 16) for k, v in d['system_registers'].items()}
 require(r['TCR_EL1'] >> 14 & 3 == 0 and r['TCR_EL1'] >> 30 & 3 == 2 and r['SCTLR_EL1'] & 1 and
         r['TTBR0_EL1'] and r['TTBR1_EL1'], 'Observe actual native 4K geometry')
-binary = (ROOT / 'build/native-prelink/native-owner-dyld-startup-candidate.macho').read_bytes()
+binary = (ROOT / 'build/xnu-prelink/native-owner-dyld-startup-candidate.macho').read_bytes()
 require(hashlib.sha256(binary).hexdigest() == d['kernel_sha256'], 'Exact original-component candidate')
 meta = np.macho(binary)
 def word(pc):

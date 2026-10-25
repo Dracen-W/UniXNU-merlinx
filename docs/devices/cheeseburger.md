@@ -1,25 +1,26 @@
 # OnePlus 5 (cheeseburger)
 
-cheeseburger is the OnePlus 5 with the MSM8998 SoC. The port below is an independent community project. The UniXNU organization does not maintain it. The target is the iPhone iOS userland.
+A community-maintained port for MSM8998. Current results are based on the maintainer records at the revisions linked below.
 
-| Repository | Maintainer | State |
-| --- | --- | --- |
-| [UniXNU-cheeseburger](https://github.com/DinnerABC/UniXNU-cheeseburger) | [DinnerABC](https://github.com/DinnerABC) | UEFI and menu work; XNU entry bar observed; MMU and root unverified |
-| [UniXNU-cheeseburger](https://github.com/lss717/UniXNU-cheeseburger) | [lss717](https://github.com/lss717) | Alternate cheeseburger repository; status not documented |
+| Repository | Maintainer |
+| --- | --- |
+| [UniXNU-cheeseburger](https://github.com/DinnerABC/UniXNU-cheeseburger) | [DinnerABC](https://github.com/DinnerABC) |
+| [UniXNU-cheeseburger](https://github.com/lss717/UniXNU-cheeseburger) | [lss717](https://github.com/lss717) |
 
 ## State
 
-| Layer | State |
-| --- | --- |
-| Native UEFI and integrated firmware | builds; the stock image reaches the EFI Shell on hardware |
-| UniXNU menu | the graphical menu runs on hardware |
-| DarwinBoot | file hashes, Mach-O load, ADT, `boot_args` and the EBS handoff are recorded |
-| XNU | independent MSM8998 ARM64 build; the P5 image shows the XNU `__start` entry color bar |
-| MMU, C initialization, root volume and iOS | not verified |
-| Board file | `example = true`; the incomplete board is refused by the general build and boot image steps |
+The DinnerABC port reaches PID 1 in EL0, mounts the root and SystemOS, and provides writable APFS Data in RAM. The P18 boot record stops at `watchdogd[106]` with `SIGTRAP`; user-space PC and stack capture are the next diagnostic inputs.
 
-The P1 GitHub Actions run failed in `actions/setup-python` before the audit, so there is no remote build pass yet.
+The lss717 port separately records UEFI, menu and payload checks on hardware. Its XNU integration remains in progress.
 
-## Maintenance
+## Sources
 
-The maintainer owns the repository and its release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+- [P18 boot result: DinnerABC/UniXNU-cheeseburger](https://github.com/DinnerABC/UniXNU-cheeseburger/blob/c5463363de7ca0ad541b8132f29c7f0a3cef718c/docs/P18_BOOT_RESULT.md)
+- [README: lss717/UniXNU-cheeseburger](https://github.com/lss717/UniXNU-cheeseburger/blob/de1af958fc2530c2626217a36ab276e1f77f57a1/README.md)
+
+## Use this port
+
+1. Read the repository build instructions and pinned records. Prepare its firmware, system images and board inputs.
+2. Build with that repository's commands. Use [Build and boot](/building) for common configuration.
+3. Follow the [bring-up order](/porting/bring-up) and save results through [log capture](/porting/log-capture).
+4. Update the [porting record](/porting/records) with the source revisions and last confirmed stage.

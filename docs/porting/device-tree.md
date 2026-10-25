@@ -1,13 +1,111 @@
 # Device tree
 
-A device port deals with two trees:
+Format 2 compiles a hardware tree and generates the Apple device tree centrally.
 
-| Tree | Format | Consumer |
+```mermaid
+flowchart TD
+  A[SoC DTSI] --> C[dtc]
+  B[Board DTS] --> C
+  C --> D[Hardware DTB]
+  D --> E[Common ADT generator]
+  F[OS profile] --> E
+  G[Payload inputs] --> E
+  E --> H[kernel.macho.adt]
+```
+
+Firmware and bootloader interfaces use FDT. XNU receives the ADT sidecar next
+to `kernel.macho`. DarwinBoot reads it from the payload entry directory.
+
+## Procedure {#procedure}
+
+1. Gather the board DTS, selected SoC DTSI and the properties consumed by the drivers. Set the source and include paths in [Configuration](#configuration).
+2. Describe hardware with the [bindings](#hardware-bindings): parent cell widths, ranges, interrupts, references and enabled nodes. Check the [required XNU nodes](#required-nodes).
+3. Place Apple platform properties in the selected [OS profile](#os-properties), with board overrides where required. Match the root UUID and payload handoff options to the actual inputs.
+4. Run [standalone conversion](#standalone-conversion) to compile a DTB and generate an ADT with the selected inputs. Review compiler diagnostics and generated node names against the driver matching requirements.
+5. Run `./unixnu payload` and `./unixnu bootimg` using the saved build inputs. Inspect `device-tree/hardware.dtb` and the payload report under the resolved output directory. The [firmware DTB](#boot-image-device-tree) is a separate boot-image input.
+
+## Configuration
+
+```toml
+[device_tree]
+source = "device:dts/sheng.dts"
+include_dirs = ["soc:dts"]
+```
+
+The payload step runs `dtc` and writes `device-tree/hardware.dtb` under the
+resolved output directory. `scripts/unixnu/devicetree.py` reads FDT, converts
+hardware properties, adds the OS and payload properties, and encodes ADT.
+
+The board DTS includes its SoC DTSI:
+
+```text
+/dts-v1/;
+/include/ "sm8550.dtsi"
+
+/ {
+    model = "Xiaomi Pad 6S Pro";
+    compatible = "xiaomi,sheng", "qcom,sm8550";
+};
+```
+
+The complete board source supplies memory, enabled CPUs, and peripheral inputs.
+See the [device template](/porting/device-repository) and [SoC support](/porting/soc-support).
+
+## Hardware bindings
+
+| Property | Input | ADT representation |
 | --- | --- | --- |
-| UEFI device tree | Standard flattened device tree (FDT) | UEFI firmware, EFI and Linux entries |
-| Apple device tree (ADT) | Apple node encoding | XNU platform expert and drivers |
+| `compatible`, `device_type`, `reg-names`, `interrupt-names`, `clock-names`, `method` | NUL-terminated strings | String bytes |
+| `phandle`, `linux,phandle`, `#interrupt-cells`, `#iommu-cells`, `clock-frequency`, `timebase-frequency` | One big-endian cell | Little-endian u32 |
+| `redistributor-stride` | One or two cells | Little-endian u64 |
+| `interrupt-controller`, `dma-coherent` | Empty property | Empty property |
+| `reg` | Address/size tuples using the parent's cell widths | Translated physical u64 address/size pairs |
+| `interrupts` | Specifiers using the referenced controller's `#interrupt-cells` | Little-endian cells |
+| `interrupt-parent` | Controller phandle | Little-endian phandle |
+| `iommus`, `clocks` | Phandle and provider-defined argument cells | Little-endian cells |
+| `unixnu,adt-name` | Exported hardware node name | Child name under `/arm-io` |
+| `status` | `okay`, `ok`, or disabled state | Selects enabled nodes |
 
-The payload step generates the ADT as `kernel.macho.adt` next to the kernel. DarwinBoot reads it from the entry directory.
+Every translated bus declares `ranges`. An empty `ranges` gives an identity
+mapping. Each register range must have one matching translation. Referenced
+providers require unique nonzero phandles and their argument-cell counts.
+Interrupt specifiers must match the selected interrupt controller.
+
+The generator exports enabled nodes with `unixnu,adt-name`. Exported names are
+unique. Add a typed binding in the common converter when a driver needs another
+property. FDT integer cells are decoded before ADT encoding.
+
+The root supplies `model` and `compatible`. One enabled memory node provides a
+contiguous DRAM range. `/cpus` supplies `timebase-frequency`; each enabled CPU
+has `reg` containing its MPIDR affinity and `compatible`. The first enabled CPU
+is the boot CPU. Multiple CPUs require `/psci` with `method = "smc"` or `"hvc"`.
+
+## OS properties
+
+The OS profile declares typed tables under `[adt]`, such as:
+
+```toml
+[adt.chosen.string]
+osenvironment = "main"
+
+[adt.defaults.u32]
+sleep-disabled = 1
+```
+
+Supported property types are `string`, `strings`, `u32`, `u64`, and hex `bytes`.
+The tables populate `root`, `chosen`, `defaults`, `options`, `product`, and
+`buttons`. The common generator creates CHRP NVRAM, a fresh 64-byte random seed,
+platform identity, root matching, and payload memory-map placeholders.
+
+## Standalone conversion
+
+```sh
+dtc -I dts -O dtb -i ../UniXNU-sm8550-common/dts   -o /tmp/sheng.dtb ../UniXNU-sheng/dts/sheng.dts
+python3 scripts/make-adt.py --dtb /tmp/sheng.dtb   --os-profile profiles/os/ipados-17.7.11-21H461/profile.toml   --board ../UniXNU-sheng/board.toml --unique-chip-id <hex>   --data-ramdisk --trust-cache --output /tmp/kernel.macho.adt
+```
+
+The command selects memory-map placeholders for the supplied payload inputs.
+`unixnu build payload` uses the fully resolved profiles and its actual inputs.
 
 ## Apple device tree encoding
 
@@ -27,7 +125,7 @@ for each child:
 
 Every node carries a `name` property with its own name and a terminating NUL.
 
-The encoding is Apple's own. `dtc` compiles FDT sources, and libfdt functions read FDT blobs, so both apply to the UEFI tree only.
+The common encoder writes little-endian ADT fields and four-byte property padding.
 
 ## Required nodes
 
@@ -112,7 +210,7 @@ arm-io {
   device_type = "arm-io";
   #address-cells = <2>;
   #size-cells = <2>;
-  ranges = <0 0x17000000 0x08000000>;
+  ranges = <0 0 0x100000000>;
   intc {
     name = "intc";
     compatible = "arm,gic-v3";
@@ -121,7 +219,7 @@ arm-io {
 }
 ```
 
-`ranges` maps the bus window. Child `reg` values use offsets inside that window. A device below the window base cannot be expressed as a child; the driver then takes its physical addresses from board constants.
+`ranges` maps the bus window. The common generator translates source registers to physical addresses, then emits `arm-io` with one window from the lowest exported register (rounded down to 16 MiB) to the highest. Child `reg` values are offsets from the window base. XNU reads that base as the SoC base and requires it to be non-zero, so an exported register below 16 MiB is an error.
 
 ### product and buttons
 
@@ -131,19 +229,11 @@ arm-io {
 
 `/defaults` supplies platform options. For example, `sleep-disabled = <1>` prevents the CPU from parking when suspend is not implemented.
 
-## ADT tool contract
+## Format 1 ADT tool
 
-`[payload.adt] tool` names a script in the device repository. The payload step calls it with the options listed in [Payload](/concepts/payload).
-
-The tool writes the tree to `Payloads/kernel.macho.adt`. It must:
-
-1. Generate valid Apple node encoding.
-2. Add `random-seed` with a fresh 64-byte value.
-3. Add the memory map placeholders for the inputs.
-4. Add `unique-chip-id` and `chip-id` when a seed is supplied.
-5. Add `root-matching` when a UUID is supplied.
-6. Add `ephemeral-storage` for a Data seed.
-7. Add `darwinboot-memory-size` when the window override is supplied.
+Format 1 uses the device script selected by `[payload.adt] tool`. Its arguments
+are listed in [Payload](/concepts/payload). The script supplies the required
+nodes, CHRP NVRAM, random seed, identity, root matching, and memory-map placeholders.
 
 ## UEFI device tree
 
@@ -197,7 +287,8 @@ props = [
 | Generator | Purpose |
 | --- | --- |
 | `scripts/qemu-entry/make-dt.py` | QEMU fixture with a single CPU and optional GICv3, VirtIO and NVRAM |
-| A device repository `make-<device>-adt.py` | Device tree with board addresses and identity |
+| `scripts/make-adt.py` | Hardware DTB and OS/board profiles to ADT |
+| Format 1 device `make-<device>-adt.py` | Device-specific generator |
 
 The QEMU generator is the smallest complete example. The device page in [Devices](/devices/) records the values for a real board.
 

@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import backed_offset, macho
 
 
@@ -19,7 +19,7 @@ def require(value, message):
 source_hash = '0b8324c7542d208285ffbc63043ca799a151320c7ee4e4f5ad404357ce8dc3fa'
 candidate_hash = '23b672c22aed3d493fec8cb4e0ac500222e598c73c72fac250cb09dd7b9e162f'
 firmware_hash = '1a2a419c39046d3141fc5fed5aa7f971de2db40cc7a1d89693c3e26fad64dd98'
-candidate = ROOT / 'build/native-prelink/native-owner-adreno-firmware-candidate.macho'
+candidate = ROOT / 'build/xnu-prelink/native-owner-adreno-firmware-candidate.macho'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 image = candidate.read_bytes()
 require(plan['native_sha256'] == source_hash and plan['candidate_sha256'] == candidate_hash ==

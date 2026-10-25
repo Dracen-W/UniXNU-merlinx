@@ -1,53 +1,31 @@
-# Porting overview
+# Welcome
 
-A device port has two repositories and one board configuration.
+UniXNU is a general UEFI environment and driver loading system, similar to OpenCore. A common UEFI layer starts on the device, loads the drivers the device repository selects and boots the OS. UniXNU applies that model to non-Apple ARM64 hardware: it boots iOS and macOS from the device's own UEFI firmware.
 
-| Repository | Contents |
-| --- | --- |
-| `UniXNU-<device>` | `board.toml`, kernel defconfig, device scripts, drivers, kits, patches and device package |
-| `uefi-<device>` | Mu-Silicium UEFI port: device configuration, DSC/FDF, preflight and vendor inputs |
+## Architecture
 
-`UniXNU` supplies the build driver, the UEFI boot manager, DarwinBoot and the generic drivers. A device repository overrides any module with the same name.
+The stack has six layers. Each layer has a repository, a build output and a handoff to the next layer.
 
-## Porting checklist
+```mermaid
+flowchart TD
+  A[Android bootloader] -->|fastboot boot boot.img| B[BootShim and UEFI firmware]
+  B -->|UEFI starts UniXNU| C[UniXNU boot manager]
+  C -->|UNIXNU_LOADER_PROTOCOL| D[DarwinBoot]
+  D -->|boot_args, ADT, trust cache, ramdisk| E[Patched XNU kernel]
+  E -->|IOKit, BSD, launchd| F[IPSW userland]
+```
 
-1. [Port the UEFI firmware](/porting/uefi-firmware) so the device reaches a menu, a framebuffer and a payload volume.
-2. [Create the device repository](/porting/device-repository) with `board.toml`, a defconfig and the package directory.
-3. Select the target IPSW and its identity.
-4. [Generate the ADT](/porting/device-tree) with the nodes and properties XNU consumes.
-5. Build the payload and the boot image.
-6. [Bring up in stages](/porting/bring-up): firmware, menu, payload, kernel entry, platform expert, storage, root, userland.
-7. Add device drivers and kits for display, storage, input and power.
-8. Build the userdata image and flash it.
+| Layer | Source | Output | Hands over |
+| --- | --- | --- | --- |
+| 1. Boot image | Device repository, `./unixnu bootimg` | Android boot image: BootShim, firmware volume, device tree, payload ramdisk | The stock bootloader jumps to BootShim |
+| 2. UEFI firmware | `uefi-<device>` (Mu-Silicium) | `SILICIUM_UEFI.fd` | Graphics, input, block and file system services |
+| 3. Boot manager | UniXNU `package/UniXNUPkg` | `UniXNU.efi` | Loads drivers, ACPI tables, kits and the device tree, then starts the selected entry |
+| 4. XNU loader | DarwinBoot | UEFI driver | Copies the kernel, ADT, trust cache and ramdisk, builds `boot_args`, enters the kernel |
+| 5. Kernel | Pinned XNU source, ordered patch series, prelink | `kernel.macho` and its ADT | Native drivers and the original kexts, then launchd |
+| 6. Userland | Target IPSW | `OS` and `SystemOS` images in userdata | iOS or macOS user space |
 
-## What stays generic
+Shared code lives in UniXNU and its component repositories. SoC repositories add platform support, and device repositories add board configuration, drivers and packaging. See the [boot chain](/concepts/boot-chain) for the handoff details.
 
-These parts come from `UniXNU` and usually need no device copy:
+## Next
 
-- The build driver and module resolution.
-- UniXNU and its configuration schema.
-- DarwinBoot and the loader protocol.
-- NativePrelink.
-- The 4 KiB XNU patches.
-- The generic platform expert, CPU, VirtIO and block drivers.
-
-## What is device specific
-
-- The UEFI firmware port and its vendor binaries.
-- The firmware base and size.
-- The device tree and the ADT generator.
-- The kernel defconfig and the archives it selects.
-- The board power, display, touch and GPU drivers.
-- The IPSW identity and the trust caches.
-- The userdata partition geometry.
-
-## Device pages
-
-The [Devices](/devices/) section lists device repositories. Each page records the values for that device. The porting guide uses placeholders and links to the device pages for concrete values.
-
-## Next steps
-
-- [Device repository](/porting/device-repository)
-- [UEFI firmware](/porting/uefi-firmware)
-- [Device tree](/porting/device-tree)
-- [Bring-up order](/porting/bring-up)
+Follow [Port a device](/porting/steps) in order.

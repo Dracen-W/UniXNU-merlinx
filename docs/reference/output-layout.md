@@ -1,6 +1,6 @@
 # Output layout
 
-All build output goes under `out/`. The driver writes nothing into the repositories except `unixnu.lock` in the device repository.
+Format 2 isolates outputs by device, OS profile, and configuration under `out/`. Format 1 uses `out/<board>/`. Fetched sources and IPSW members share caches. `unixnu.lock` records fetched source revisions in the device repository.
 
 ## Tree
 
@@ -9,10 +9,12 @@ out/
   state.json
   feeds/
   ipsw/<build>/
-  <board>/
+  <device>/<os_profile>/<config>/
     .config
     tree/
     logs/
+    device-tree/
+      hardware.dtb
     kernel/
       kernel.macho
     package/
@@ -74,7 +76,7 @@ tree/
   .cache/
 ```
 
-Module directories are symbolic links. `scripts/` is copied. The device package appears as `kits/<board.kit>`. `.cache/firmware` is a symbolic link to the device repository's `.cache/firmware`.
+The target `.cache/xnu-work/` contains patched XNU sources; `build/` contains generated headers and archives. Module directories are symbolic links. `scripts/` is copied. The device package appears as `kits/<board.kit>`. `.cache/firmware` is a symbolic link to the device repository's `.cache/firmware`.
 
 ## logs
 

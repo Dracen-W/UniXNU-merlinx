@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'devices.toml'
+      - 'components.toml'
+      - 'scripts/porting-record.py'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 

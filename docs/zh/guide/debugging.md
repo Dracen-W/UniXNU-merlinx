@@ -1,6 +1,19 @@
 # 调试与日志
 
-bring-up 需要四类证据：串口输出、屏幕诊断页、panic 屏幕和构建报告。把它们一起收集。
+为每个启动检查点收集固件日志、内核输出、诊断截图和构建报告。
+
+## 操作步骤 {#procedure}
+
+1. 记录失败命令或最后完成的[启动检查点](/zh/porting/bring-up)，以及设备、固件和镜像版本。
+2. 选择可用的[日志来源](#日志来源)。使用 USB 终端前确认设备实现了其[通信协议](#设备兼容性)；也可使用目标支持的 UART、屏幕诊断或 QEMU 日志。
+3. 绿色交接条按[入口探针步骤](#green-bar)检查；panic 抓取 [panic 屏幕](#panic-屏幕)，用户进程故障收集[用户态证据](#用户态故障证据)。
+4. 每次应用一项诊断修改，重新构建受影响的产物。启动参数修改需要 `./unixnu payload` 和 `./unixnu bootimg`。重复失败操作，记录最后确认的检查点。
+5. 保存[证据包](#证据包)，更新对应[适配记录](/zh/porting/records)。结果应明确失败阶段、输入版本和具体错误。
+
+## 按阶段抓取日志
+
+按[日志抓取与自动测试步骤](/zh/porting/log-capture)操作：固件菜单中使用二维码导出，
+内核入口使用 UART 或屏幕诊断，存储完成后加入持久化日志和自动循环。
 
 ## USB 调试终端
 
@@ -19,7 +32,7 @@ Windows 交互模式运行 `scripts\debug-terminal.cmd --port COM21`，输入 `:
 | 命令 | 结果 |
 | --- | --- |
 | `all` / `collect` | 排队发送有界查询；`collect` 额外请求 replay/sample，至少 15 秒后保存 |
-| `logs wifi` / `logs gpu` / `logs panic` | 筛选保留的会话日志，不代表新的硬件观测 |
+| `logs wifi` / `logs gpu` / `logs panic` | 筛选保留的会话日志，记录对应会话的硬件观测 |
 | `save` | 导出主题文本与会话元数据 |
 | `watch status 2` / `unwatch` | 轮询只读状态查询 / 停止轮询 |
 | `screen.start` / `screen.stop` | 打开本机浏览器投屏 / 停止帧传输 |
@@ -48,12 +61,14 @@ Fastboot 验证需要 PATH 中有 `fastboot`，收到内核重启确认且 CDC �
 python -m unittest discover -s tests/terminal -v
 ```
 
-可选 C 发送端互操作测试需要设置 `GIULIA_SCREEN_FIXTURE`，指向设备仓库屏幕测试脚本生成的样本。默认测试使用合成数据包和模拟串口，不代表硬件已经可用。
+可选 C 发送端互操作测试需要设置 `GIULIA_SCREEN_FIXTURE`，指向设备仓库屏幕测试脚本生成的样本。默认测试使用合成数据包和模拟串口。硬件状态通过设备检查记录。
 
 ## 日志来源
 
 | 来源 | 通道 | 用途 |
 | --- | --- | --- |
+| [固件日志导出](/zh/porting/log-capture#qr-logs) | OneSend 二维码 | 当前 UEFI Advanced Logger 缓冲 |
+| [持久化日志](/zh/porting/log-capture#persistent-logs) | 预留存储区域和 Linux 读取器 | 内核消息与诊断快照 |
 | UEFI 串口 | UART | 固件、UniXNU、DarwinBoot |
 | 内核串口 | 由 `serial=` 选择的 UART | XNU 控制台和 panic 输出 |
 | 诊断页 | framebuffer | 控制台停止后的实时状态 |
@@ -198,7 +213,20 @@ panic_screen = true
 python3 scripts/patch-xnu-entry-probe.py <kernel> --panic-screen --no-reset
 ```
 
+UniXNU 主仓库提供入口探针和 `xnu-panic-screen.c`，构建工具将它们复制到每个设备的构建树。Panic 渲染使用 Mu-Silicium 的 `Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h`。在 `unixnu.local.toml` 的 `[build]` 中设置 `uefi`，或运行 `./unixnu payload --uefi /path/to/Mu-Silicium`。直接运行脚本时设置 `UNIXNU_UEFI`。
+
 panic 屏幕把格式化后的 panic 消息和寄存器写到 framebuffer，并保持显示。`--no-reset` 停止自动复位，屏幕保留到拍照完成。
+
+### 交接时的绿色条 {#green-bar}
+
+顶部绿色条由 DarwinBoot 的 `DarwinEnter` 在 `ExitBootServices` 之后绘制，随后才执行缓存维护、关闭 MMU 和跳转 XNU。画面停在这里时，需要入口探针或串口日志定位后续阶段。仅凭绿色条，原因未查明。
+
+1. 记录最后的 `DARWINBOOT:` 日志，包括内核入口地址、显示几何信息、命令行和 CPU 状态。确认所选内核和 ADT 对应同一设备及 OS 配置。
+2. 对 `scripts/patch-xnu-entry-probe.py` 支持的内核，在设备配置中设置 `[payload] panic_screen = true`，运行 `./unixnu payload` 和 `./unixnu bootimg`，再启动新镜像。检查 `logs/payload-patch.log` 中的探针安装结果。
+3. 查看绿色条下方的蓝色和品红色条。蓝色表示进入 MMU 关闭状态下的内核入口，品红色表示到达开启 MMU 前的位置。缺少探针画面时，检查记录的 framebuffer 基址和行跨度。
+4. 使用 `entry_probe_reset_delay = 6` 设置开启 MMU 后的定时复位检查点。在设备移植记录中保存色条、复位时间、串口输出和 `payload.json`。
+
+配置修改未体现在启动镜像中时，按[应用启动参数](/zh/xnu/boot-arguments#apply-arguments)检查。
 
 ### 颜色条
 
@@ -206,7 +234,7 @@ panic 屏幕把格式化后的 panic 消息和寄存器写到 framebuffer，并�
 
 | 色条 | 绘制者 | 含义 |
 | --- | --- | --- |
-| 绿色 | DarwinBoot `DarwinEnter` | 已退出 boot services，控制权到达内核入口 |
+| 绿色 | DarwinBoot `DarwinEnter` | 已退出 boot services，进入跳转内核前的加载器交接阶段 |
 | 蓝色 | 入口探针阶段 1 | 内核入口代码已执行，MMU 仍关闭 |
 | 品红 | 入口探针阶段 2 | 内核到达打开 MMU 之前的位置 |
 
@@ -225,7 +253,7 @@ entry_probe_reset_occurrence = 1           # 第几次调用（默认 1）
 entry_probe_reset_before = false           # 在调用点复位，不执行调用，也不等待
 ```
 
-设置 `entry_probe_reset_after` 后，复位移到该调用之后，一次运行只回答一个问题：内核有没有走过这个调用。这些键对应板级 `patch-xnu-entry-probe.py` 的 `--reset-delay`、`--reset-after`、`--in`、`--occurrence` 和 `--reset-before`，可以和 `panic_screen` 同时使用。不设置 `entry_probe_reset_delay` 时，负载仍传 `--no-reset`。
+设置 `entry_probe_reset_after` 后，复位移到该调用之后，一次运行只回答一个问题：内核有没有走过这个调用。这些键对应共享 `patch-xnu-entry-probe.py` 的 `--reset-delay`、`--reset-after`、`--in`、`--occurrence` 和 `--reset-before`，可以和 `panic_screen` 同时使用。不设置 `entry_probe_reset_delay` 时，负载仍传 `--no-reset`。
 
 第一条 panic 消息也会复制到 `boot_progress_panic_text`。secondary core 上的 panic 只停住该 core，实时横幅在屏幕重绘后仍保留文本。
 
@@ -343,15 +371,15 @@ python3 scripts/qemu-entry/gdb-stop.py --help
 | 串口日志 | UART 抓取文件 |
 | 诊断照片 | 标题栏、整页、trace 页、脉冲条 |
 | panic 照片 | panic 屏幕 |
-| 启动报告 | `out/<board>/boot/boot.json` |
-| 负载报告 | `out/<board>/payload/payload.json` |
-| 构建日志 | `out/<board>/logs/` |
+| 启动报告 | `out/<device>/<os_profile>/<config>/boot/boot.json` |
+| 负载报告 | `out/<device>/<os_profile>/<config>/payload/payload.json` |
+| 构建日志 | `out/<device>/<os_profile>/<config>/logs/` |
 
 每张照片都记录启动镜像哈希：
 
 ```sh
-shasum -a 256 out/<board>/boot/boot.img
-jq . out/<board>/boot/boot.json
+shasum -a 256 out/<device>/<os_profile>/<config>/boot/boot.img
+jq . out/<device>/<os_profile>/<config>/boot/boot.json
 ```
 
 ## 下一步

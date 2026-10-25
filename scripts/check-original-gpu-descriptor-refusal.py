@@ -7,7 +7,7 @@ def load(path):return json.loads(path.read_text())
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def require(ok,why):
  if not ok:raise SystemExit(why)
-p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate-base',type=Path,default=ROOT/'build/native-prelink/native-owner-original-descriptor-refusal-candidate');args=p.parse_args();base=args.candidate_base.resolve()
+p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate-base',type=Path,default=ROOT/'build/xnu-prelink/native-owner-original-descriptor-refusal-candidate');args=p.parse_args();base=args.candidate_base.resolve()
 subprocess.run(['python3',ROOT/'scripts/check-original-gpu-client-factory.py','--candidate-base',base],check=True,timeout=30)
 plan=load(base.with_suffix('.json'));contract=load(ROOT/'build/gpu-analysis/original-iogpu-client-contract.json');rows=[]
 for kind in (1,0xabcd0001):

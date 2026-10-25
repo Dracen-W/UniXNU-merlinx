@@ -4,7 +4,7 @@ import argparse,hashlib,json,plistlib,struct,sys
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__);p.add_argument('--launchd',type=Path,required=True);p.add_argument('--policy',type=Path,required=True);p.add_argument('--python-modules',type=Path,required=True);p.add_argument('--report',type=Path,required=True);a=p.parse_args()
-sys.path[:0]=[str(a.python_modules),str(root/'kits/NativePrelink')]
+sys.path[:0]=[str(a.python_modules),str(root/'kits/XnuPrelink')]
 from native_prelink import macho,backed_offset
 from unicorn import Uc,UC_ARCH_ARM64,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn import arm64_const as regs

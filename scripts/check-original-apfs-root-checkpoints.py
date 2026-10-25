@@ -19,7 +19,7 @@ def require(value, message):
 
 for script in ('check-native-virtio-checkpoints.py', 'check-original-apfs-checkpoints.py'):
     subprocess.run(['python3', ROOT / 'scripts' / script], check=True)
-plan = json.loads((build / 'native-prelink/native-virtio-firstread-candidate.json').read_text())
+plan = json.loads((build / 'xnu-prelink/native-virtio-firstread-candidate.json').read_text())
 qualified = json.loads((build / 'original-apfs-checkpoints.json').read_text())
 operation = qualified['actual_original_operations']['vfs_mount']
 
@@ -68,7 +68,7 @@ require(refused['finished_function_entry'] == operation and not refused['functio
         'original sealed SystemCryptex root refusal retained')
 apfs = next(e for e in plan['extents'] if e['module'] == 'com.apple.filesystems.apfs' and e['segment'] == '__TEXT_EXEC')
 require(apfs['va'] <= int(refused['x30'], 16) < apfs['va'] + apfs['size'], 'actual refusal caller belongs to original APFS')
-symbols = subprocess.check_output(['xcrun', 'nm', '-U', build / 'native-prelink/native-virtio-firstread-candidate.macho'], text=True)
+symbols = subprocess.check_output(['xcrun', 'nm', '-U', build / 'xnu-prelink/native-virtio-firstread-candidate.macho'], text=True)
 panic = re.search(r'^([0-9a-f]+)\s+\S\s+_panic$', symbols, re.M)
 require(panic and int(refused['pc'], 16) == int(panic[1], 16), 'genuine source panic receives original APFS refusal')
 require(int(rootauth['pc'], 16) == int(panic[1], 16) and
@@ -77,7 +77,7 @@ require(int(rootauth['pc'], 16) == int(panic[1], 16) and
         rootauth['kernel_observations']['_native_virtio_read_requests'] == 167 and
         rootauth['kernel_observations']['_native_virtio_read_failures'] == 0,
         'genuine post-mount root authentication refuses the unsealed restore volume before userspace')
-matched_kernel = build / 'native-prelink/native-apfs-data-candidate.macho'
+matched_kernel = build / 'xnu-prelink/native-apfs-data-candidate.macho'
 matched_plan = json.loads(matched_kernel.with_suffix('.json').read_text())
 require(hashlib.sha256(matched_kernel.read_bytes()).hexdigest() == matched_plan['candidate_sha256'] ==
         '8db7506164cb7772c6af3e8bd21b4a9ee3a951c5c611550deae923ed1558628f' and

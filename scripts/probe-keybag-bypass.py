@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = ROOT / 'build/native-prelink/native-owner-armdt-nubs-candidate'
+BASE = ROOT / 'build/xnu-prelink/native-owner-armdt-nubs-candidate'
 DATA_SEED = ROOT / 'build/offline-renderbox-present-2/compiler-data-32.cdr'
 DATA = ROOT / 'build/offline-renderbox-present-2/compiler-data-32-keybags.cdr'
 OUTPUT = ROOT / 'build/darwinboot-armdt-keybag-bypass'

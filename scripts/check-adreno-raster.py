@@ -106,7 +106,7 @@ unit=run([exe],text=True).strip();print(unit)
 require(unit=='PASS: 114916 raster profiles, 41 transactional refusals','Exact source-reference suite inventory')
 import sys
 import struct
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho
 sdk=run(['xcrun','--sdk','iphoneos','--show-sdk-path'],text=True).strip()
 objects=[]

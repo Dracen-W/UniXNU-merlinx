@@ -1,6 +1,20 @@
 # Debugging and logs
 
-A bring-up produces four kinds of evidence: serial output, the on-screen diagnostic page, the panic screen and build reports. Collect them together.
+Collect firmware logs, kernel output, diagnostic screenshots and build reports for each bring-up checkpoint.
+
+## Procedure {#procedure}
+
+1. Record the command that failed or the last completed [boot checkpoint](/porting/bring-up), plus the device, firmware and image revisions.
+2. Choose an available [log source](#log-sources). Use the USB terminal only with a board that implements its [device protocol](#device-compatibility); use UART, framebuffer diagnostics or QEMU logs as provided by the target.
+3. For a green handoff bar, follow [the entry-probe procedure](#green-bar). For a panic, capture the [panic screen](#panic-screen); for a user process fault, collect [user fault evidence](#user-fault-evidence).
+4. Apply one diagnostic change. Rebuild the affected artifact; boot-argument changes require `./unixnu payload` and `./unixnu bootimg`. Repeat the failing operation and record the last confirmed checkpoint.
+5. Save an [evidence bundle](#evidence-bundle) and update the affected [porting record](/porting/records). A useful result identifies the failing stage, input versions and exact error.
+
+## Capture by boot stage
+
+Follow [log capture and automated tests](/porting/log-capture): QR export from
+the firmware menu, UART or screen diagnostics at kernel entry, then persistent
+logs and automated cycles after storage works.
 
 ## USB debug terminal
 
@@ -54,6 +68,8 @@ The optional C-sender interoperability test needs `GIULIA_SCREEN_FIXTURE` pointi
 
 | Source | Transport | Use |
 | --- | --- | --- |
+| [Firmware log export](/porting/log-capture#qr-logs) | OneSend QR frames | Current UEFI Advanced Logger buffer |
+| [Persistent logs](/porting/log-capture#persistent-logs) | Reserved storage and Linux reader | Kernel messages and diagnostic snapshots |
 | UEFI serial | UART | Firmware, UniXNU and DarwinBoot |
 | Kernel serial | UART selected by `serial=` | XNU console and panic output |
 | Diagnostic page | Framebuffer | Live state after the console stops |
@@ -198,7 +214,20 @@ The payload step runs:
 python3 scripts/patch-xnu-entry-probe.py <kernel> --panic-screen --no-reset
 ```
 
+The main UniXNU repository supplies the entry probe and `xnu-panic-screen.c`. Tree assembly copies them into every device build tree. Panic rendering uses Mu-Silicium’s `Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h`. Set `uefi` under `[build]` in `unixnu.local.toml`, or run `./unixnu payload --uefi /path/to/Mu-Silicium`. Set `UNIXNU_UEFI` when running the script directly.
+
 The panic screen writes the formatted panic message and registers to the framebuffer and keeps the image visible. `--no-reset` stops the automatic reset, so the screen stays for a photograph.
+
+### Green bar at handoff {#green-bar}
+
+The top green bar is drawn by DarwinBoot's `DarwinEnter` after `ExitBootServices`, before cache maintenance, MMU shutdown, and the branch to XNU. A screen that stays there requires an entry probe or serial log to locate the next stage. The cause is undetermined from the green bar alone.
+
+1. Record the last `DARWINBOOT:` lines, including kernel entry address, video geometry, command line, and CPU state. Confirm the selected kernel and ADT belong to the same device and OS profile.
+2. For a kernel supported by `scripts/patch-xnu-entry-probe.py`, set `[payload] panic_screen = true` in the device profile. Rebuild with `./unixnu payload`, then `./unixnu bootimg`, and boot the new image. Check `logs/payload-patch.log` for successful probe installation.
+3. Look for the blue and magenta bars below the green band. Blue marks the MMU-off kernel entry; magenta marks the point before enabling the MMU. Check the recorded framebuffer base and stride when probe output is absent.
+4. Use `entry_probe_reset_delay = 6` for a timed reset checkpoint after MMU enable. Record the observed bars, reset timing, serial output, and `payload.json` in the device's porting record.
+
+See [applying boot arguments](/xnu/boot-arguments#apply-arguments) when a configuration change is missing from the booted image.
 
 ### Color bars
 
@@ -206,7 +235,7 @@ The early boot draws three bands of 1/16 screen height in the frame buffer. In t
 
 | Bar | Painted by | Meaning |
 | --- | --- | --- |
-| Green | DarwinBoot `DarwinEnter` | boot services exited and control reached the kernel entry |
+| Green | DarwinBoot `DarwinEnter` | boot services exited; loader handoff started before the kernel branch |
 | Blue | Entry probe stage 1 | the kernel entry code ran with the MMU off |
 | Magenta | Entry probe stage 2 | the kernel reached the point just before the MMU is enabled |
 
@@ -225,7 +254,7 @@ entry_probe_reset_occurrence = 1           # which call (default 1)
 entry_probe_reset_before = false           # reset at the call site, without the call and the delay
 ```
 
-With `entry_probe_reset_after` the reset moves after that call, so one run answers one question: did the kernel get past it? The keys map to `--reset-delay`, `--reset-after`, `--in`, `--occurrence` and `--reset-before` of the board's `patch-xnu-entry-probe.py`, and they combine with `panic_screen`. Without `entry_probe_reset_delay` the payload keeps `--no-reset`.
+With `entry_probe_reset_after` the reset moves after that call, so one run answers one question: did the kernel get past it? The keys map to `--reset-delay`, `--reset-after`, `--in`, `--occurrence` and `--reset-before` of the shared `patch-xnu-entry-probe.py`, and they combine with `panic_screen`. Without `entry_probe_reset_delay` the payload keeps `--no-reset`.
 
 The first panic message is also copied to `boot_progress_panic_text`. A panic on a secondary core parks that core; the live banner keeps the text after the screen is repainted.
 
@@ -343,15 +372,15 @@ Collect:
 | Serial log | UART capture file |
 | Diagnostic photos | Title bar, full page, trace pages, pulse strip |
 | Panic photo | Panic screen |
-| Boot report | `out/<board>/boot/boot.json` |
-| Payload report | `out/<board>/payload/payload.json` |
-| Build logs | `out/<board>/logs/` |
+| Boot report | `out/<device>/<os_profile>/<config>/boot/boot.json` |
+| Payload report | `out/<device>/<os_profile>/<config>/payload/payload.json` |
+| Build logs | `out/<device>/<os_profile>/<config>/logs/` |
 
 Record the boot image hash with every photo:
 
 ```sh
-shasum -a 256 out/<board>/boot/boot.img
-jq . out/<board>/boot/boot.json
+shasum -a 256 out/<device>/<os_profile>/<config>/boot/boot.img
+jq . out/<device>/<os_profile>/<config>/boot/boot.json
 ```
 
 ## Next steps

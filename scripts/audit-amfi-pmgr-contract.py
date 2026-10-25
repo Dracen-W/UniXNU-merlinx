@@ -8,7 +8,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import backed_offset, exports, macho
 
 
@@ -19,12 +19,12 @@ def require(ok, message):
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--candidate', type=Path, default=ROOT /
-                    'build/native-prelink/native-owner-ufs-rootauth3-candidate.macho')
+                    'build/xnu-prelink/native-owner-ufs-rootauth3-candidate.macho')
 args = parser.parse_args()
 if not args.candidate.exists():
     # Build products are pruned: a later candidate built from the same original kernelcache carries the same original
     # AppleMobileFileIntegrity/ApplePMGR instructions; the instruction contracts below are checked against it.
-    later = sorted((ROOT / 'build/native-prelink').glob('native-owner-ufs-cpu-desktop-*-candidate.macho'), key=lambda f: f.stat().st_mtime)
+    later = sorted((ROOT / 'build/xnu-prelink').glob('native-owner-ufs-cpu-desktop-*-candidate.macho'), key=lambda f: f.stat().st_mtime)
     require(later, 'No reference candidate available')
     args.candidate = later[-1]
 data = args.candidate.read_bytes()

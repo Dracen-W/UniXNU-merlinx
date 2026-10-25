@@ -39,7 +39,7 @@ def main():
         status='checking; incomplete unless replaced by a passing decision',
         device_action_authorized=False, user_hold_active=True), indent=2)+'\n')
     evidence = args.evidence.resolve()
-    ufs = ROOT/'drivers/NativeUfs'
+    ufs = ROOT/'drivers/ShengUfs'
     inputs = {}
     gates = []
 

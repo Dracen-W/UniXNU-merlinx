@@ -6,11 +6,11 @@ from pathlib import Path
 import struct
 import sys
 ROOT=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset
 def require(v,s):
     if not v:raise SystemExit(s)
-kernel=ROOT/'build/native-prelink/native-owner-legacy-display-validate-candidate.macho'
+kernel=ROOT/'build/xnu-prelink/native-owner-legacy-display-validate-candidate.macho'
 raw=kernel.read_bytes();image=macho(raw)
 require(hashlib.sha256(raw).hexdigest()=='0c8e25d34b4e4987bd96794abecab882f796992691b008779e77a5111cb84497','Exact historical validation candidate')
 offset=backed_offset(image['segments'],0xfffffff005794030,16,len(raw))

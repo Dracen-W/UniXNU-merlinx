@@ -1,24 +1,37 @@
 # Contributing to UniXNU
 
-Read the [documentation](https://unixnu.com) before changing the build driver, the kernel patches or a device port. The [repository layout](https://unixnu.com/contributing/repository) page describes the module system.
+Read the [documentation](https://unixnu.com) before changing the build driver, the kernel patches or a device port. The source is in `docs/`. The [repository layout](https://unixnu.com/contributing/repository) page describes the module system.
 
 ## Repository scope
 
-| Repository | Changes |
+| Repository | Responsibility |
 | --- | --- |
-| `UniXNU` | Build driver, UEFI boot manager, DarwinBoot, generic drivers, kits, patches and documentation |
-| `UniXNU-<device>` | Board file, defconfig, device scripts, device drivers and package |
-| `uefi-<device>` | Mu-Silicium UEFI port |
+| `UniXNU` | Build tools, component catalog, ARM64 support, OS profiles, template, UEFI package, documentation site |
+| `UniXNU-<soc>-common` | Shared SoC configuration, DTSI, platform operations, patch series |
+| `UniXNU-<device>` | Board DTS, peripherals, selected components, partitions, packaging |
+| Component repositories | Drivers, libraries, loaders, tools |
+| `uefi-<device>` | UEFI platform integration |
 
-A change that applies to one board belongs in the device repository. A change that applies to the stack belongs in this repository.
+Board policy belongs in the device repository. Shared SoC operations belong in the SoC repository. Reusable drivers and libraries belong in component repositories. The site source, navigation, translations, assets, configuration and deployment workflow belong in `UniXNU`.
+
+## Component work
+
+1. Search `components.toml` and inspect existing interfaces.
+2. Put shared controller or protocol code in its component repository.
+3. Put SoC operations and resources in the SoC repository and board policy in the device repository.
+4. Record source identity, revision, dependencies, build command, outputs and runtime identifiers.
+5. Update consumers, README and the English and Chinese site pages together.
+6. Run the affected build commands and record host and hardware results separately.
+
+Canonical names use hardware scope, protocol or function. Repository renames preserve history and pinned revisions. Compatibility aliases use official source identity; community sources keep their own identity.
 
 ## Repository topics
 
-Every repository in the UniXNU organization carries the `unixnu` topic. Add the topic before a repository is linked from the documentation or used as a module.
+Every maintained driver repository and every published device repository carries the `unixnu` GitHub topic. See [driver repositories](https://unixnu.com/drivers/repositories) and [device repository](https://unixnu.com/porting/device-repository).
 
 ## Private blobs
 
-Do not commit Apple IPSW files, kernelcaches, disk images, trust caches, Data seeds, vendor firmware or other proprietary binaries. Keep them in a local cache or external storage. The macOS runner deletes these inputs after the artifacts are uploaded.
+Do not commit Apple IPSW files, kernelcaches, disk images, trust caches, Data seeds, vendor firmware or other proprietary binaries. The device repository lists its inputs in `proprietary-files.txt`; the files stay in `.cache/firmware`.
 
 ## Development
 
@@ -27,55 +40,39 @@ git clone https://github.com/UniXNU/UniXNU
 cd UniXNU
 ./unixnu defconfig <name> -D ../UniXNU-<device>
 ./unixnu fetch
-./unixnu build kernel package firmware payload
+./unixnu status --json
+./unixnu build kernel
+./unixnu build payload
 ./unixnu bootimg --uefi ../uefi-<device> --dtb <board>.dtb
 ```
 
 Use `--local-module` or `--local` to test a module from a working directory without committing it.
 
-## Change guidelines
+## Kernel patches
 
-- State the current behavior in the code and documentation.
-- Keep one subject per commit.
-- Add a test when it prevents a failure a future edit would introduce. A behavior visible on every run needs no assertion.
-- Put device-specific values in the device repository.
-- Put stack-wide behavior in `UniXNU`.
-- Keep the English and Simplified Chinese documentation pages in sync.
+Follow [source and patches](https://unixnu.com/xnu/source-and-patches#procedure):
+
+1. Build the selected kernel once to prepare `out/<device>/<os_profile>/<config>/tree/.cache/xnu-work`.
+2. Copy the files to edit into a temporary Git directory with their XNU-relative paths and stage them.
+3. Edit the copy and export the patch with `git diff`.
+4. Add the patch to the owning series (ARM64, SoC, OS, device or component) in dependency order.
+5. Check the order with `./unixnu status --json` and rebuild the kernel.
 
 ## Commit messages
 
-```
-feat(<area>): <summary>
-fix(<area>): <summary>
-docs: <summary>
-build(<area>): <summary>
-chore: <summary>
-```
+| Prefix | Subject |
+| --- | --- |
+| `feat(<area>)` | New capability |
+| `fix(<area>)` | Defect repair |
+| `docs` | Documentation |
+| `build(<area>)` | Build system |
+| `chore` | Maintenance |
 
-The message describes the change. The documentation describes the resulting state.
-
-## Kernel patches
-
-1. Edit `.cache/xnu-work` after a first kernel build.
-2. Generate the patch with `git diff`.
-3. Name it so the apply order is correct.
-4. Rebuild the kernel and the prelink.
-5. Record the kernelcache pin if the ABI changed.
-
-Late patches use the `zzy-` and `zzz-` prefixes.
-
-## Drivers
-
-- Built-in XNU drivers compile against the recorded XNU flags in `*.cpo.json`.
-- UEFI drivers use the EDK II module layout.
-- Kext bundles keep the standard bundle layout.
-- A driver that touches hardware reports each stage through a boot argument while it is under bring-up.
+Commit messages describe changes. Documentation describes current behavior. Keep one subject per commit.
 
 ## Documentation
 
-After a device port, contribute the device page and the porting notes to this repository.
-
-The documentation source is in `docs/`. The site is bilingual:
+The site is a bilingual VitePress project in `docs/`, published to https://unixnu.com.
 
 | Locale | Path |
 | --- | --- |
@@ -89,7 +86,11 @@ npm run dev
 npm run build
 ```
 
-Add a page to both locales and to the sidebar in `docs/.vitepress/config.mts`.
+Follow the [documentation procedure](https://unixnu.com/contributing/documentation#procedure). A page change updates both locales in the same pull request. Add a new page to both sidebars in `docs/.vitepress/config.mts` and link it from a page reachable from [Port a device](https://unixnu.com/porting/). `npm run build` fails on a broken internal link.
+
+## Device records
+
+Official devices maintain `porting.toml`. Update the affected areas' findings or evidence with each code change. The site renders the revision pinned in `devices.toml`. See the [record guide](https://unixnu.com/porting/records).
 
 ## Security
 

@@ -2,7 +2,7 @@
 """Qualify modern GMU HFI transport against pinned source, entirely offline."""
 import hashlib,json,re,struct,subprocess,sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho
 kit=ROOT/'kits/AdrenoFirmware';out=ROOT/'build/adreno-hfi';out.mkdir(exist_ok=True)
 pins=json.loads((ROOT/'scripts/data/adreno-inputs.json').read_text());cache=ROOT/'.cache/adreno-source'

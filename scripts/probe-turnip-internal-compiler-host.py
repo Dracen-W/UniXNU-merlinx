@@ -49,10 +49,10 @@ def main():
         require(sha(ROOT / name) == digest, 'Exact qualified source: ' + name)
     require(sha(ROOT / paths['driver']) == previous['driver_sha256'], 'Exact previously qualified host compiler')
     for name, digest in previous['runtime_patches_sha256'].items():
-        require(sha(ROOT / 'drivers/NativeMetal/bridge/patches' / name) == digest, 'Exact qualified runtime patch: ' + name)
+        require(sha(ROOT / 'drivers/AdrenoMetal/bridge/patches' / name) == digest, 'Exact qualified runtime patch: ' + name)
     for name, field in [('program', 'process_sha256'), ('peer', 'peer_sha256'), ('loader', 'loader_sha256')]:
         require(sha(ROOT / paths[name]) == previous[field], 'Exact qualified binary: ' + name)
-    require(sha(ROOT / 'build/native-metal-bridge/host/libnative_metal_bridge.a') == previous['host_bridge_sha256'], 'Exact linked runtime input')
+    require(sha(ROOT / 'build/adreno-metal-bridge/host/libadreno_metal_bridge.a') == previous['host_bridge_sha256'], 'Exact linked runtime input')
     output.mkdir(parents=True)
     identities = {name: sha(ROOT / path) for name, path in paths.items()}
     cases = {}

@@ -8,7 +8,7 @@ import plistlib
 ROOT = Path(__file__).resolve().parents[1]
 expected = 'a4a5fd00dbfb3d41ffe7913cc31b14a2db58e27f5d89129d64018e534b9dc309'
 native = 'ba60f353a90b61fb6d63425648aeb4475a2c237ed19800d60d2f583cea035bb3'
-image = ROOT / 'build/native-prelink/native-owner-pgz-fixed-candidate.macho'
+image = ROOT / 'build/xnu-prelink/native-owner-pgz-fixed-candidate.macho'
 
 
 def require(value, message):

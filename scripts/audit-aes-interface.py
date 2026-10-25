@@ -14,11 +14,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--candidate', type=Path, default=ROOT / 'build/native-prelink/native-defaults-candidate.macho')
+parser.add_argument('--candidate', type=Path, default=ROOT / 'build/xnu-prelink/native-defaults-candidate.macho')
 parser.add_argument('--reference', type=Path, default=ROOT / '.cache/kdk-aes-reference/System/Library/Extensions/IOCryptoAcceleratorFamily.kext/Contents/MacOS/IOCryptoAcceleratorFamily')
 parser.add_argument('--snapshot', type=Path, default=ROOT / 'build/darwinboot-aes-native-metadata/gdb-stop.json')
 parser.add_argument('--output', type=Path, default=ROOT / 'build/image4-ignition/aes-interface-audit.json')

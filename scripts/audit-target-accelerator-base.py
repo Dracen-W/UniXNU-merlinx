@@ -2,12 +2,12 @@
 """Derive the exact original IOAcceleratorES base ABI without publishing a device."""
 import hashlib,json,struct,sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset,exports
 def require(v,s):
  if not v:raise SystemExit(s)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
-p=ROOT/'build/native-prelink/native-owner-renderbox-presentation-candidate.macho';plan=json.loads(p.with_suffix('.json').read_text());raw=p.read_bytes();im=macho(raw)
+p=ROOT/'build/xnu-prelink/native-owner-renderbox-presentation-candidate.macho';plan=json.loads(p.with_suffix('.json').read_text());raw=p.read_bytes();im=macho(raw)
 require(sha(p)==plan['candidate_sha256'],'Exact immutable candidate')
 def read(a,n):
  at=backed_offset(im['segments'],a,n,len(raw));return raw[at:at+n]

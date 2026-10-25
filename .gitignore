@@ -12,6 +12,7 @@
 /docs/node_modules/
 /docs/.vitepress/dist/
 /docs/.vitepress/cache/
+/docs/.vitepress/records/
 
 # Local development files
 *.log
@@ -48,3 +49,4 @@ __pycache__/
 *.key
 .env
 local.toml
+unixnu.local.toml

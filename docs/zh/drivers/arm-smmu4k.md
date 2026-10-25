@@ -1,0 +1,17 @@
+# ArmSmmu4K
+
+先按[适配流程](/zh/porting/platform)准备板级输入、修改源码、接入构建并逐步验证。
+
+ARM SMMUv2 原生 4 KiB 表 kit。构建并编程 stage-1/stage-2 context 表。
+
+| 仓库 | 维护者 | 范围 |
+| --- | --- | --- |
+| [ArmSmmu4K](https://github.com/UniXNU/ArmSmmu4K) | [UniXNU](https://github.com/UniXNU) | ARM SMMUv2 原生 4 KiB 表 kit。构建并编程 stage-1/stage-2 context 表。 |
+
+## 状态
+
+Adreno740 和存储驱动使用它。
+
+## 构建
+
+消费该 kit 的驱动配方编译其源码。sheng 将 `ArmSmmu4K*.c` 加入 GPU 归档。按[平台适配](/zh/porting/platform)提供 MMIO、context/stream 所有权和分配回调。

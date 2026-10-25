@@ -6,7 +6,7 @@
 
 | 输入 | 来源 |
 | --- | --- |
-| 原生内核 | `out/<board>/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf` |
+| 原生内核 | `out/<device>/<os_profile>/<config>/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf` |
 | 原始 kernelcache | IPSW `KernelCache`，或 `--kernelcache FILE` |
 | 组件列表 | `[kernel.prelink] roots` |
 | slide | `[kernel.prelink] slide` |
@@ -16,7 +16,7 @@ kernelcache 是 `KernelCache` IM4P 的 LZFSE 负载。选出 arm64 切片，并�
 
 ## 预链接步骤
 
-`kits/NativePrelink/emit_prelink.py`：
+`kits/XnuPrelink/emit_prelink.py`：
 
 1. 解析原生和原始 Mach-O。
 2. 读取原始 kernelcache 的 `__PRELINK_INFO`。

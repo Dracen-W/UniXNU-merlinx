@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-kit = ROOT / 'drivers/NativeAdreno'
+kit = ROOT / 'drivers/Adreno740'
 sim = kit / 'tests/hostsim'
 out = ROOT / 'build/turnip-darwin-host'
 out.mkdir(parents=True, exist_ok=True)
@@ -56,7 +56,7 @@ subprocess.run(['xcrun', 'clang', '-std=c11', '-O1', '-I', '/opt/homebrew/includ
 
 plugin_smoke = out / 'plugin_smoke'
 subprocess.run([sys.executable, ROOT / 'scripts/gen-turnip-smoke-shaders.py'], check=True)
-subprocess.run(['xcrun', 'clang++', '-std=c++17', '-O1', '-I', ROOT / 'drivers/NativeMetal', '-I', ROOT / '.cache/mesa-work/include',
+subprocess.run(['xcrun', 'clang++', '-std=c++17', '-O1', '-I', ROOT / 'drivers/AdrenoMetal', '-I', ROOT / '.cache/mesa-work/include',
                 '-I', ROOT / 'build/turnip-smoke',
                 sim / 'plugin_smoke.cpp', '-o', plugin_smoke], check=True)
 env = dict(os.environ, DYLD_INSERT_LIBRARIES=str(shim), MESA_LOG='')

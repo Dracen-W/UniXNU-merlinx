@@ -9,7 +9,7 @@ UniXNU keeps the original Apple security components and supplies the inputs they
 | Trust cache bundle | `--trust-cache FILE` |
 | Trust cache pins | `[payload] trust_cache_sha256` |
 | Platform seed | `--unique-chip-id HEX` |
-| Device tree identity | `[payload.adt] ipad_identity` and the board script |
+| Device tree identity | Format 2 typed `[adt]` tables; format 1 board script |
 | PMGR integration | `XNU_SHENG_PMGR` on boards that need it |
 | Root policy | `XNU_VERIFIED_ROOT_PROBE`, `XNU_OWNER_ROOT_AUDIT`, `XNU_OWNER_ROOT_TRUST` |
 
@@ -50,7 +50,7 @@ The kernel patches `offline-owner-root-*` add the owner root checks used by the 
 
 ## GPU client grant
 
-NativeAdreno publishes `NativeSandboxGrantProcess` on its accelerator service. The patch `zzw-native-adreno-sandbox-grant` compares the opening process name with that property. The named process opens the user client past `mac_iokit_check_open_service` and `mac_iokit_check_open`. The render server is the named process.
+Adreno740 publishes `NativeSandboxGrantProcess` on its accelerator service. The patch `zzw-native-adreno-sandbox-grant` compares the opening process name with that property. The named process opens the user client past `mac_iokit_check_open_service` and `mac_iokit_check_open`. The render server is the named process.
 
 ## Verified root
 
@@ -67,7 +67,7 @@ The kit provides:
 
 ## Storage integrity
 
-`NativeVirtioBlock` and `NativeRamBlock` share the verified block policy. The build script checks that both transports import the same original storage bindings and that the compiled object matches the recorded hash.
+`VirtioMmioBlock` and `RamBlock` share the verified block policy. The build script checks that both transports import the same original storage bindings and that the compiled object matches the recorded hash.
 
 ## Reporting
 

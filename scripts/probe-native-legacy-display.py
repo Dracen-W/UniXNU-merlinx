@@ -18,7 +18,7 @@ if a.system:
     if a.gop or a.original_error or a.case!='start':p.error('System-client observation requires start without other GOP/error observations')
     if a.profile not in ('system','system-dt','pitch','info','scale','pm','validate','transfer-ready'):a.profile='system-dt'
 if a.gop and a.profile!='gop':p.error('GOP observations require the GOP candidate profile')
-base='build/native-prelink/native-owner-legacy-display-'+a.profile+'-candidate'
+base='build/xnu-prelink/native-owner-legacy-display-'+a.profile+'-candidate'
 cmd=['python3','scripts/probe-darwinboot-xnu.py','--kernel',base+'.macho','--prelink-report',base+'.json',
     '--output','build/darwinboot-owner-hvf-legacy-display-'+a.case+('-error' if a.original_error else '')+('-'+a.profile+'-'+(a.system or 'control') if a.profile.startswith('system') or a.profile in ('pitch','info','scale','pm','validate','transfer-ready') else '-gop-'+(a.gop or 'control') if a.profile=='gop' else ''),
     '--virtio-udif-image','.cache/firmware/target-volumes/044-76040-038.dmg',

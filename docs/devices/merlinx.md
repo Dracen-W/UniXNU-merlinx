@@ -6,6 +6,7 @@ merlinx is the Xiaomi Redmi Note 9 with the MediaTek MT6768/MT6769Z SoC. The por
 | --- | --- | --- |
 | [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | UEFI boots, custom menu and boot image work; storage init blocks UniXNU and XNU |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | [Dracen-W](https://github.com/Dracen-W) | Mu-Silicium port, fixed BootShim and custom GOP boot menu |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | Native eMMC driver for merlinx |
 
 ## State
 

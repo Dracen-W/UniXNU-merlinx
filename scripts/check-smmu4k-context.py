@@ -2,7 +2,7 @@
 """Qualify native4K upper tables and SMMUv2 context encoding, without MMIO."""
 import hashlib,json,re,struct,subprocess,sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho
 kit=ROOT/'kits/ArmSmmu4K';out=ROOT/'build/arm-smmu-4k-context';out.mkdir(exist_ok=True)
 pins=json.loads((ROOT/'scripts/data/adreno-inputs.json').read_text());revision=pins['linux']['commit']

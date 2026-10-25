@@ -1,22 +1,44 @@
 # 启动镜像
 
-启动镜像从内存运行。流程启动镜像，并保持已安装的 boot 分区不变。
+先按[构建指南](/zh/building)完成启动镜像组装。以下流程从 RAM 启动镜像，依次检查菜单、加载器和内核。
 
-## 前提
+使用 `./unixnu build firmware --uefi ../uefi-<device>` 构建固件。Mu-Silicium initrd 负载需要在固件中加入 `UniXNURamDiskDxe`、DiskIoDxe 和 FAT 支持，并在 `./unixnu bootimg` 前构建负载。[固件集成指南](/zh/porting/uefi-firmware#required-integration)列出了必需的 DSC/FDF 条目和菜单检查步骤。
+
+重复构建时，在 [unixnu.local.toml](/zh/reference/configuration#local-build-inputs) 保存路径。修改启动参数后，按[参数应用流程](/zh/xnu/boot-arguments#apply-arguments)重新构建负载和启动镜像。画面停在加载器交接阶段时，按[绿条诊断](/zh/guide/debugging#green-bar)检查。
+
+## 1. 核对输入 {#前提}
 
 - bootloader 已解锁并支持 `fastboot`。
 - 设备的 UEFI 移植与板级配置匹配。
 - 已构建带负载的启动镜像，或用空 ramdisk 做启动管理器冒烟测试。
 - 板级 UART 可用时准备串口。
 
-## 启动
+## 2. 准备根卷 {#首次启动}
+
+使用 userdata 根卷布局的设备，首次启动根卷前需要安装该镜像。镜像提供 OS 与 SystemOS 卷，以及内核匹配的根卷 UUID。
+
+安装或替换根镜像时执行下方刷写命令。设备已有匹配的根镜像时，继续步骤 3。
+
+刷写 `userdata` 会覆盖该分区。执行前确认目标设备、分区布局和报告中的镜像路径，并保存需要保留的分区数据。
 
 ```sh
 fastboot devices
-fastboot boot out/<board>/boot/boot.img
+fastboot flash userdata out/<device>/<os_profile>/<config>/userdata/userdata-root.img
+fastboot reboot bootloader
 ```
 
-`fastboot boot` 传输镜像并启动一次。设备原有的 boot 分区和已安装系统保持不变。
+userdata 镜像较大。用 `unixnu build userdata` 构建，并按设备仓库报告中的命令刷写。
+
+Data 种子提供可写 Data 卷。`--skip-setup` 在种子副本中把 Setup 标记为完成，跳过 Hello 页面。步骤和偏好改动见[跳过 Setup](/zh/guide/skip-setup)。
+
+## 3. 启动镜像 {#启动}
+
+```sh
+fastboot devices
+fastboot boot out/<device>/<os_profile>/<config>/boot/boot.img
+```
+
+`fastboot boot` 传输镜像并启动一次。运行后的 payload 遵循已配置的存储和安装策略。
 
 启动镜像包含：
 
@@ -28,7 +50,7 @@ fastboot boot out/<board>/boot/boot.img
 
 Android bootloader 加载镜像，校验 BootShim 的 ARM64 header，然后跳转到 shim。BootShim 启动固件卷。
 
-## 启动管理器
+## 4. 确认启动菜单 {#启动管理器}
 
 UniXNU 把版本和配置摘要写到串口并绘制菜单。默认配置包含超时、默认项和倒计时。
 
@@ -47,7 +69,7 @@ UniXNU 把版本和配置摘要写到串口并绘制菜单。默认配置包含�
 
 UniXNU 找不到配置时，会扫描每个卷的 `\EFI\BOOT\BOOTAA64.EFI`，把这些菜单项加到内置动作之前。
 
-## Darwin 启动
+## 5. 确认加载器交接 {#darwin-启动}
 
 类型为 `xnu` 的菜单项由 DarwinBoot 读取以下文件：
 
@@ -62,21 +84,7 @@ DarwinBoot 把内核段复制到连续物理窗口，构造 `boot_args`，把 AD
 
 默认窗口为 256 MiB。ADT 属性 `/chosen/darwinboot-memory-size` 可以请求更大的窗口。
 
-## 首次启动
-
-首次启动需要 userdata 镜像。镜像提供 OS 与 SystemOS 卷，以及内核匹配的根卷 UUID。
-
-```sh
-fastboot flash userdata out/<board>/userdata/userdata-root.img
-fastboot reboot bootloader
-fastboot boot out/<board>/boot/boot.img
-```
-
-userdata 镜像较大。用 `unixnu build userdata` 构建，并按设备仓库报告中的命令刷写。
-
-Data 种子提供可写 Data 卷。`--skip-setup` 在种子副本中把 Setup 标记为完成，跳过 Hello 页面。步骤和偏好改动见[跳过 Setup](/zh/guide/skip-setup)。
-
-## 日志
+## 6. 保存日志 {#日志}
 
 板级 UART 可用时，UEFI 固件写到 `EFI_SERIAL_IO_PROTOCOL`，UniXNU 的行以 `UNIXNU:` 开头。
 
@@ -84,34 +92,29 @@ Data 种子提供可写 Data 卷。`--skip-setup` 在种子副本中把 Setup �
 
 | 来源 | 位置 |
 | --- | --- |
-| 构建驱动 | `out/<board>/logs/*.log` |
+| 构建驱动 | `out/<device>/<os_profile>/<config>/logs/*.log` |
 | 启动管理器 | 串口，`UNIXNU:` 行 |
 | DarwinBoot | 串口，`DARWINBOOT:` 行 |
 | XNU | 串口内核输出 |
 
 ## 恢复
 
-镜像从内存运行。复位设备即可回到原有 bootloader 和已安装系统。
+使用设备硬件复位方式返回 bootloader。fastboot 响应后，以下命令可重启 bootloader：
 
 ```sh
 fastboot reboot bootloader
 ```
 
-固件在菜单前停住时，复位设备并再次启动同一镜像。固件停住后设备仍在 bootloader，第二次 `fastboot boot` 使用同一镜像。
+固件在菜单前停止响应时，保存最后输出，复位进入 bootloader 并用 `fastboot devices` 确认连接。再次尝试前按[启动验证](/zh/porting/bring-up)检查固件输入。
 
 ## macOS
 
-启动流程由 IPSW 驱动。macOS 恢复镜像按相同成员布局提供 `KernelCache`、`DeviceTree`、`OS`、`Cryptex1,SystemOS`、`StaticTrustCache` 和 `Cryptex1,SystemTrustCache`。
+macOS 移植需要匹配其 XNU 版本、kernelcache、预链接 roots、私有驱动 ABI、trust cache 和根卷布局的 OS profile。
+按[内核准备](/zh/guide/build-kernel)与[预链接](/zh/concepts/prelink)确认这些输入。
+仓库提供的 `ipados-17.7.11-21H461` profile 描述名称所示的 iPadOS 构建。
 
-启动 macOS：
-
-1. 把板级文件的 `[ipsw]` 指向 macOS IPSW，并填入该镜像的产品、版本、build、device class、chip ID 和 board ID。
-2. 在 `[ipsw.sha256]` 中固定成员哈希。
-3. 把 `[userdata] windows` 设为 `OS` 和 `Cryptex1,SystemOS`。
-4. 构建内核、负载、启动镜像和 userdata 镜像。
-5. 刷写 userdata 镜像并启动启动镜像。
-
-设备树和平台驱动提供硬件描述，用户态来自 macOS 磁盘镜像。
+将完成的 OS profile 设为 `board.os_profile`，检查 `status --json`，再重复构建和启动验证流程。
+macOS 结果须关联该 profile 与目标设备。
 
 ## 下一步
 

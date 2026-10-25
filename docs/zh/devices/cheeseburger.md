@@ -1,25 +1,26 @@
 # 一加 5（cheeseburger）
 
-cheeseburger 是搭载 MSM8998 的一加 5。下面的移植是独立的社区项目，UniXNU 组织不维护它。目标用户态是 iPhone iOS。
+搭载 MSM8998 的社区设备移植。当前状态依据下方固定版本的维护者记录。
 
-| 仓库 | 维护者 | 状态 |
-| --- | --- | --- |
-| [UniXNU-cheeseburger](https://github.com/DinnerABC/UniXNU-cheeseburger) | [DinnerABC](https://github.com/DinnerABC) | UEFI 和菜单工作，已观察到 XNU 入口色条，MMU 和根未验证 |
-| [UniXNU-cheeseburger](https://github.com/lss717/UniXNU-cheeseburger) | [lss717](https://github.com/lss717) | cheeseburger 替代仓库，状态未记录 |
-
-## 状态
-
-| 层 | 状态 |
+| 仓库 | 维护者 |
 | --- | --- |
-| 原生 UEFI 和集成固件 | 可构建，原版镜像在真机进入 EFI Shell |
-| UniXNU 菜单 | 图形菜单在真机运行 |
-| DarwinBoot | 已记录文件哈希、Mach-O 装载、ADT、`boot_args` 和 EBS 交接 |
-| XNU | 独立的 MSM8998 ARM64 构建，P5 镜像显示 XNU `__start` 入口色条 |
-| MMU、C 初始化、根卷和 iOS | 未验证 |
-| 板级文件 | `example = true`，通用 build 和 boot image 步骤会拒绝不完整的板级配置 |
+| [UniXNU-cheeseburger](https://github.com/DinnerABC/UniXNU-cheeseburger) | [DinnerABC](https://github.com/DinnerABC) |
+| [UniXNU-cheeseburger](https://github.com/lss717/UniXNU-cheeseburger) | [lss717](https://github.com/lss717) |
 
-P1 GitHub Actions 在 `actions/setup-python` 阶段失败，审计未执行，目前没有远程构建通过记录。
+## 当前状态
 
-## 维护
+DinnerABC 移植已在 EL0 执行 PID 1，挂载根卷和 SystemOS，并提供内存中的可写 APFS Data。P18 启动记录停止于 `watchdogd[106]` 的 `SIGTRAP`，下一步需要获取用户态 PC 和调用栈。
 
-维护者拥有仓库和发布决定。UniXNU 文档记录移植及其状态，不接管维护。
+lss717 的独立移植已记录 UEFI、菜单和负载的实机检查，XNU 集成仍在进行。
+
+## 来源
+
+- [P18 启动结果: DinnerABC/UniXNU-cheeseburger](https://github.com/DinnerABC/UniXNU-cheeseburger/blob/c5463363de7ca0ad541b8132f29c7f0a3cef718c/docs/P18_BOOT_RESULT.md)
+- [README: lss717/UniXNU-cheeseburger](https://github.com/lss717/UniXNU-cheeseburger/blob/de1af958fc2530c2626217a36ab276e1f77f57a1/README.md)
+
+## 使用此移植
+
+1. 阅读上方仓库的构建说明和固定版本记录，准备对应的固件、系统镜像和板级输入。
+2. 按该仓库的命令构建，通用配置见[构建与启动](/zh/building)。
+3. 按[启动验证顺序](/zh/porting/bring-up)逐项验证，通过[日志抓取](/zh/porting/log-capture)保存结果。
+4. 更新[移植记录](/zh/porting/records)，记录实际使用的源码版本及最后确认的阶段。

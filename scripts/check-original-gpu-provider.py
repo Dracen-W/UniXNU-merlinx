@@ -2,17 +2,17 @@
 """Check unpublished original provider lifetime and its real first required callback."""
 import argparse,hashlib,json,struct,sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset,exports
 
 def load(p):return json.loads(p.read_text())
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def require(ok,why):
  if not ok:raise SystemExit(why)
-p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate-base',type=Path,default=ROOT/'build/native-prelink/native-owner-original-descriptor-refusal-candidate');args=p.parse_args()
+p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate-base',type=Path,default=ROOT/'build/xnu-prelink/native-owner-original-descriptor-refusal-candidate');args=p.parse_args()
 base=args.candidate_base.resolve();plan=load(base.with_suffix('.json'));raw=base.with_suffix('.macho').read_bytes();segments=macho(raw)['segments']
 require(sha(base.with_suffix('.macho'))==plan['candidate_sha256'] and sha(ROOT/'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf')==plan['native_sha256'],'Exact current native kernel/candidate')
-reference=load(ROOT/'build/native-prelink/native-owner-metal-shared-events-candidate.json');require(plan['components']==reference['components'] and plan['original_executable_sha256']==reference['original_executable_sha256'] and plan['early_security_initializers']==reference['early_security_initializers'],'Same 29 unchanged original components/security entry')
+reference=load(ROOT/'build/xnu-prelink/native-owner-metal-shared-events-candidate.json');require(plan['components']==reference['components'] and plan['original_executable_sha256']==reference['original_executable_sha256'] and plan['early_security_initializers']==reference['early_security_initializers'],'Same 29 unchanged original components/security entry')
 for module,digest in plan['original_executable_sha256'].items():
  e=next(e for e in plan['extents'] if e['module']==module and e['segment']=='__TEXT_EXEC');o=backed_offset(segments,e['va'],e['size'],len(raw));require(hashlib.sha256(raw[o:o+e['size']]).hexdigest()==digest,'Actual whole original executable identity '+module)
 build=load(ROOT/'build/native-original-provider/build-report.json');broker_build=load(ROOT/'build/native-offline-gpu/build-report.json');abi=load(ROOT/'build/gpu-analysis/original-iogpu-provider-abi.json')
@@ -36,7 +36,7 @@ names={name:address for address,group in exports(raw,macho(raw)).items() for nam
 def table(address,count):
  o=backed_offset(segments,address,count*8,len(raw));return struct.unpack_from('<'+'Q'*count,raw,o)
 original=table(abi['vptr'],215)
-reference_raw=(ROOT/'build/native-prelink/native-owner-renderbox-presentation-candidate.macho').read_bytes()
+reference_raw=(ROOT/'build/xnu-prelink/native-owner-renderbox-presentation-candidate.macho').read_bytes()
 reference_exports=exports(reference_raw,macho(reference_raw))
 expected=[]
 for address in abi['inherited_entries']:

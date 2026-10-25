@@ -1,28 +1,22 @@
 # 一加 13T（oneplus13t）
 
-oneplus13t 是搭载 SM8750 的一加 13T（PKX110、OP60F5L1）。下面的移植是独立的社区项目，UniXNU 组织不维护它。仓库从 `UniXNU-oneplus13t` 更名为 `UniXNU-Pagani_SM8750`，提交历史保留。
+搭载 SM8750 的社区设备移植。当前状态依据下方固定版本的维护者记录。
 
-| 仓库 | 维护者 | 状态 |
-| --- | --- | --- |
-| [UniXNU-Pagani_SM8750](https://github.com/IssacL04/UniXNU-Pagani_SM8750) | [IssacL04](https://github.com/IssacL04) | 已到 XNU S1 到 S6，根设备查找 panic，无根和用户态 |
-
-## 状态
-
-| 部分 | 状态 |
+| 仓库 | 维护者 |
 | --- | --- |
-| UEFI Shell 和菜单 | 真机工作，侧键交互仍待确认 |
-| GitHub Actions 中的 XNU 构建 | 通过，第 9 个镜像到达 S1 到 S6 |
-| 负载和启动镜像 | 内嵌负载交接，启动镜像解包后比对通过 |
-| DarwinBoot 交接 | 真机出现绿色交接条 |
-| XNU 入口 | 已到 S1 到 S6，控制台、`zalloc` 和 BSD 根设备查找已执行 |
-| 根和用户态 | 不可用，根设备查找在 60 秒后 panic |
-| kernelcache 预链接、userdata、iOS 用户态 | 未配置 |
+| [UniXNU-Pagani_SM8750](https://github.com/IssacL04/UniXNU-Pagani_SM8750) | [IssacL04](https://github.com/IssacL04) |
 
-panic 页记录 `poll=0x3c`、`timer=0x1a3` 和超时路径。单核定时器中断和观察线程已运行。长期稳定性和多核调度尚未验证。
+## 当前状态
+
+阶段 7 第 39 次运行记录确认实机已挂载根卷并进入系统界面，触控待完成。固件、XNU、根卷和界面结果适用于记录中的设备配置。
+
+## 来源
+
+- [README: IssacL04/UniXNU-Pagani_SM8750](https://github.com/IssacL04/UniXNU-Pagani_SM8750/blob/9a6b057527429159a531f37c3af5b7235806caf1/README.md)
 
 ## 双系统存储
 
-2026-10-22，设备专用的 F2FS 缩容流程在 256 GB 机型上创建了 64 GiB 的 `unixnu` 分区。采集到的主、备 GPT 一致，CRC 有效。该结果只覆盖分区创建，不能证明 XNU 已挂载根文件系统，也不代表参数化脚本已经在其他设备上验证。
+以下布局来自 256 GB 型号的实测记录。
 
 | 项目 | 采集值 |
 | --- | --- |
@@ -38,6 +32,9 @@ panic 页记录 `poll=0x3c`、`timer=0x1a3` 和超时路径。单核定时器中
 python3 scripts/dual_sys/partition.py inspect
 ```
 
-## 维护
+## 使用此移植
 
-维护者拥有仓库和发布决定。UniXNU 文档记录移植及其状态，不接管维护。
+1. 阅读上方仓库的构建说明和固定版本记录，准备对应的固件、系统镜像和板级输入。
+2. 按该仓库的命令构建，通用配置见[构建与启动](/zh/building)。
+3. 按[启动验证顺序](/zh/porting/bring-up)逐项验证，通过[日志抓取](/zh/porting/log-capture)保存结果。
+4. 更新[移植记录](/zh/porting/records)，记录实际使用的源码版本及最后确认的阶段。

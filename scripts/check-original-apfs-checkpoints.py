@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 build = ROOT / 'build'
 
@@ -20,7 +20,7 @@ def require(value, message):
 
 
 def load_plan(name):
-    path = build / 'native-prelink' / (name + '.macho')
+    path = build / 'xnu-prelink' / (name + '.macho')
     data = path.read_bytes()
     plan = json.loads(path.with_suffix('.json').read_text())
     require(hashlib.sha256(data).hexdigest() == plan['candidate_sha256'], 'actual candidate identity')

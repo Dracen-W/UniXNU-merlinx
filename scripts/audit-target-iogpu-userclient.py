@@ -8,7 +8,7 @@ read,require,adrp=n['read'],n['require'],n['adrp'];code,text=n['code'],n['text']
 runtime_path=ROOT/'build/darwinboot-owner-hvf-iogpu-userclient-class/gdb-stop.json';runtime=json.loads(runtime_path.read_text())
 args=[int(v,16) for v in runtime['function_entry_arguments']];meta=args[0];parent=bytes.fromhex(runtime['entry_regions']['2:0:80']['bytes'])
 require(runtime['function_return_stack_matched'] and runtime['entry_kernel_bytes_match']['bytes']==b'IOGPUDeviceUserClient\0'.hex() and args[3]==304 and struct.unpack_from('<I',parent,32)[0]==216,'Previously observed real original class/parent extents, not an invented class layout')
-current=ROOT/'build/native-prelink/native-owner-metal-shared-events-candidate.json';current_plan=json.loads(current.read_text())
+current=ROOT/'build/xnu-prelink/native-owner-metal-shared-events-candidate.json';current_plan=json.loads(current.read_text())
 require(current_plan['original_executable_sha256']['com.apple.iokit.IOGPUFamily']==plan['original_executable_sha256']['com.apple.iokit.IOGPUFamily'],'Current candidate preserves the exact same complete original IOGPU executable')
 getters=[]
 for i in range(0,len(code)-12,4):

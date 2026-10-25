@@ -4,7 +4,9 @@
 ./unixnu <command> [options]
 ```
 
-选项写在命令之后。驱动从 `-D`、`UNIXNU_DEVICE` 或 `out/state.json` 读取设备仓库。
+选项写在命令之后。驱动从 `-D`、`UNIXNU_DEVICE`、本地构建文件或 `out/state.json` 读取设备仓库。
+
+`kernel`、`package`、`firmware`、`payload`、`prelink` 和 `userdata` 是 `build <step>` 的快捷命令。在 [unixnu.local.toml](/zh/reference/configuration#local-build-inputs) 保存路径和启动参数后，可运行 `./unixnu kernel`、`./unixnu firmware`、`./unixnu payload` 和 `./unixnu bootimg`。`--config FILE` 选择其他本地构建文件，`status --json` 的 `build_config` 字段显示其路径。
 
 ## 命令
 
@@ -14,7 +16,7 @@
 unixnu defconfig [NAME]
 ```
 
-列出设备仓库的 `configs/*_defconfig`。指定名称时复制到 `out/<board>/.config` 并解析。
+列出设备仓库的 `configs/*_defconfig`。指定名称时复制到 `out/<device>/<os_profile>/<config>/.config` 并解析。
 
 ### fetch
 
@@ -22,7 +24,7 @@ unixnu defconfig [NAME]
 unixnu fetch [NAME...] [--update]
 ```
 
-更新本仓库和设备仓库的模块子模块，然后拉取 git 源码。指定名称时只拉取这些源码。`--update` 忽略 `unixnu.lock` 并移到最新 ref。commit 写入设备仓库的 `unixnu.lock`。
+更新本仓库和设备仓库的模块子模块，然后拉取 git 源码。指定名称时只拉取这些源码。`--update` 解析 ref 时忽略已有锁记录，格式 2 中显式指定的 source commit 优先。commit 写入设备仓库的 `unixnu.lock`。
 
 ### tree
 
@@ -30,7 +32,7 @@ unixnu fetch [NAME...] [--update]
 unixnu tree
 ```
 
-解析模块、拉取步骤需要的参考源码，并组装 `out/<board>/tree`。
+解析模块、拉取步骤需要的参考源码，并组装 `out/<device>/<os_profile>/<config>/tree`。
 
 ### ipsw
 
@@ -47,7 +49,7 @@ unixnu ipsw fetch [COMPONENT...]
 unixnu build [kernel] [package] [firmware] [payload] [prelink] [userdata]
 ```
 
-按 kernel、prelink、package、payload、firmware 顺序执行指定步骤。未指定时执行 kernel、package、firmware 和 payload。`userdata` 单独执行，`all` 覆盖其他四个步骤。
+选择 userdata 时先执行该步骤，然后按 kernel（含预链接）、package、payload、firmware 顺序执行。未选 kernel 时可单独执行 prelink。默认和 `all` 选择 kernel、package、payload、firmware；按[构建指南](/zh/building)分开执行可逐项检查产物。
 
 `build prelink` 只重做预链接。
 
@@ -65,8 +67,10 @@ unixnu bootimg [--fd FILE] [--dtb FILE] [--ramdisk FILE|none] [-o FILE]
 
 ### status
 
+显示设备、输出路径、配置层、组件范围、源码版本、本地覆盖和补丁顺序。`--json` 输出最终配置，字段包括 `profiles`、`board`、`components`、`modules` 和 `patch_order`。状态读取缓存或本地 SoC 源码；缺少源码时先运行 `fetch`。
+
 ```
-unixnu status
+unixnu status [--json]
 ```
 
 打印设备、输出根、配置路径和每个模块来源。标记本地模块并报告未固定的模块。

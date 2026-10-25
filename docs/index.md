@@ -1,21 +1,23 @@
 ---
 layout: home
+migration:
+  title: Migration notice
+  text: Update your device repository for shared SoC support and canonical component names.
+  label: Migration guide
+  link: /porting/migration
 hero:
   text: Run iOS and macOS on non-Apple ARM64 hardware
-  tagline: A UEFI boot manager, a device tree platform, a patched XNU kernel and a complete boot image.
+  tagline: A general UEFI environment and driver loading system, similar to OpenCore, with a device tree platform, a patched XNU kernel and a complete boot image.
   image:
     src: /logo-light.svg
     alt: UniXNU logo
   actions:
     - theme: brand
-      text: Start here
-      link: /guide/overview
+      text: Port a device
+      link: /porting/
     - theme: brand
       text: Supported devices
       link: /devices/
-    - theme: alt
-      text: Port a device
-      link: /porting/
     - theme: alt
       text: GitHub
       link: https://github.com/UniXNU/UniXNU

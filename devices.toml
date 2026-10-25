@@ -1,0 +1,6 @@
+schema_version = 1
+
+[[device]]
+name = "sheng"
+repository = "UniXNU/UniXNU-sheng"
+revision = "516a780473a2ac59c8b438e132bb60204dda9e22"

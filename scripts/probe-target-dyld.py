@@ -7,10 +7,11 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from unixnu.package import output_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--kernel', type=Path, default=ROOT / 'build/native-prelink/native-target-dyld-candidate.macho')
+parser.add_argument('--kernel', type=Path, default=ROOT / 'build/xnu-prelink/native-target-dyld-candidate.macho')
 parser.add_argument('--output', type=Path, default=ROOT / 'build/darwinboot-target-dyld-entry')
 parser.add_argument('--mach-init', action='store_true', help='Observe genuine original mach_init returning and qualify its page ABI')
 parser.add_argument('--prepare', action='store_true', help='Continue genuine original startup toward its dependent-library preparation')
@@ -52,7 +53,7 @@ payloads = esp / 'EFI/UniXNU/Payloads'
 payloads.mkdir(parents=True, exist_ok=True)
 (esp / 'EFI/BOOT').mkdir(exist_ok=True)
 for source, target in [
-    (ROOT / 'unixnu/Build/Out/AARCH64-DEBUG/UniXNU.efi', esp / 'EFI/BOOT/BOOTAA64.EFI'),
+    (output_dir(ROOT) / 'UniXNU.efi', esp / 'EFI/BOOT/BOOTAA64.EFI'),
     (ROOT / 'build/DarwinBoot/DEBUG_CLANGPDB/AARCH64/DarwinBoot.efi', payloads / 'DarwinBoot.efi'),
     (args.kernel, payloads / 'kernel.macho'),
     (fixture / 'original-static-trust.bundle', payloads / 'kernel.macho.trustcache')]:

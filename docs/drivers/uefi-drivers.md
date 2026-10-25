@@ -1,6 +1,22 @@
 # UEFI drivers
 
+## Procedure
+
+1. Prepare the package DEC and its protocol declarations. Generate distinct file
+   and protocol GUIDs with `uuidgen`; fill the example identifiers below.
+2. Add the driver source and INF, then register it in the target DSC. Place public
+   protocol headers under the package's `Include/Protocol/` directory.
+3. For firmware dispatch, add the INF to the target FDF and run
+   `./unixnu build firmware` from UniXNU. Follow [firmware integration](/porting/uefi-firmware).
+4. For file loading, build the EFI module and add its path to the payload configuration
+   as shown below. Repack the payload and boot image.
+5. Check driver-start logs and protocol publication before starting its consumer.
+
+
+
 A UEFI driver is an EDK II module built as a `.efi` image. It runs in boot services and can publish protocols, bind devices and prepare hardware for the next stage.
+
+The shared `UniXNURamDiskDxe` module in `package/UniXNUPkg/Driver/` exposes a Mu-Silicium FDT initrd as a read-only Block I/O device. Include it in the firmware DSC and FDF with DiskIoDxe and FAT support. See [firmware integration](/porting/uefi-firmware#required-integration).
 
 ## Module layout
 
@@ -8,7 +24,7 @@ A UEFI driver is an EDK II module built as a `.efi` image. It runs in boot servi
 MyDriver/
   MyDriver.c
   MyDriver.inf
-  MyProtocol.h
+  # public header: MyPkg/Include/Protocol/MyProtocol.h
 ```
 
 `MyDriver.inf`:

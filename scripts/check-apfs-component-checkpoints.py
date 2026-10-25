@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -62,8 +62,8 @@ require(refusal['kernel_observations']['_native_virtio_read_requests'] == 305 an
         refusal['kernel_observations']['_cs_validate_page_no_hash'] == 0, 'Real storage/signature state differs')
 require([e['number'] for e in refusal['syscall_events']][-5:] == [167, 167, 61, 12, 59],
         'The real data mounts/chroot/chdir/exec sequence is required')
-plan = json.loads((ROOT / 'build/native-prelink/native-apfs-data-candidate.json').read_text())
-kernel = (ROOT / 'build/native-prelink/native-apfs-data-candidate.macho').read_bytes()
+plan = json.loads((ROOT / 'build/xnu-prelink/native-apfs-data-candidate.json').read_text())
+kernel = (ROOT / 'build/xnu-prelink/native-apfs-data-candidate.macho').read_bytes()
 require(hashlib.sha256(kernel).hexdigest() == refusal['kernel_sha256'], 'Candidate identity mismatch')
 meta = np.macho(kernel)
 original = (ROOT / '.cache/firmware/kernelcache.macho/kernelcache.release.ipad7.decompressed').read_bytes()

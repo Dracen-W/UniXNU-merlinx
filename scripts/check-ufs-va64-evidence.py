@@ -12,7 +12,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / 'build/ufs-root-diagnostics/va64'
-UFS = ROOT / 'drivers/NativeUfs'
+UFS = ROOT / 'drivers/ShengUfs'
 
 
 def require(condition, reason):
@@ -71,7 +71,7 @@ def main():
     require('-Werror build and actual ARM64/iOS 17 object audit passed' in
             (BASE / 'crossbuild.log').read_text(), 'Strict build failed')
     prelink = load(candidate.with_suffix('.json'))
-    original = load(ROOT / 'build/native-prelink/native-owner-stage5-candidate.json')
+    original = load(ROOT / 'build/xnu-prelink/native-owner-stage5-candidate.json')
     require(len(prelink['original_executable_sha256']) == 29 and
             prelink['original_executable_sha256'] == original['original_executable_sha256'],
             'Original executable components changed')

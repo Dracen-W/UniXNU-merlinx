@@ -1,4 +1,6 @@
-# Driver layers
+# Develop a driver
+
+To adapt hardware, follow the [driver checklist](/porting/drivers). It covers component drivers and board-package services in dependency order.
 
 UniXNU has three driver layers. Each layer runs in a different environment and has a different build and load path.
 
@@ -7,6 +9,14 @@ UniXNU has three driver layers. Each layer runs in a different environment and h
 | UEFI driver | UEFI boot services | EDK II `.efi` | Firmware dispatch, UniXNU `[[driver]]`, or a kit |
 | Built-in XNU driver | XNU kernel | Static archive linked into the kernel | The kernel at boot |
 | Kext bundle | XNU kernel, staged by UEFI | `.kext` bundle | An XNU loader that implements the protocol |
+
+## Procedure {#procedure}
+
+1. Search the [component catalog](/reference/components) and [existing repositories](/drivers/repositories) for the hardware interface. Read the candidate's scope, ABI, dependencies and implementation.
+2. Choose the [execution layer](#choosing-a-layer) from when the capability is needed: firmware, built-in XNU or a supported loader's kext path.
+3. Identify the provider and resources using [matching](#matching) and [device-tree rules](/drivers/device-tree-matching). Record the actual board values.
+4. Follow the corresponding implementation procedure: [UEFI](/drivers/uefi-drivers), [built-in XNU](/drivers/xnu-drivers#procedure), or [kext staging](/drivers/kexts#procedure). Add the component and recipe to the device selection.
+5. Build the affected artifact and follow the subsystem's [adaptation checks](/porting/drivers). Record source/build results and device behavior separately in [porting.toml](/porting/records).
 
 ## Choosing a layer
 
@@ -58,12 +68,13 @@ The `compatible` property selects a driver. `IONameMatch` compares against the p
 | `package/UniXNUPkg/Driver` | UEFI drivers |
 | `package/UniXNUPkg/Test` | UEFI test drivers and payloads |
 
-Drivers and kits are independent repositories included as submodules. A device repository can override any of these directories with its own version.
+Drivers and kits are independent repositories. Profiles select catalog components, and feeds or local overrides supply sources. Check the [component catalog](/reference/components) before adding an implementation.
 
 ## Next steps
 
+- [Driver repositories](/drivers/repositories)
 - [UEFI drivers](/drivers/uefi-drivers)
 - [XNU drivers](/drivers/xnu-drivers)
-- [Adreno 740 driver](/drivers/native-adreno)
+- [Adreno 740 driver](/drivers/adreno740)
 - [Kext bundles](/drivers/kexts)
 - [Device tree matching](/drivers/device-tree-matching)

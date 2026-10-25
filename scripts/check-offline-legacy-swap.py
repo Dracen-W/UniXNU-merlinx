@@ -21,7 +21,7 @@ def modules(raw):
     return [raw[a:b] for a,b in zip(offsets,(*offsets[1:],len(raw)))]
 require(modules((OUT/'offline-trust.bundle').read_bytes())[1:]==modules(
         (ROOT/'build/original-static-system-trust/original-static-system.bundle').read_bytes()), 'Original trust modules preserved')
-plan=load(ROOT/'build/native-prelink/native-owner-legacy-display-scale-candidate.json')
+plan=load(ROOT/'build/xnu-prelink/native-owner-legacy-display-scale-candidate.json')
 require(d['kernel_sha256']==plan['candidate_sha256'] and d['native_4k_mmu_observed'] and
         d['original_amfi_table_owner_observed'] and d['owner_root_binding_audit']['boot_root_accepted'] and
         d['actual_signature_failures']==dict(_cs_validate_page_bad_hash=0,_cs_validate_page_no_hash=0), 'Exact candidate, AMFI/root/native 4K')

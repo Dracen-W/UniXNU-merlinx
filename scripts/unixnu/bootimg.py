@@ -85,6 +85,8 @@ def build(ctx, uefi, fd, dtb, ramdisk=None, output=None):
         raise Error(f'{mkbootimg} missing: --uefi must be a Mu-Silicium checkout')
     for path, what in ((fd, 'firmware volume (--fd)'), (dtb, 'device tree (--dtb)')):
         if not path or not Path(path).is_file():
+            if path == fd:
+                raise Error(f'firmware volume not found: {fd}; run ./unixnu build firmware --uefi {uefi}')
             raise Error(f'{what} not found: {path}')
     firmware = Path(fd).read_bytes()
     if base is None or size is None:

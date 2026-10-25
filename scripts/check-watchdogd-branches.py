@@ -9,7 +9,7 @@ a=argparse.ArgumentParser(description=__doc__)
 a.add_argument('--watchdogd',type=Path,required=True)
 a.add_argument('--python-modules',type=Path,required=True)
 a.add_argument('--report',type=Path,required=True)
-args=a.parse_args();sys.path[:0]=[str(args.python_modules),str(ROOT/'kits/NativePrelink')]
+args=a.parse_args();sys.path[:0]=[str(args.python_modules),str(ROOT/'kits/XnuPrelink')]
 from unicorn import Uc,UC_ARCH_ARM64,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm64_const import UC_ARM64_REG_X0,UC_ARM64_REG_X1,UC_ARM64_REG_X3,UC_ARM64_REG_LR,UC_ARM64_REG_PC,UC_ARM64_REG_SP
 from native_prelink import macho,backed_offset

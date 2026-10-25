@@ -18,13 +18,13 @@ def main():
     build = json.loads((args.compiler_build / 'build-report.json').read_text())
     binary = Path(build['binary'])
     if hashlib.sha256(binary.read_bytes()).hexdigest() != build['binary_sha256'] or \
-            hashlib.sha256((ROOT / 'drivers/NativeMetal/tools/MetalVulkanProbe.rs').read_bytes()).hexdigest() != build['source_sha256']:
+            hashlib.sha256((ROOT / 'drivers/AdrenoMetal/tools/MetalVulkanProbe.rs').read_bytes()).hexdigest() != build['source_sha256']:
         raise SystemExit('Compiler identity mismatch')
     profile = ROOT / '.cache/gpu-reference/metal2vulkan/crates/metal2vulkan-validation/profiles/vk12-bare.json'
     vertex = args.air_input_dir / 'QuartzCore/module-7.bc'
     fragment = args.air_input_dir / 'QuartzCore/module-65.bc'
-    layout = ROOT / 'drivers/NativeMetal/tools/probe-vertex-layout.json'
-    colors = ROOT / 'drivers/NativeMetal/tools/probe-coverage-attachment.json'
+    layout = ROOT / 'drivers/AdrenoMetal/tools/probe-vertex-layout.json'
+    colors = ROOT / 'drivers/AdrenoMetal/tools/probe-coverage-attachment.json'
     audit = json.loads((args.air_input_dir / 'target-inputs.json').read_text())
     records = {(m['library'], m['index']): m for m in audit['modules']}
     for path, index in [(vertex, 7), (fragment, 65)]:

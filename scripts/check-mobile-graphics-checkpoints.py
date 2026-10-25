@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import backed_offset, macho
 
 
@@ -21,7 +21,7 @@ def require(value, message):
 source_hash = '8b78575592b37bfc8a180fb4a029383287b3a9a032841dfc4efcb5cdeb656cdb'
 positive_hash = 'aded28d3c61dafaf7b8a7c96b14427a798e9e95470ae6f287bcd038c07626798'
 negative_hash = 'e3748f2c9e4f0d06d5ed925d278662c207cf14efb0a2d8a70c28f389848b81f1'
-directory = ROOT / 'build/native-prelink'
+directory = ROOT / 'build/xnu-prelink'
 images = {}
 for stem, expected in (('native-owner-mobile-graphics-candidate', positive_hash),
                        ('native-owner-mobile-graphics-missing-candidate', negative_hash)):

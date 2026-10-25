@@ -7,7 +7,7 @@ import struct
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 build = ROOT / 'build'
 
@@ -17,7 +17,7 @@ def require(value, message):
         raise SystemExit('FAIL: ' + message)
 
 
-kernel = build / 'native-prelink/native-apfs-data-candidate.macho'
+kernel = build / 'xnu-prelink/native-apfs-data-candidate.macho'
 data = kernel.read_bytes()
 plan = json.loads(kernel.with_suffix('.json').read_text())
 require(hashlib.sha256(data).hexdigest() == plan['candidate_sha256'] ==

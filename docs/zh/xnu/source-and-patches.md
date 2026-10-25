@@ -1,80 +1,68 @@
 # 源码与补丁
 
-UniXNU 从固定版本的 Apple 源码构建 XNU，并按名称顺序应用补丁。
+所选 OS 配置固定 XNU 和 ABI 输入。iPadOS 17.7.11 配置使用 `xnu-10063.141.1`、
+Darwin 23.6.0、`xnu-10063.121.3` 的 DriverKit 头文件和 `xnu-8796.101.5` 的 TrustCache 头文件。
 
-## 源码
+`feeds.toml` 提供 libplatform、libdispatch、AvailabilityVersions、libpthread、
+corecrypto、IOStorageFamily 和 edk2。格式 2 中 OS 配置显式指定的 XNU 版本优先于源码 lock。
 
-`feeds.toml` 固定源码：
+## 操作步骤 {#procedure}
 
-| 源码 | tag | 用途 |
-| --- | --- | --- |
-| `xnu` | `xnu-10063.141.1` | 内核源码 |
-| `libplatform` | `libplatform-316.100.10` | 平台头文件 |
-| `libdispatch` | `libdispatch-1477.100.9` | dispatch 头文件 |
-| `AvailabilityVersions` | `AvailabilityVersions-141.1` | availability 宏 |
-| `libpthread` | `libpthread-519.120.4` | 源码 pthread 组件 |
-| `corecrypto-2023` | commit `11fba65` | 源码 corecrypto 组件 |
-| `IOStorageFamily` | commit `e45fbe3` | 块驱动的公开存储头文件 |
-| `edk2` | `release/202608` | package 和固件的 EDK II 基础 |
-
-XNU 条目还包含：
-
-```toml
-darwin = "23.6.0"
-version = "10063.141.1"
-driverkit_tag = "xnu-10063.121.3"
-trustcache_tag = "xnu-8796.101.5"
-```
-
-`driverkit_tag` 提供当前 tag 缺失的 `iokit/DriverKit` 头文件，`trustcache_tag` 提供 `EXTERNAL_HEADERS/TrustCache`。
+1. 选定设备并保存 `./unixnu status --json`，记录 OS profile、XNU 源码版本、配置及补丁顺序。
+2. 确定改动[归属](#归属)，编辑前阅读对应[补丁参考](/zh/xnu/patch-reference)、源码和 ABI 输入。
+3. 先运行一次 `./unixnu kernel` 准备内核，再按[新增补丁](#新增补丁)基于已准备的源码导出修改，放入所属序列。
+4. 再次运行 `./unixnu status --json` 检查补丁位置，重新构建 `./unixnu kernel`，确认补丁应用、archive 构建、链接和预链接成功。
+5. 运行 `./unixnu payload` 和 `./unixnu bootimg` 生成验证镜像，按[启动顺序](/zh/porting/bring-up)记录受影响检查点。更换固定 XNU 版本时按[更新源码](#更新源码)处理。
 
 ## 补丁应用
 
-`scripts/build-xnu-4k-baseline.sh` 对 `.cache/xnu-work` 应用补丁：
+格式 2 按声明顺序解析 `[kernel] patch_series`。series 每行一个补丁，路径相对于
+series 文件，或使用 `arch:`、`soc:`、`os:`、`device:`、`component:<ID>/` 前缀。
+组件补丁参与同一个应用顺序，`unixnu status --json` 显示最终序列。
 
-1. 存在时反向应用与更早上下文重叠的补丁：
-   - `patches/xnu/zzz-boot-progress.patch`
-   - `patches/xnu/zzy-native-gpu-addon-mount.patch`
-2. 按名称顺序应用 `patches/xnu/*.patch` 和 `kits/NativePrelink/patches/*.patch`。
-3. 已应用的补丁跳过。
-4. 运行 `prepare-xnu-source.py` 恢复缺失头文件。
+内核准备在所选目标下创建 `tree/.cache/xnu-work`，检查并应用各补丁，随后准备缺失
+的源码头文件。生成头文件和 `tree/build` 输出也归该目标所有。
 
-后置补丁带有 `zzw`、`zzy` 和 `zzz` 前缀，因此最后应用。反向步骤让新构建从这些被更早补丁同时修改的区域的干净上下文开始。
+格式 1 按文件名顺序选择 `patches/xnu/*.patch` 和 `kits/XnuPrelink/patches/*.patch`。
+其 shell 准备流程处理后置 `zzw`、`zzy`、`zzz` 补丁，并检查已应用的补丁。
 
-补丁是幂等的：
+## 归属
 
-```sh
-git -C .cache/xnu-work apply --reverse --check "$PATCH" && skip
-git -C .cache/xnu-work apply --check "$PATCH"
-git -C .cache/xnu-work apply "$PATCH"
-```
-
-`--check` 在部分应用前停止构建。
-
-## 补丁目录
-
-| 目录 | 内容 |
+| 位置 | 内容 |
 | --- | --- |
-| `patches/xnu/` | 内核补丁 |
-| `patches/libpthread/` | 源码 pthread 补丁 |
-| `patches/mesa/` | Turnip 和 Mesa 构建补丁 |
-| `kits/NativePrelink/patches/` | 预链接 ABI 补丁 |
-
-设备仓库可以加入 `patches/` 模块，构建树把它链接到 `tree/patches/`，内核脚本读取 `$ROOT/patches/xnu/*.patch`，其中包含设备补丁。
+| ARM64 配置 | 通用架构配置和补丁系列 |
+| SoC 仓库 | 硬件操作和 SoC 补丁系列 |
+| OS 配置 | 版本相关修复和预链接补丁选择 |
+| 设备仓库 | 板级补丁系列 |
+| 组件仓库 | 组件所需补丁 |
+| `patches/libpthread/`、`patches/mesa/` | 库和编译器源码补丁 |
 
 ## 新增补丁
 
-1. 构建一次内核，生成 `.cache/xnu-work`。
-2. 编辑 `.cache/xnu-work` 中的源码。
-3. 生成补丁：
+1. 先构建选定内核，生成目标的 `tree/.cache/xnu-work`。
+   将 `XNU_WORK` 设为该目录，`DEVICE_DIR` 设为设备仓库。
+2. 将待修改文件按 XNU 相对路径复制到临时 Git 目录，编辑前暂存基线。例如修改 `start.s`：
 
 ```sh
-git -C .cache/xnu-work diff -- <paths> > patches/xnu/my-change.patch
+PATCH_WORK=$(mktemp -d)
+git -C "$PATCH_WORK" init
+mkdir -p "$PATCH_WORK/osfmk/arm64"
+cp "$XNU_WORK/osfmk/arm64/start.s" "$PATCH_WORK/osfmk/arm64/start.s"
+git -C "$PATCH_WORK" add osfmk/arm64/start.s
 ```
 
-4. 再次运行 `unixnu build kernel`。
+3. 编辑临时副本，再导出修改：
 
-新增构建选项的补丁参考 `native-aes-personality.patch`：
+```sh
+git -C "$PATCH_WORK" diff -- osfmk/arm64/start.s > "$DEVICE_DIR/patches/xnu/my-change.patch"
+```
+
+4. 检查补丁，把 `my-change.patch` 加入设备 series，从 UniXNU 执行 `./unixnu build kernel`。
+   共享修改放入所属 SoC、架构、OS 或组件 series，位置应与编辑基线一致。
+5. 用 `./unixnu status --json` 检查补丁顺序并记录构建结果。
+   补丁输入变化时，内核准备步骤会重新生成工作源码。
+
+新增构建选项可使用以下 personality 模式：
 
 ```c
 #if defined(XNU_MY_OPTION) && XNU_MY_OPTION
@@ -120,7 +108,7 @@ git -C .cache/xnu-work diff -- <paths> > patches/xnu/my-change.patch
 ## 源码树
 
 ```
-out/<board>/tree/
+out/<device>/<os_profile>/<config>/tree/
   refer/xnu/                 固定源码
   .cache/xnu-work/           工作克隆
   .cache/fakeroot/           内核 SDK 根
@@ -129,18 +117,18 @@ out/<board>/tree/
   build/xnu/ios-sym/         符号
   build/xnu/ios-dst/         安装头文件
   patches/xnu/               链接的补丁
-  kits/NativePrelink/        预链接工具和补丁
+  kits/XnuPrelink/        预链接工具和补丁
 ```
 
 ## 更新源码
 
-1. 在 `feeds.toml` 中设置新的 `ref` 和 `commit`。
-2. 更新 `darwin`、`version`、`driverkit_tag` 和 `trustcache_tag`。
-3. 把补丁 rebase 到新 tag。
-4. 按新的编译记录更新 `[kernel] archives` 中的静态库脚本。
-5. 重建预链接并重新验证 kernelcache 固定。
+1. 在所选 OS `profile.toml` 的 `[os]` 中更新 `xnu_version` 和完整的 `xnu_revision`；格式 1 在其 XNU feed 中更新 `ref` 和 `commit`。
+2. 核对同一 profile 中的 `darwin`、`driverkit_tag`、`trustcache_tag`、IPSW 身份和预链接 kernelcache 固定值。
+3. 将有序补丁调整到所选源码版本，按新编译记录更新组件与辅助 archive 构建器。
+4. 运行 `./unixnu fetch` 和 `./unixnu status --json`，确认实际 XNU 版本与所选 profile 一致。
+5. 运行 `./unixnu kernel`，检查链接、预链接和组件 ABI 结果，再重新构建 payload 与启动镜像并记录验证结果。
 
-预链接输出依赖原始 kernelcache ABI。新的源码版本可能需要新的 kernelcache 固定和 roots。
+预链接依赖原始 kernelcache ABI。更换源码版本时，一并确认匹配的 kernelcache、根组件及 ABI 输入。
 
 ## 下一步
 

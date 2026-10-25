@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 source_hash = 'efc9d01ee7827379075c7163a73abc7d737271ecd5910856dc29de4a3e778e5f'
 candidate_hash = '6fe38be5ed8d2919dddabb270633acb6a628c965be1f58d3e430190687e0d7c1'
-candidate = ROOT / 'build/native-prelink/native-owner-mobile-client-candidate.macho'
+candidate = ROOT / 'build/xnu-prelink/native-owner-mobile-client-candidate.macho'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 
 

@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 import native_prelink as np
 
 
@@ -19,7 +19,7 @@ def require(value, message):
 
 
 build = ROOT / 'build'
-kernel = build / 'native-prelink/native-virtio-firstread-candidate.macho'
+kernel = build / 'xnu-prelink/native-virtio-firstread-candidate.macho'
 data = kernel.read_bytes()
 plan = json.loads(kernel.with_suffix('.json').read_text())
 require(hashlib.sha256(data).hexdigest() == plan['candidate_sha256'] ==
@@ -77,7 +77,7 @@ for node in re.findall(r'virtio_mmio@[0-9a-f]+\s*\{([^}]+)\}', dts):
         require(len(cells) == 4, 'actual FDT two-cell address and size')
         windows.append(((cells[0] << 32) | cells[1], (cells[2] << 32) | cells[3]))
 require(len(windows) == 32 and (g['_native_virtio_mmio_physical'], 0x200) in windows, 'discovered active address belongs to actual coherent FDT resources')
-bindings = json.loads((build / 'native-virtio-block/bindings.json').read_text())
+bindings = json.loads((build / 'virtio-mmio-block/bindings.json').read_text())
 require(bindings['virtual_methods_checked'] == 190 and bindings['concrete_overrides'] == 25 and
         bindings['unresolved_original_imports'] == 0 and len(bindings['bindings']) == 11 and
         not bindings['original_code_modified'], 'qualified original storage dispatch and C2/D2 imports')

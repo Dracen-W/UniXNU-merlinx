@@ -1,6 +1,21 @@
 # 启动参数
 
-内核命令行来自板级文件的 `[payload] kernel_args`。额外的 `--kernel-arg NAME=VALUE` 会替换板级同名参数。负载步骤把合并后的行写入 `unixnu.toml`，DarwinBoot 复制到 `boot_args`。
+## 应用启动参数 {#apply-arguments}
+
+有效命令行依次合并板级配置的 `[payload] kernel_args`、`unixnu.local.toml` 的 `[build] kernel_args` 和 `--kernel-arg`。后面的来源覆盖同名参数。负载构建器将结果写入 `EFI/UniXNU/unixnu.toml` 中 XNU 启动项的 `args`。UniXNU 将选中的启动项交给 DarwinBoot，DarwinBoot 在启动时将命令行复制到 XNU 的 `boot_args.CommandLine`。内核配置开关由 `./unixnu kernel` 编译。
+
+保存[本地构建参数](/zh/reference/configuration#local-build-inputs)后运行：
+
+```sh
+./unixnu payload --kernel-arg serial=3 --kernel-arg debug=0x14e
+./unixnu bootimg
+jq -r .kernel_args out/<device>/<os_profile>/<config>/payload/payload.json
+mtype -i out/<device>/<os_profile>/<config>/payload/payload.img ::/EFI/UniXNU/unixnu.toml
+```
+
+启动新生成的 `boot/boot.img`。`bootimg` 将当前负载复制进该文件，打包后修改负载需要再次运行 `bootimg`。指定 `--ramdisk FILE` 时使用该文件中的配置。检查选中的 XNU 启动项及追加的 `confirm_args`。多个卷包含 `unixnu.toml` 时，先检查启动管理器所在卷的配置。
+
+负载命令输出 `kernel args:`，DarwinBoot 在交接前输出 `DARWINBOOT: command line:`。两者不同时检查所选卷和启动项；两者相同但行为未变时，检查内核或所选驱动是否实现该参数。绿色交接条的检查步骤见[早期启动诊断](/zh/guide/debugging#green-bar)。
 
 ## 格式
 

@@ -114,7 +114,7 @@ def main():
     build = json.loads((args.compiler_build / 'build-report.json').read_text())
     binary = Path(build['binary'])
     if build['translator_revision'] != SOURCE_PIN or sha(binary) != build['binary_sha256'] or \
-            sha(ROOT / 'drivers/NativeMetal/tools/MetalVulkanProbe.rs') != build['source_sha256']:
+            sha(ROOT / 'drivers/AdrenoMetal/tools/MetalVulkanProbe.rs') != build['source_sha256']:
         raise SystemExit('Compiler/source identity differs from its build report')
     validator = shutil.which('spirv-val')
     if not validator:

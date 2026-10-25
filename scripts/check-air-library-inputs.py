@@ -43,7 +43,7 @@ for item in reference['inputs']:
  print('PASS:',reports[-1]['library'],view.count,'actual original module names/stages/complete hashes')
 sdk=subprocess.check_output(['xcrun','--sdk','iphoneos','--show-sdk-path'],text=True).strip()
 run(['xcrun','clang','-target','arm64-apple-ios17.0','-isysroot',sdk,'-std=c11','-O2','-Wall','-Wextra','-Werror','-fstack-protector-strong','-c',KIT/'Library.c','-o',OUT/'Library.ios.o'])
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'));from native_prelink import macho
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'));from native_prelink import macho
 raw=(OUT/'Library.ios.o').read_bytes();parsed=macho(raw);import struct
 require(parsed['kind']==1 and [struct.unpack_from('<II',raw,at+8) for cmd,at,_ in parsed['commands'] if cmd==0x32]==[(2,0x110000)],'Actual ordinary ARM64 subtype0/iOS17 object')
 (OUT/'report.json').write_text(json.dumps(dict(libraries=reports,functions=functions,host_sanitizer_test=test.strip(),

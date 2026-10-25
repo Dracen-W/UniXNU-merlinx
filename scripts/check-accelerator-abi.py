@@ -2,15 +2,15 @@
 """Qualify actual original-base construction/lifetime and two real unpublished controls."""
 import hashlib,json,re,struct,subprocess,sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset,exports
 def require(v,s):
  if not v:raise SystemExit(s)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def load(p):return json.loads(p.read_text())
-base=ROOT/'build/native-prelink/native-owner-accelerator-abi-candidate';plan=load(base.with_suffix('.json'));raw=base.with_suffix('.macho').read_bytes();im=macho(raw)
+base=ROOT/'build/xnu-prelink/native-owner-accelerator-abi-candidate';plan=load(base.with_suffix('.json'));raw=base.with_suffix('.macho').read_bytes();im=macho(raw)
 require(hashlib.sha256(raw).hexdigest()==plan['candidate_sha256'] and sha(ROOT/'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf')==plan['native_sha256'],'Exact current native and immutable candidate')
-old=load(ROOT/'build/native-prelink/native-owner-offline-gpu-broker-cpu-candidate.json')
+old=load(ROOT/'build/xnu-prelink/native-owner-offline-gpu-broker-cpu-candidate.json')
 require(plan['components']==old['components'] and plan['original_executable_sha256']==old['original_executable_sha256'] and plan['early_security_initializers']==old['early_security_initializers'],'Same original component/security initialization closure')
 for module,digest in plan['original_executable_sha256'].items():
  e=next(e for e in plan['extents'] if e['module']==module and e['segment']=='__TEXT_EXEC');at=backed_offset(im['segments'],e['va'],e['size'],len(raw))

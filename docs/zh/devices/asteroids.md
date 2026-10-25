@@ -1,15 +1,26 @@
 # Nothing Phone (3a)（asteroids）
 
-Nothing Phone (3a)（asteroids） 是搭载 SM7635 的设备。下面的移植是独立的社区项目，UniXNU 组织不维护它。
+搭载 SM7635 的社区设备移植。当前状态依据下方固定版本的维护者记录。
 
-| 仓库 | 维护者 | 状态 |
-| --- | --- | --- |
+| 仓库 | 维护者 |
+| --- | --- |
 | [UniXNU-asteroids](https://github.com/rootstockos/UniXNU-asteroids) | [rootstockos](https://github.com/rootstockos) |
 
-## 状态
+| [uefi-asteroids](https://github.com/rootstockos/uefi-asteroids) | [rootstockos](https://github.com/rootstockos) |
 
-UEFI 移植到达 DXE 和 BDS，显示可用。尚未到 UniXNU 和 XNU。
+## 当前状态
 
-## 维护
+XNU 已在八个 CPU 上运行并挂载 UFS userdata 根卷。`launchd`、SystemOS 和 SpringBoard 已启动，文本控制台可用。显示客户端已打开，但尚未呈现画面，SpringBoard 会重启。
 
-维护者拥有仓库和发布决定。UniXNU 文档记录移植及其状态，不接管维护。
+Adreno 810 和 GMU 集成正在开发，显示呈现和 GPU 执行待实机验证。
+
+## 来源
+
+- [README: rootstockos/UniXNU-asteroids](https://github.com/rootstockos/UniXNU-asteroids/blob/78d4286b8aee9e67f3022a7027f2a3c4f73dd7e3/README.md)
+
+## 使用此移植
+
+1. 阅读上方仓库的构建说明和固定版本记录，准备对应的固件、系统镜像和板级输入。
+2. 按该仓库的命令构建，通用配置见[构建与启动](/zh/building)。
+3. 按[启动验证顺序](/zh/porting/bring-up)逐项验证，通过[日志抓取](/zh/porting/log-capture)保存结果。
+4. 更新[移植记录](/zh/porting/records)，记录实际使用的源码版本及最后确认的阶段。

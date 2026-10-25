@@ -6,7 +6,7 @@ from pathlib import Path
 import struct
 import sys
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import macho
 
 
@@ -17,7 +17,7 @@ def require(value, message):
 
 source_hash = '61c1a8ef1bd924dae5a879987f85a294322d9821e1c073d498e24f6e9dee0b61'
 candidate_hash = 'b43d5a6d41ff35140692472bb9671d77078518cdc631c1a642121cce7a5bb310'
-candidate = ROOT / 'build/native-prelink/native-owner-adreno-pm4-candidate.macho'
+candidate = ROOT / 'build/xnu-prelink/native-owner-adreno-pm4-candidate.macho'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 require(plan['native_sha256'] == source_hash and plan['candidate_sha256'] == candidate_hash ==
         hashlib.sha256(candidate.read_bytes()).hexdigest() and plan['original_sha256'] ==

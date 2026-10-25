@@ -7,7 +7,7 @@ import struct
 import sys
 import zlib
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'build/native-legacy-display'
-sys.path.insert(0,str(ROOT/'kits/NativePrelink'))
+sys.path.insert(0,str(ROOT/'kits/XnuPrelink'))
 from native_prelink import macho,backed_offset
 def require(v,s):
     if not v:raise SystemExit(s)
@@ -19,7 +19,7 @@ require(sha(OUT/'libNativeLegacyDisplay.late.a')==build['archive_sha256'] and
         build['guarded_backend_leaves']==[211,245,246,306,307,338,345] and
         any('completeCurrentSwap' in k for k in build['bindings']) and build['owned_entries']==[0,1,7,14,84,86,87,141,155,184,188,211,213,245,246,288,290,296,306,307,337,338,345],
         'Actual archive and qualified original queue-kick override')
-kernel=ROOT/'build/native-prelink/native-owner-legacy-display-completion-candidate.macho';plan=load(kernel.with_suffix('.json'))
+kernel=ROOT/'build/xnu-prelink/native-owner-legacy-display-completion-candidate.macho';plan=load(kernel.with_suffix('.json'))
 raw=kernel.read_bytes();image=macho(raw)
 require(sha(kernel)==plan['candidate_sha256'] and sha(ROOT/'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf')==plan['native_sha256'],'Exact current native candidate')
 for module,digest in plan['original_executable_sha256'].items():

@@ -7,7 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'build/native-legacy-display'
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import macho, backed_offset
 
 
@@ -32,7 +32,7 @@ require(build['virtual_entries'] == 358 and build['owned_entries'] ==
         [0, 1, 7, 84, 211, 213, 245, 246, 288, 306, 307, 337, 338, 345],
         'Only qualified own methods and guarded abstract leaves')
 
-candidate = ROOT / 'build/native-prelink/native-owner-legacy-display-gop-candidate.macho'
+candidate = ROOT / 'build/xnu-prelink/native-owner-legacy-display-gop-candidate.macho'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 raw = candidate.read_bytes()
 image = macho(raw)

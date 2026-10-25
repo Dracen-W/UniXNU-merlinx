@@ -18,7 +18,7 @@ def require(condition, message):
         raise SystemExit('FAIL: ' + message)
 
 
-candidate = json.loads((build / 'native-prelink/native-hash-cache-runtime.json').read_text())
+candidate = json.loads((build / 'xnu-prelink/native-hash-cache-runtime.json').read_text())
 kernel_sha = candidate['candidate_sha256']
 fixture = (build / 'native-user-16k-signature/launchd.macho').read_bytes()
 trust = json.loads((build / 'native-user-16k-signature/trustcache.json').read_text())

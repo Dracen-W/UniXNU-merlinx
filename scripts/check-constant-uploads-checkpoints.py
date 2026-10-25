@@ -7,7 +7,7 @@ import struct
 import subprocess
 import sys
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 from native_prelink import macho, exports, backed_offset
 
 
@@ -22,7 +22,7 @@ def sha(data):
 
 source_hash = 'f162b0a2c4fc0f45760a0fcaaf940d3039d6bb26310b79a2810ed16bf5c7e571'
 candidate_hash = 'ac7c4b2ef5f427392b7a314939112e66151f815594ee5651eff8076a2d8bb0a1'
-candidate = ROOT / 'build/native-prelink/native-owner-constants-outer-candidate.macho'
+candidate = ROOT / 'build/xnu-prelink/native-owner-constants-outer-candidate.macho'
 plan = json.loads(candidate.with_suffix('.json').read_text())
 image = candidate.read_bytes()
 require(plan['native_sha256'] == source_hash and plan['candidate_sha256'] == candidate_hash == sha(image) and

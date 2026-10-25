@@ -10,6 +10,7 @@ import struct
 import subprocess
 import sys
 import uuid
+from unixnu.package import output_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -218,7 +219,7 @@ if args.follow_target_main:
     main_bytes = (args.target_main_executable or ROOT / '.cache/firmware/target-volumes/os-mount/sbin/launchd').read_bytes()
     if hashlib.sha256(main_bytes).hexdigest() != '8cec9a3c44a443b08e977ccc5d577850316ad428c575dc01f09b018dbd5b6a25':
         raise SystemExit('Expected the unchanged supplied original launchd')
-    sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+    sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
     from native_prelink import macho
     main_image = macho(main_bytes)
     entries = [struct.unpack_from('<Q', main_bytes, at + 8)[0] for cmd, at, size in main_image['commands'] if cmd == 0x80000028]
@@ -314,7 +315,7 @@ payloads = esp / 'EFI/UniXNU/Payloads'
 payloads.mkdir(parents=True, exist_ok=True)
 (esp / 'EFI/BOOT').mkdir(exist_ok=True)
 subprocess.run(['python3', ROOT / 'scripts/audit-xnu-kernel.py', args.kernel], check=True)
-shutil.copyfile(ROOT / 'unixnu/Build/Out/AARCH64-DEBUG/UniXNU.efi', esp / 'EFI/BOOT/BOOTAA64.EFI')
+shutil.copyfile(output_dir(ROOT) / 'UniXNU.efi', esp / 'EFI/BOOT/BOOTAA64.EFI')
 shutil.copyfile(ROOT / 'build/DarwinBoot/DEBUG_CLANGPDB/AARCH64/DarwinBoot.efi', payloads / 'DarwinBoot.efi')
 shutil.copyfile(args.kernel, payloads / 'kernel.macho')
 trust_sidecar = payloads / 'kernel.macho.trustcache'
@@ -616,7 +617,7 @@ if args.inspect_ui_threads:
     gdb_command.append('--inspect-ui-threads')
 iogpu_component = None
 if args.load_iogpu and 'com.apple.iokit.IOGPUFamily' in prelink_report['components']:
-    sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+    sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
     from native_prelink import macho, backed_offset
     target = prelink_report['module_entrypoints']['com.apple.iokit.IOGPUFamily']['start_va']
     candidate = args.kernel.read_bytes()
@@ -626,7 +627,7 @@ if args.load_iogpu and 'com.apple.iokit.IOGPUFamily' in prelink_report['componen
     gdb_command += ['--trace-address', hex(target), '--read-memory', f'{target:x}:10']
 mobile_component = None
 if args.load_mobile_graphics and 'com.apple.iokit.IOMobileGraphicsFamily' in prelink_report['components']:
-    sys.path.insert(0, str(ROOT / 'kits/NativePrelink'))
+    sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
     from native_prelink import macho, backed_offset
     target = prelink_report['module_entrypoints']['com.apple.iokit.IOMobileGraphicsFamily']['start_va']
     candidate = args.kernel.read_bytes()
