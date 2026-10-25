@@ -18,7 +18,6 @@
 +static boolean_t
 +native_owner_shared_cache_carrier(vnode_t process_root, vnode_t file)
 +{
-+	const char *root_uuid = "04769D26-2CA0-4825-B443-E2E5F88300F2";
 +#if defined(XNU_OWNER_CACHE_CARRIER_WRONG_UUID) && XNU_OWNER_CACHE_CARRIER_WRONG_UUID
 +	const char *cache_uuid = "9846FE78-2910-4297-AF97-D59BB6F8FC16";
 +#else
@@ -46,11 +45,16 @@
 +		vnode_put(device_vnode);
 +	}
 +	if (root_device == NODEV || cache_device == NODEV ||
-+	    !native_verified_block_volume_device(root_uuid, &expected, device_path, sizeof(device_path)) ||
-+	    expected != root_device ||
 +	    !native_verified_block_volume_device(cache_uuid, &expected, device_path, sizeof(device_path)) ||
-+	    expected != cache_device) goto out;
-+	if (vnode_lookup(directory, 0, &expected_parent, vfs_context_current())) goto out;
++	    expected != cache_device || !native_verified_block_root_authorized(root_device)) {
++		printf("owner cache carrier device check failed: root=%d cache=%d expected=%d\n",
++		    root_device, cache_device, expected);
++		goto out;
++	}
++	if (vnode_lookup(directory, 0, &expected_parent, vfs_context_current())) {
++		printf("owner cache carrier path lookup failed\n");
++		goto out;
++	}
 +	authorized = vnode_vtype(expected_parent) == VDIR && vnode_mount(expected_parent) == cache_mount &&
 +	    vnode_parent(file) == expected_parent && native_verified_block_root_authorized(root_device);
 +out:
@@ -59,6 +63,8 @@
 +	native_owner_cache_carrier_file_device = cache_device;
 +	if (authorized) os_atomic_inc(&native_owner_cache_carrier_accepts, relaxed);
 +	else os_atomic_inc(&native_owner_cache_carrier_rejects, relaxed);
++	printf("owner cache carrier %s: root=%d cache=%d\n",
++	    authorized ? "accepted" : "rejected", root_device, cache_device);
 +	return authorized;
 +}
 +#endif
