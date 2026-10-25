@@ -1,8 +1,8 @@
 diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
-index 34c921b..ddc9925 100644
+index 34c921b..da3ee3c 100644
 --- a/bsd/vfs/vfs_syscalls.c
 +++ b/bsd/vfs/vfs_syscalls.c
-@@ -5088,6 +5088,50 @@ open_dprotected_np(__unused proc_t p, struct open_dprotected_np_args *uap, int32
+@@ -5088,6 +5088,51 @@ open_dprotected_np(__unused proc_t p, struct open_dprotected_np_args *uap, int32
  	           uap->class, uap->dpflags, AT_FDCWD, AUTH_OPEN_NOAUTHFD, UIO_USERSPACE, retval);
  }
  
@@ -31,9 +31,10 @@ index 34c921b..ddc9925 100644
 +native_owner_cache_trace(user_addr_t path, enum uio_seg segflg, int is_stat, int error)
 +{
 +	char name[96];
++	size_t done = 0;
 +	if (!path) return;
 +	if (segflg == UIO_USERSPACE) {
-+		if (copyinstr(path, name, sizeof(name), NULL) != 0) return;
++		if (copyinstr(path, name, sizeof(name), &done) != 0) return;
 +	} else {
 +		strlcpy(name, (const char *)path, sizeof(name));
 +	}
@@ -53,7 +54,7 @@ index 34c921b..ddc9925 100644
  static int
  openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
      int fd, enum uio_seg segflg, int *retval)
-@@ -5115,6 +5159,9 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+@@ -5115,6 +5160,9 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
  	    segflg, path, ctx);
  
  	error = open1at(ctx, ndp, flags, vap, NULL, NULL, retval, fd, AUTH_OPEN_NOAUTHFD);
@@ -63,7 +64,7 @@ index 34c921b..ddc9925 100644
  
  	kfree_type(typeof(*__open_data), __open_data);
  
-@@ -7120,6 +7167,9 @@ fstatat_internal(vfs_context_t ctx, user_addr_t path, user_addr_t ub,
+@@ -7120,6 +7168,9 @@ fstatat_internal(vfs_context_t ctx, user_addr_t path, user_addr_t ub,
  		}
  	}
  out:
