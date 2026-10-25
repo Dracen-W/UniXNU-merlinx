@@ -1,0 +1,75 @@
+diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
+index 34c921b..ddc9925 100644
+--- a/bsd/vfs/vfs_syscalls.c
++++ b/bsd/vfs/vfs_syscalls.c
+@@ -5088,6 +5088,50 @@ open_dprotected_np(__unused proc_t p, struct open_dprotected_np_args *uap, int32
+ 	           uap->class, uap->dpflags, AT_FDCWD, AUTH_OPEN_NOAUTHFD, UIO_USERSPACE, retval);
+ }
+ 
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++extern volatile int native_owner_cache_open_calls;
++extern volatile int native_owner_cache_open_last_error;
++extern volatile int native_owner_cache_stat_calls;
++extern volatile int native_owner_cache_stat_last_error;
++extern char native_owner_cache_open_last_path[96];
++extern char native_owner_cache_stat_last_path[96];
++
++static boolean_t
++native_owner_cache_path_match(const char *path)
++{
++	while (path && *path) {
++		if (!strncmp(path, "com.apple.dyld", 14) ||
++		    !strncmp(path, "dyld_shared_cache", 17)) {
++			return TRUE;
++		}
++		path++;
++	}
++	return FALSE;
++}
++
++static void
++native_owner_cache_trace(user_addr_t path, enum uio_seg segflg, int is_stat, int error)
++{
++	char name[96];
++	if (!path) return;
++	if (segflg == UIO_USERSPACE) {
++		if (copyinstr(path, name, sizeof(name), NULL) != 0) return;
++	} else {
++		strlcpy(name, (const char *)path, sizeof(name));
++	}
++	if (!native_owner_cache_path_match(name)) return;
++	if (is_stat) {
++		__atomic_fetch_add(&native_owner_cache_stat_calls, 1, __ATOMIC_RELAXED);
++		native_owner_cache_stat_last_error = error;
++		strlcpy(native_owner_cache_stat_last_path, name, sizeof(native_owner_cache_stat_last_path));
++	} else {
++		__atomic_fetch_add(&native_owner_cache_open_calls, 1, __ATOMIC_RELAXED);
++		native_owner_cache_open_last_error = error;
++		strlcpy(native_owner_cache_open_last_path, name, sizeof(native_owner_cache_open_last_path));
++	}
++}
++#endif
++
+ static int
+ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+     int fd, enum uio_seg segflg, int *retval)
+@@ -5115,6 +5159,9 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+ 	    segflg, path, ctx);
+ 
+ 	error = open1at(ctx, ndp, flags, vap, NULL, NULL, retval, fd, AUTH_OPEN_NOAUTHFD);
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	native_owner_cache_trace(path, segflg, 0, error);
++#endif
+ 
+ 	kfree_type(typeof(*__open_data), __open_data);
+ 
+@@ -7120,6 +7167,9 @@ fstatat_internal(vfs_context_t ctx, user_addr_t path, user_addr_t ub,
+ 		}
+ 	}
+ out:
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	native_owner_cache_trace(path, segflg, 1, error);
++#endif
+ 	if (ndp) {
+ 		kfree_type(struct nameidata, ndp);
+ 	}
