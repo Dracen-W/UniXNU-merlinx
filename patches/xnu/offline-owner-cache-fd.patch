@@ -1,0 +1,81 @@
+diff --git a/bsd/kern/kern_descrip.c b/bsd/kern/kern_descrip.c
+index c966085..4da41ba 100644
+--- a/bsd/kern/kern_descrip.c
++++ b/bsd/kern/kern_descrip.c
+@@ -4098,6 +4098,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
+ 		}
+ 
+ 		(void) vnode_put(vp);
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++		if (uap->fd == native_owner_cache_last_fd && cmd == F_ADDFILESIGS_RETURN) {
++			__atomic_fetch_add(&native_owner_cache_fcntl_calls, 1, __ATOMIC_RELAXED);
++			native_owner_cache_fcntl_last_error = error;
++		}
++#endif
+ 		break;
+ 	}
+ #if CONFIG_SUPPLEMENTAL_SIGNATURES
+@@ -5391,6 +5397,14 @@ close_nocancel(proc_t p, kauth_cred_t p_cred, int fd)
+  *		XXX switch on node type is bogus; need a stat in struct
+  *		XXX fileops instead.
+  */
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++extern volatile int native_owner_cache_last_fd;
++extern volatile int native_owner_cache_fstat_calls;
++extern volatile int native_owner_cache_fstat_last_error;
++extern volatile int native_owner_cache_fcntl_calls;
++extern volatile int native_owner_cache_fcntl_last_error;
++#endif
++
+ static int
+ fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
+     user_addr_t xsecurity_size, int isstat64)
+@@ -5574,7 +5588,14 @@ sys_fstat_extended(proc_t p, struct fstat_extended_args *uap, __unused int32_t *
+ int
+ sys_fstat(proc_t p, struct fstat_args *uap, __unused int32_t *retval)
+ {
+-	return fstat(p, uap->fd, uap->ub, 0, 0, 0);
++	int error = fstat(p, uap->fd, uap->ub, 0, 0, 0);
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	if (uap->fd == native_owner_cache_last_fd) {
++		__atomic_fetch_add(&native_owner_cache_fstat_calls, 1, __ATOMIC_RELAXED);
++		native_owner_cache_fstat_last_error = error;
++	}
++#endif
++	return error;
+ }
+ 
+ 
+diff --git a/bsd/kern/sys_generic.c b/bsd/kern/sys_generic.c
+index f229fc1..11399b5 100644
+--- a/bsd/kern/sys_generic.c
++++ b/bsd/kern/sys_generic.c
+@@ -392,14 +392,27 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
+ 	return read_nocancel(p, (struct read_nocancel_args *)uap, retval);
+ }
+ 
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++extern volatile int native_owner_cache_last_fd;
++extern volatile int native_owner_cache_pread_calls;
++extern volatile int native_owner_cache_pread_last_error;
++#endif
++
+ int
+ pread_nocancel(struct proc *p, struct pread_nocancel_args *uap, user_ssize_t *retval)
+ {
+ 	KERNEL_DEBUG_CONSTANT((BSDDBG_CODE(DBG_BSD_SC_EXTENDED_INFO, SYS_pread) | DBG_FUNC_NONE),
+ 	    uap->fd, uap->nbyte, (unsigned int)((uap->offset >> 32)), (unsigned int)(uap->offset), 0);
+ 
+-	return read_internal(p, uap->fd, uap->buf, uap->nbyte, uap->offset,
++	int error = read_internal(p, uap->fd, uap->buf, uap->nbyte, uap->offset,
+ 	           FOF_OFFSET, retval);
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	if (uap->fd == native_owner_cache_last_fd) {
++		__atomic_fetch_add(&native_owner_cache_pread_calls, 1, __ATOMIC_RELAXED);
++		native_owner_cache_pread_last_error = error;
++	}
++#endif
++	return error;
+ }
+ 
+ /*

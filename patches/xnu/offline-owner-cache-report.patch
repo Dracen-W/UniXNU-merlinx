@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index 11a8212..91fce6f 100644
+index 11a8212..285173a 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1816,6 +1816,32 @@ proc_crash_coredump(proc_t p)
+@@ -1816,6 +1816,38 @@ proc_crash_coredump(proc_t p)
  #endif /* (DEVELOPMENT || DEBUG) && CONFIG_COREDUMP */
  }
  
@@ -19,6 +19,12 @@ index 11a8212..91fce6f 100644
 +extern volatile int native_owner_cache_open_last_error;
 +extern volatile int native_owner_cache_stat_calls;
 +extern volatile int native_owner_cache_stat_last_error;
++extern volatile int native_owner_cache_fstat_calls;
++extern volatile int native_owner_cache_fstat_last_error;
++extern volatile int native_owner_cache_pread_calls;
++extern volatile int native_owner_cache_pread_last_error;
++extern volatile int native_owner_cache_fcntl_calls;
++extern volatile int native_owner_cache_fcntl_last_error;
 +extern char native_owner_cache_open_last_path[96];
 +extern char native_owner_cache_stat_last_path[96];
 +#if defined(XNU_OWNER_CACHE_CARRIER) && XNU_OWNER_CACHE_CARRIER
@@ -35,19 +41,22 @@ index 11a8212..91fce6f 100644
  static void
  proc_handle_critical_exit(proc_t p, int rv)
  {
-@@ -1865,14 +1891,29 @@ proc_handle_critical_exit(proc_t p, int rv)
+@@ -1865,6 +1897,24 @@ proc_handle_critical_exit(proc_t p, int rv)
  
  	sync(p, (void *)NULL, (int *)NULL);
  
 +#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
-+	char owner_diag[512];
++	char owner_diag[768];
 +	snprintf(owner_diag, sizeof(owner_diag),
-+	    "owner stage=%d status=%d mount=%d readonly=%d auth=%d root=%d union=%d flags=%llx open=%d/%d stat=%d/%d carrier=%lu/%lu open_path=%s stat_path=%s",
++	    "owner stage=%d status=%d mount=%d readonly=%d auth=%d root=%d union=%d flags=%llx open=%d/%d stat=%d/%d fstat=%d/%d pread=%d/%d fcntl=%d/%d carrier=%lu/%lu open_path=%s stat_path=%s",
 +	    native_owner_cache_stage, native_owner_cache_status, native_owner_cache_mount_status,
 +	    native_owner_cache_readonly, native_owner_cache_authorized, native_owner_cache_root_recheck,
 +	    native_owner_cache_native_union, (unsigned long long)native_owner_cache_dyld_flags,
 +	    native_owner_cache_open_calls, native_owner_cache_open_last_error,
 +	    native_owner_cache_stat_calls, native_owner_cache_stat_last_error,
++	    native_owner_cache_fstat_calls, native_owner_cache_fstat_last_error,
++	    native_owner_cache_pread_calls, native_owner_cache_pread_last_error,
++	    native_owner_cache_fcntl_calls, native_owner_cache_fcntl_last_error,
 +	    OWNER_CACHE_CARRIER_ACCEPTS, OWNER_CACHE_CARRIER_REJECTS,
 +	    native_owner_cache_open_last_path, native_owner_cache_stat_last_path);
 +#else
@@ -55,17 +64,5 @@ index 11a8212..91fce6f 100644
 +#endif
 +
  	if (p->p_exit_reason == OS_REASON_NULL) {
--		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s -- no exit reason available -- (signal %d, exit status %d %s)",
--		    prefix_str, WTERMSIG(rv), WEXITSTATUS(rv), ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""));
-+		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s -- no exit reason available -- (signal %d, exit status %d %s) [%s]",
-+		    prefix_str, WTERMSIG(rv), WEXITSTATUS(rv), ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""), owner_diag);
- 	} else {
--		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s %s -- exit reason namespace %d subcode 0x%llx description: %." LAUNCHD_PANIC_REASON_STRING_MAXLEN "s",
-+		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s %s -- exit reason namespace %d subcode 0x%llx description: %." LAUNCHD_PANIC_REASON_STRING_MAXLEN "s [%s]",
- 		    ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""),
- 		    prefix_str, p->p_exit_reason->osr_namespace, p->p_exit_reason->osr_code,
--		    exit_reason_desc ? exit_reason_desc : "none");
-+		    exit_reason_desc ? exit_reason_desc : "none", owner_diag);
- 	}
- }
- 
+ 		panic_with_options(0, NULL, DEBUGGER_OPTION_INITPROC_PANIC, "%s -- no exit reason available -- (signal %d, exit status %d %s)",
+ 		    prefix_str, WTERMSIG(rv), WEXITSTATUS(rv), ((proc_getcsflags(p) & CS_KILLED) ? "CS_KILLED" : ""));
