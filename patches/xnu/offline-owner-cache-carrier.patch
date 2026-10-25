@@ -1,5 +1,5 @@
 diff --git a/bsd/vm/vm_unix.c b/bsd/vm/vm_unix.c
-index 8696353..569948c 100644
+index 8696353..af08e60 100644
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
 @@ -2225,6 +2225,75 @@ static void shared_region_map_and_slide_cleanup(
@@ -31,7 +31,7 @@ index 8696353..569948c 100644
 +	char device_path[64];
 +	boolean_t authorized = FALSE;
 +	const char *file_name = file ? vnode_getname(file) : NULL;
-+	boolean_t cache_file = file_name && strstr(file_name, "dyld_shared_cache");
++	boolean_t cache_file = file_name && strncmp(file_name, "dyld_shared_cache_", 18) == 0;
 +	if (process_root != rootvnode || !file || vnode_vtype(file) != VREG) goto out;
 +	mount_t root_mount = vnode_mount(process_root), cache_mount = vnode_mount(file);
 +	if (!root_mount || !cache_mount || root_mount == cache_mount ||
