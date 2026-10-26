@@ -1,8 +1,42 @@
 diff --git a/bsd/kern/ubc_subr.c b/bsd/kern/ubc_subr.c
-index 62a450a..2bbdc8a 100644
+index 62a450a..0662474 100644
 --- a/bsd/kern/ubc_subr.c
 +++ b/bsd/kern/ubc_subr.c
-@@ -4638,6 +4638,12 @@ reconstitute_code_signature(
+@@ -505,6 +505,9 @@ cs_validate_blob(const CS_GenericBlob *blob, size_t length)
+  *		EBADEXEC		Invalid code signature
+  */
+ 
++extern volatile int native_owner_cs_stage;
++extern volatile int native_owner_cs_error;
++
+ static int
+ cs_validate_csblob(
+ 	const uint8_t *addr,
+@@ -528,6 +531,7 @@ cs_validate_csblob(
+ 	blob = (const CS_GenericBlob *)(const void *)addr;
+ 
+ 	length = blob_size;
++	native_owner_cs_stage = 10;
+ 	error = cs_validate_blob(blob, length);
+ 	if (error) {
+ 		return error;
+@@ -554,6 +558,7 @@ cs_validate_csblob(
+ 		if ((length - sizeof(CS_SuperBlob)) / sizeof(CS_BlobIndex) < count) {
+ 			return EBADEXEC;
+ 		}
++		native_owner_cs_stage = 11;
+ 
+ 		/* now check each BlobIndex */
+ 		for (n = 0; n < count; n++) {
+@@ -577,6 +582,7 @@ cs_validate_csblob(
+ 			/* extra validation for CDs, that is also returned */
+ 			if (type == CSSLOT_CODEDIRECTORY || (type >= CSSLOT_ALTERNATE_CODEDIRECTORIES && type < CSSLOT_ALTERNATE_CODEDIRECTORY_LIMIT)) {
+ 				const CS_CodeDirectory *candidate = (const CS_CodeDirectory *)subBlob;
++				native_owner_cs_stage = 12;
+ 				if ((error = cs_validate_codedirectory(candidate, subLength)) != 0) {
+ 					return error;
+ 				}
+@@ -4638,6 +4644,12 @@ reconstitute_code_signature(
  	return 0;
  }
  
@@ -15,7 +49,7 @@ index 62a450a..2bbdc8a 100644
  int
  ubc_cs_blob_add(
  	struct vnode    *vp,
-@@ -4673,6 +4679,11 @@ ubc_cs_blob_add(
+@@ -4673,6 +4685,11 @@ ubc_cs_blob_add(
  	if (ret_blob) {
  		*ret_blob = NULL;
  	}
@@ -27,7 +61,7 @@ index 62a450a..2bbdc8a 100644
  
  	/*
  	 * Create the struct cs_blob abstract data type which will get attached to
-@@ -4685,8 +4696,10 @@ ubc_cs_blob_add(
+@@ -4685,8 +4702,10 @@ ubc_cs_blob_add(
  	error = cs_blob_init_validated(addr, size, &tmp_blob, &cd);
  	if (error != 0) {
  		printf("unable to create a validated cs_blob object: %d\n", error);
@@ -38,7 +72,7 @@ index 62a450a..2bbdc8a 100644
  
  	tmp_blob.csb_cpu_type = cputype;
  	tmp_blob.csb_cpu_subtype = cpusubtype & ~CPU_SUBTYPE_MASK;
-@@ -4697,6 +4710,7 @@ ubc_cs_blob_add(
+@@ -4697,6 +4716,7 @@ ubc_cs_blob_add(
  	if (error != 0) {
  		goto out;
  	}
@@ -46,7 +80,7 @@ index 62a450a..2bbdc8a 100644
  
  	/*
  	 * There is a strong design pattern we have to follow carefully within this
-@@ -4766,6 +4780,7 @@ ubc_cs_blob_add(
+@@ -4766,6 +4786,7 @@ ubc_cs_blob_add(
  		printf("validation of code signature failed through MACF policy: %d\n", error);
  		goto out;
  	}
@@ -54,7 +88,7 @@ index 62a450a..2bbdc8a 100644
  
  #if HAS_APPLE_PAC
  	signed_entitlements = ptrauth_sign_unauthenticated(
-@@ -4808,6 +4823,7 @@ ubc_cs_blob_add(
+@@ -4808,6 +4829,7 @@ ubc_cs_blob_add(
  	if (error != 0) {
  		goto out;
  	}
@@ -62,7 +96,7 @@ index 62a450a..2bbdc8a 100644
  
  	/* Setup any multi-level hashing for the code signature */
  	error = setup_multilevel_hashing(&tmp_blob);
-@@ -5052,8 +5068,10 @@ ubc_cs_blob_add(
+@@ -5052,8 +5074,10 @@ ubc_cs_blob_add(
  	}
  
  	error = 0;      /* success ! */
