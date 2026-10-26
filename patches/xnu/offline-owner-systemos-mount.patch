@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8bba078..65978fc 100644
+index 8bba078..cf70fcd 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
 @@ -183,7 +183,7 @@
@@ -11,7 +11,7 @@ index 8bba078..65978fc 100644
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,316 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
+@@ -7013,8 +7013,326 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -76,8 +76,7 @@ index 8bba078..65978fc 100644
 +	__asm__ volatile("" : : "r"(status), "r"(authorized) : "memory");
 +}
 +
- static int
--load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
++static int
 +native_owner_cache_prepare(proc_t p, user_addr_t scratch, user_addr_t *envp)
 +{
 +#ifndef XNU_OWNER_CACHE_VOLUME_UUID
@@ -201,6 +200,16 @@ index 8bba078..65978fc 100644
 +	if (cache_dir_vp) vnode_put(cache_dir_vp);
 +	if (cache_file_error) panic("owner cache path unavailable: %d", cache_file_error);
 +	printf("owner SystemOS cache mounted: %s\n", device_path);
++	unsigned gop_line = 0;
++	PE_parse_boot_argn("owner-gop-line", &gop_line, sizeof(gop_line));
++	if (gop_line && vinfo.v_baseaddr && vinfo.v_depth == 32 && vinfo.v_rowbytes && vinfo.v_width > 512 && vinfo.v_height > 256) {
++		volatile uint32_t *fb = (volatile uint32_t *)(uintptr_t)vinfo.v_baseaddr;
++		for (unsigned y = 200; y < 220; ++y) {
++			for (unsigned x = 100; x < 500; ++x) {
++				fb[(uint64_t)y * (vinfo.v_rowbytes / 4) + x] = 0xffffffffu;
++			}
++		}
++	}
 +	unsigned gop_dump = 0;
 +	PE_parse_boot_argn("owner-gop-dump", &gop_dump, sizeof(gop_dump));
 +	if (gop_dump) {
@@ -324,12 +333,13 @@ index 8bba078..65978fc 100644
 +}
 +#endif
 +
-+static int
+ static int
+-load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
 +load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path, user_addr_t envp)
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7394,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
+@@ -7086,7 +7404,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
@@ -338,7 +348,7 @@ index 8bba078..65978fc 100644
  
  	/*
  	 * So that init task is set with uid,gid 0 token
-@@ -7148,6 +7456,15 @@ load_init_program(proc_t p)
+@@ -7148,6 +7466,15 @@ load_init_program(proc_t p)
  	mach_vm_size_t map_page_size = vm_map_page_size(map);
  
  	(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);
@@ -354,7 +364,7 @@ index 8bba078..65978fc 100644
  #if CONFIG_MEMORYSTATUS
  	(void) memorystatus_init_at_boot_snapshot();
  #endif /* CONFIG_MEMORYSTATUS */
-@@ -7162,7 +7479,7 @@ load_init_program(proc_t p)
+@@ -7162,7 +7489,7 @@ load_init_program(proc_t p)
  
  		if (is_release_suffix) {
  			printf("load_init_program: attempting to load /sbin/launchd\n");
@@ -363,7 +373,7 @@ index 8bba078..65978fc 100644
  			if (!error) {
  				return;
  			}
-@@ -7173,7 +7490,7 @@ load_init_program(proc_t p)
+@@ -7173,7 +7500,7 @@ load_init_program(proc_t p)
  			strlcat(launchd_path, launchd_suffix, sizeof(launchd_path));
  
  			printf("load_init_program: attempting to load %s\n", launchd_path);
@@ -372,7 +382,7 @@ index 8bba078..65978fc 100644
  			if (!error) {
  				return;
  			} else if (error != ENOENT) {
-@@ -7186,7 +7503,7 @@ load_init_program(proc_t p)
+@@ -7186,7 +7513,7 @@ load_init_program(proc_t p)
  	error = ENOENT;
  	for (i = 0; i < sizeof(init_programs) / sizeof(init_programs[0]); i++) {
  		printf("load_init_program: attempting to load %s\n", init_programs[i]);
