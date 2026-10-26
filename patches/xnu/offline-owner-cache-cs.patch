@@ -1,17 +1,17 @@
 diff --git a/bsd/kern/ubc_subr.c b/bsd/kern/ubc_subr.c
-index 62a450a..945f864 100644
+index 62a450a..7078970 100644
 --- a/bsd/kern/ubc_subr.c
 +++ b/bsd/kern/ubc_subr.c
-@@ -4639,6 +4639,9 @@ reconstitute_code_signature(
+@@ -4638,6 +4638,9 @@ reconstitute_code_signature(
+ 	return 0;
  }
  
- int
 +volatile int native_owner_cs_stage = 0;
 +volatile int native_owner_cs_error = 0;
 +
+ int
  ubc_cs_blob_add(
  	struct vnode    *vp,
- 	uint32_t        platform,
 @@ -4673,6 +4676,8 @@ ubc_cs_blob_add(
  	if (ret_blob) {
  		*ret_blob = NULL;
