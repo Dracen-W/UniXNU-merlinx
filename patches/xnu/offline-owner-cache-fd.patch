@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/kern_descrip.c b/bsd/kern/kern_descrip.c
-index c966085..e2c3546 100644
+index c966085..df125ac 100644
 --- a/bsd/kern/kern_descrip.c
 +++ b/bsd/kern/kern_descrip.c
 @@ -2740,6 +2740,15 @@ outdrop:
@@ -31,61 +31,24 @@ index c966085..e2c3546 100644
  		break;
  	}
  #if CONFIG_SUPPLEMENTAL_SIGNATURES
-@@ -5391,6 +5406,14 @@ close_nocancel(proc_t p, kauth_cred_t p_cred, int fd)
-  *		XXX switch on node type is bogus; need a stat in struct
-  *		XXX fileops instead.
-  */
+@@ -5528,6 +5543,15 @@ fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
+ 		}
+ 	}
+ out:
 +#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
-+extern volatile int native_owner_cache_last_fd;
-+extern volatile int native_owner_cache_fstat_calls;
-+extern volatile int native_owner_cache_fstat_last_error;
-+extern volatile int native_owner_cache_fcntl_calls;
-+extern volatile int native_owner_cache_fcntl_last_error;
-+#endif
-+
- static int
- fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
-     user_addr_t xsecurity_size, int isstat64)
-@@ -5574,7 +5597,20 @@ sys_fstat_extended(proc_t p, struct fstat_extended_args *uap, __unused int32_t *
- int
- sys_fstat(proc_t p, struct fstat_args *uap, __unused int32_t *retval)
- {
--	return fstat(p, uap->fd, uap->ub, 0, 0, 0);
-+	int error = fstat(p, uap->fd, uap->ub, 0, 0, 0);
-+#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
-+	if (uap->fd == native_owner_cache_last_fd) {
++	if (error == 0 && fd == native_owner_cache_last_fd) {
 +		__atomic_fetch_add(&native_owner_cache_fstat_calls, 1, __ATOMIC_RELAXED);
-+		native_owner_cache_fstat_last_error = error;
-+		if (error == 0) {
-+			struct stat sb;
-+			if (copyin(uap->ub, &sb, sizeof(sb)) == 0) {
-+				native_owner_cache_fstat_last_size = sb.st_size;
-+			}
-+		}
-+	}
-+#endif
-+	return error;
- }
- 
- 
-@@ -5617,7 +5653,14 @@ sys_fstat64_extended(proc_t p, struct fstat64_extended_args *uap, __unused int32
- int
- sys_fstat64(proc_t p, struct fstat64_args *uap, __unused int32_t *retval)
- {
--	return fstat(p, uap->fd, uap->ub, 0, 0, 1);
-+	int error = fstat(p, uap->fd, uap->ub, 0, 0, 1);
-+#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
-+	if (uap->fd == native_owner_cache_last_fd) {
-+		__atomic_fetch_add(&native_owner_cache_fstat_calls, 1, __ATOMIC_RELAXED);
++		native_owner_cache_fstat_last_error = 0;
++		native_owner_cache_fstat_last_size = isstat64 ? source.sb64.st_size : source.sb.st_size;
++	} else if (fd == native_owner_cache_last_fd) {
 +		native_owner_cache_fstat_last_error = error;
 +	}
 +#endif
-+	return error;
- }
- 
- 
+ 	fp_drop(p, fd, fp, 0);
+ 	if (fsec != NULL) {
+ 		kauth_filesec_free(fsec);
 diff --git a/bsd/kern/sys_generic.c b/bsd/kern/sys_generic.c
-index f229fc1..7ae36cc 100644
+index f229fc1..88bad2f 100644
 --- a/bsd/kern/sys_generic.c
 +++ b/bsd/kern/sys_generic.c
 @@ -392,14 +392,38 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
@@ -96,8 +59,8 @@ index f229fc1..7ae36cc 100644
 +extern volatile int native_owner_cache_last_fd;
 +extern volatile int native_owner_cache_pread_calls;
 +extern volatile int native_owner_cache_pread_last_error;
-+extern char native_owner_cache_pread_first_hex[17];
 +extern volatile int native_owner_cache_pread_first_valid;
++extern char native_owner_cache_pread_first_hex[17];
 +#endif
 +
  int
