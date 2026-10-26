@@ -48,10 +48,10 @@ index c966085..df125ac 100644
  	if (fsec != NULL) {
  		kauth_filesec_free(fsec);
 diff --git a/bsd/kern/sys_generic.c b/bsd/kern/sys_generic.c
-index f229fc1..951b045 100644
+index f229fc1..2852f3b 100644
 --- a/bsd/kern/sys_generic.c
 +++ b/bsd/kern/sys_generic.c
-@@ -392,14 +392,43 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
+@@ -392,14 +392,48 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
  	return read_nocancel(p, (struct read_nocancel_args *)uap, retval);
  }
  
@@ -61,6 +61,11 @@ index f229fc1..951b045 100644
 +extern volatile int native_owner_cache_pread_last_error;
 +extern volatile int native_owner_cache_pread_first_valid;
 +extern char native_owner_cache_pread_first_hex[17];
++extern volatile unsigned int native_owner_cache_hdr_mapping_offset;
++extern volatile unsigned int native_owner_cache_hdr_mapping_count;
++extern volatile unsigned long long native_owner_cache_hdr_cs_offset;
++extern volatile unsigned long long native_owner_cache_hdr_cs_size;
++extern volatile unsigned int native_owner_cache_hdr_platform;
 +#endif
 +
  int
