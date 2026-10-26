@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index 11a8212..6f9fa08 100644
+index 11a8212..e5f1bf0 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1816,6 +1816,37 @@ proc_crash_coredump(proc_t p)
+@@ -1816,6 +1816,40 @@ proc_crash_coredump(proc_t p)
  #endif /* (DEVELOPMENT || DEBUG) && CONFIG_COREDUMP */
  }
  
@@ -21,8 +21,11 @@ index 11a8212..6f9fa08 100644
 +extern volatile int native_owner_cache_stat_last_error;
 +extern volatile int native_owner_cache_fstat_calls;
 +extern volatile int native_owner_cache_fstat_last_error;
++extern volatile long long native_owner_cache_fstat_last_size;
 +extern volatile int native_owner_cache_pread_calls;
 +extern volatile int native_owner_cache_pread_last_error;
++extern volatile int native_owner_cache_pread_first_valid;
++extern char native_owner_cache_pread_first_hex[17];
 +extern volatile int native_owner_cache_fcntl_calls;
 +extern volatile int native_owner_cache_fcntl_last_error;
 +extern char native_owner_cache_open_last_path[96];
@@ -40,21 +43,23 @@ index 11a8212..6f9fa08 100644
  static void
  proc_handle_critical_exit(proc_t p, int rv)
  {
-@@ -1865,12 +1896,31 @@ proc_handle_critical_exit(proc_t p, int rv)
+@@ -1865,12 +1899,33 @@ proc_handle_critical_exit(proc_t p, int rv)
  
  	sync(p, (void *)NULL, (int *)NULL);
  
 +#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
 +	char owner_diag[512];
 +	snprintf(owner_diag, sizeof(owner_diag),
-+	    "owner st=%d s=%d m=%d ro=%d a=%d r=%d u=%d f=%llx op=%d/%d stt=%d/%d fst=%d/%d pre=%d/%d fcn=%d/%d car=%lu/%lu path=%s",
++	    "owner st=%d s=%d m=%d ro=%d a=%d r=%d u=%d f=%llx op=%d/%d stt=%d/%d fst=%d/%d/%lld pre=%d/%d first=%s fcn=%d/%d car=%lu/%lu path=%s",
 +	    native_owner_cache_stage, native_owner_cache_status, native_owner_cache_mount_status,
 +	    native_owner_cache_readonly, native_owner_cache_authorized, native_owner_cache_root_recheck,
 +	    native_owner_cache_native_union, (unsigned long long)native_owner_cache_dyld_flags,
 +	    native_owner_cache_open_calls, native_owner_cache_open_last_error,
 +	    native_owner_cache_stat_calls, native_owner_cache_stat_last_error,
 +	    native_owner_cache_fstat_calls, native_owner_cache_fstat_last_error,
++	    native_owner_cache_fstat_last_size,
 +	    native_owner_cache_pread_calls, native_owner_cache_pread_last_error,
++	    native_owner_cache_pread_first_valid ? native_owner_cache_pread_first_hex : "",
 +	    native_owner_cache_fcntl_calls, native_owner_cache_fcntl_last_error,
 +	    OWNER_CACHE_CARRIER_ACCEPTS, OWNER_CACHE_CARRIER_REJECTS,
 +	    native_owner_cache_open_last_path);

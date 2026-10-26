@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/kern_descrip.c b/bsd/kern/kern_descrip.c
-index c966085..477ceb3 100644
+index c966085..e2c3546 100644
 --- a/bsd/kern/kern_descrip.c
 +++ b/bsd/kern/kern_descrip.c
-@@ -2740,6 +2740,14 @@ outdrop:
+@@ -2740,6 +2740,15 @@ outdrop:
  	return sys_fcntl_outdrop(p, fd, fp, vp, error);
  }
  
@@ -10,6 +10,7 @@ index c966085..477ceb3 100644
 +extern volatile int native_owner_cache_last_fd;
 +extern volatile int native_owner_cache_fstat_calls;
 +extern volatile int native_owner_cache_fstat_last_error;
++extern volatile long long native_owner_cache_fstat_last_size;
 +extern volatile int native_owner_cache_fcntl_calls;
 +extern volatile int native_owner_cache_fcntl_last_error;
 +#endif
@@ -17,7 +18,7 @@ index c966085..477ceb3 100644
  int
  sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
  {
-@@ -4098,6 +4106,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
+@@ -4098,6 +4107,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
  		}
  
  		(void) vnode_put(vp);
@@ -30,7 +31,7 @@ index c966085..477ceb3 100644
  		break;
  	}
  #if CONFIG_SUPPLEMENTAL_SIGNATURES
-@@ -5391,6 +5405,14 @@ close_nocancel(proc_t p, kauth_cred_t p_cred, int fd)
+@@ -5391,6 +5406,14 @@ close_nocancel(proc_t p, kauth_cred_t p_cred, int fd)
   *		XXX switch on node type is bogus; need a stat in struct
   *		XXX fileops instead.
   */
@@ -45,12 +46,34 @@ index c966085..477ceb3 100644
  static int
  fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
      user_addr_t xsecurity_size, int isstat64)
-@@ -5574,7 +5596,14 @@ sys_fstat_extended(proc_t p, struct fstat_extended_args *uap, __unused int32_t *
+@@ -5574,7 +5597,20 @@ sys_fstat_extended(proc_t p, struct fstat_extended_args *uap, __unused int32_t *
  int
  sys_fstat(proc_t p, struct fstat_args *uap, __unused int32_t *retval)
  {
 -	return fstat(p, uap->fd, uap->ub, 0, 0, 0);
 +	int error = fstat(p, uap->fd, uap->ub, 0, 0, 0);
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	if (uap->fd == native_owner_cache_last_fd) {
++		__atomic_fetch_add(&native_owner_cache_fstat_calls, 1, __ATOMIC_RELAXED);
++		native_owner_cache_fstat_last_error = error;
++		if (error == 0) {
++			struct stat sb;
++			if (copyin(uap->ub, &sb, sizeof(sb)) == 0) {
++				native_owner_cache_fstat_last_size = sb.st_size;
++			}
++		}
++	}
++#endif
++	return error;
+ }
+ 
+ 
+@@ -5617,7 +5653,14 @@ sys_fstat64_extended(proc_t p, struct fstat64_extended_args *uap, __unused int32
+ int
+ sys_fstat64(proc_t p, struct fstat64_args *uap, __unused int32_t *retval)
+ {
+-	return fstat(p, uap->fd, uap->ub, 0, 0, 1);
++	int error = fstat(p, uap->fd, uap->ub, 0, 0, 1);
 +#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
 +	if (uap->fd == native_owner_cache_last_fd) {
 +		__atomic_fetch_add(&native_owner_cache_fstat_calls, 1, __ATOMIC_RELAXED);
@@ -62,10 +85,10 @@ index c966085..477ceb3 100644
  
  
 diff --git a/bsd/kern/sys_generic.c b/bsd/kern/sys_generic.c
-index f229fc1..11399b5 100644
+index f229fc1..7ae36cc 100644
 --- a/bsd/kern/sys_generic.c
 +++ b/bsd/kern/sys_generic.c
-@@ -392,14 +392,27 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
+@@ -392,14 +392,38 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
  	return read_nocancel(p, (struct read_nocancel_args *)uap, retval);
  }
  
@@ -73,6 +96,8 @@ index f229fc1..11399b5 100644
 +extern volatile int native_owner_cache_last_fd;
 +extern volatile int native_owner_cache_pread_calls;
 +extern volatile int native_owner_cache_pread_last_error;
++extern char native_owner_cache_pread_first_hex[17];
++extern volatile int native_owner_cache_pread_first_valid;
 +#endif
 +
  int
@@ -88,6 +113,15 @@ index f229fc1..11399b5 100644
 +	if (uap->fd == native_owner_cache_last_fd) {
 +		__atomic_fetch_add(&native_owner_cache_pread_calls, 1, __ATOMIC_RELAXED);
 +		native_owner_cache_pread_last_error = error;
++		if (error == 0 && uap->offset == 0) {
++			unsigned char first[8] = {};
++			if (copyin(uap->buf, first, sizeof(first)) == 0) {
++				snprintf(native_owner_cache_pread_first_hex, sizeof(native_owner_cache_pread_first_hex),
++				    "%02x%02x%02x%02x%02x%02x%02x%02x",
++				    first[0], first[1], first[2], first[3], first[4], first[5], first[6], first[7]);
++				native_owner_cache_pread_first_valid = 1;
++			}
++		}
 +	}
 +#endif
 +	return error;

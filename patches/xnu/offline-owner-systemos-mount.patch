@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8bba078..a5fc74e 100644
+index 8bba078..1f72c8e 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
 @@ -183,7 +183,7 @@
@@ -11,7 +11,7 @@ index 8bba078..a5fc74e 100644
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,292 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
+@@ -7013,8 +7013,295 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -34,8 +34,11 @@ index 8bba078..a5fc74e 100644
 +volatile int native_owner_cache_last_fd = -1;
 +volatile int native_owner_cache_fstat_calls = 0;
 +volatile int native_owner_cache_fstat_last_error = 0;
++volatile long long native_owner_cache_fstat_last_size = -1;
 +volatile int native_owner_cache_pread_calls = 0;
 +volatile int native_owner_cache_pread_last_error = 0;
++volatile int native_owner_cache_pread_first_valid = 0;
++char native_owner_cache_pread_first_hex[17];
 +volatile int native_owner_cache_fcntl_calls = 0;
 +volatile int native_owner_cache_fcntl_last_error = 0;
 +char native_owner_cache_open_last_path[96];
@@ -305,7 +308,7 @@ index 8bba078..a5fc74e 100644
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7370,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
+@@ -7086,7 +7373,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
@@ -314,7 +317,7 @@ index 8bba078..a5fc74e 100644
  
  	/*
  	 * So that init task is set with uid,gid 0 token
-@@ -7148,6 +7432,15 @@ load_init_program(proc_t p)
+@@ -7148,6 +7435,15 @@ load_init_program(proc_t p)
  	mach_vm_size_t map_page_size = vm_map_page_size(map);
  
  	(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);
@@ -330,7 +333,7 @@ index 8bba078..a5fc74e 100644
  #if CONFIG_MEMORYSTATUS
  	(void) memorystatus_init_at_boot_snapshot();
  #endif /* CONFIG_MEMORYSTATUS */
-@@ -7162,7 +7455,7 @@ load_init_program(proc_t p)
+@@ -7162,7 +7458,7 @@ load_init_program(proc_t p)
  
  		if (is_release_suffix) {
  			printf("load_init_program: attempting to load /sbin/launchd\n");
@@ -339,7 +342,7 @@ index 8bba078..a5fc74e 100644
  			if (!error) {
  				return;
  			}
-@@ -7173,7 +7466,7 @@ load_init_program(proc_t p)
+@@ -7173,7 +7469,7 @@ load_init_program(proc_t p)
  			strlcat(launchd_path, launchd_suffix, sizeof(launchd_path));
  
  			printf("load_init_program: attempting to load %s\n", launchd_path);
@@ -348,7 +351,7 @@ index 8bba078..a5fc74e 100644
  			if (!error) {
  				return;
  			} else if (error != ENOENT) {
-@@ -7186,7 +7479,7 @@ load_init_program(proc_t p)
+@@ -7186,7 +7482,7 @@ load_init_program(proc_t p)
  	error = ENOENT;
  	for (i = 0; i < sizeof(init_programs) / sizeof(init_programs[0]); i++) {
  		printf("load_init_program: attempting to load %s\n", init_programs[i]);
