@@ -1,5 +1,5 @@
 diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
-index 34c921b..cc983af 100644
+index 34c921b..b84131f 100644
 --- a/bsd/vfs/vfs_syscalls.c
 +++ b/bsd/vfs/vfs_syscalls.c
 @@ -5088,6 +5088,53 @@ open_dprotected_np(__unused proc_t p, struct open_dprotected_np_args *uap, int32
@@ -56,3 +56,23 @@ index 34c921b..cc983af 100644
  static int
  openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
      int fd, enum uio_seg segflg, int *retval)
+@@ -5115,6 +5162,9 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+ 	    segflg, path, ctx);
+ 
+ 	error = open1at(ctx, ndp, flags, vap, NULL, NULL, retval, fd, AUTH_OPEN_NOAUTHFD);
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	native_owner_cache_trace(path, segflg, 0, error, retval);
++#endif
+ 
+ 	kfree_type(typeof(*__open_data), __open_data);
+ 
+@@ -7120,6 +7170,9 @@ fstatat_internal(vfs_context_t ctx, user_addr_t path, user_addr_t ub,
+ 		}
+ 	}
+ out:
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	native_owner_cache_trace(path, segflg, 1, error, NULL);
++#endif
+ 	if (ndp) {
+ 		kfree_type(struct nameidata, ndp);
+ 	}
