@@ -71,6 +71,17 @@ Adreno740 为每个连接提供一个 user-client core。render server 获得 `0
 
 GPU 路径覆盖发现、命令编码、pipeline archive、IOSurface 导入、fence、合成和 scanout。render server 和列入的客户端使用原生设备。
 
+## 内存与 TLB
+
+| 项目 | 行为 |
+| --- | --- |
+| 每客户端对象数 | 最多 16384 个，通过 handle 索引查找 |
+| 自有 BO | 来自板级连续池（sheng 为 1 GiB），否则为分散页。映射时不做与已有区间的别名检查 |
+| 导入内存 | 已映射的导入都属同一缓存类别，且不与池或自有映射重叠时，同样不做该检查；否则完整检查 |
+| 解除映射 | 不超过 512 页逐页失效，更多时按 ASID 失效 |
+| 提交 | 不做 TLB 失效；fence 卡住时仍会失效 |
+| 启动日志行 | `[vm map]`、`[vm unmap]`、`[vm kinds]`、`[bo pool]` |
+
 ## 着色器编译
 
 驱动在设备上编译原始 UI shader：

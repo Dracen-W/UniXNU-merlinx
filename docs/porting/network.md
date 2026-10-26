@@ -99,6 +99,22 @@ Rebuild the kernel, payload and boot image using [Building](/building).
 receive and transmit each succeed. Record access-point settings, firmware,
 reconnect behavior and sustained traffic separately in the network record.
 
+## WCN7850 on sheng {#sheng}
+
+sheng joins WPA2-Personal networks, gets an address by DHCP and loads web pages.
+`sheng-wifi=5` starts Wi-Fi; `sheng-wifi-aj=0` leaves the join to Settings.
+
+| Area | Finding |
+| --- | --- |
+| Power | Each of the six PMU rails needs RPMh mode, voltage and enable requests. Without the mode request two rails stay off and the link never trains. |
+| PCIe | PCIe0 trains at Gen2 x1; the endpoint reads `17cb:1107`. |
+| Interrupts | The chip's MSIs go through PCIe0's own MSI receiver to SPI 141, so the worker sleeps between interrupts. |
+| Firmware | c7-00108 runs; c2-00259 hangs in its demand pager. The firmware reports a zero MAC, so the board makes one from the chip ID. |
+| Scan | 6 GHz is left out: its 59 passive channels would take most of the scan time. |
+| Association | The peer entry uses the access point's own HT and VHT capability, not this radio's. Join and the four-way handshake take about 100 ms. |
+| Link | A firmware beacon miss is ignored while frames still arrive within 5 s. Frames at VHT MCS 10 and 11 are dropped. |
+| System | The system cannot store the network password, so it does not treat the network as known. |
+
 ## Next step
 
 Continue with [DSP, audio and power](/porting/power), or return to the

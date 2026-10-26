@@ -50,6 +50,21 @@ GPU 交接使用 `NGPSwap.sequence` 跟踪待处理帧，复制完成后用相�
 
 **预期结果：** XNU 发布显示服务、呈现画面并完成交换。分别记录请求刷新率和测得的帧时序。
 
+### 读取显示管线 {#dpu-pipes}
+
+修改显示控制器的取图来源前，先读取固件留下的状态。sheng 上由 `DisplayTimingProbe.cpp` 完成：
+
+| 参数 | 读取内容 |
+| --- | --- |
+| `sheng-dpu=2` | VIG 0 和 1 的源地址、尺寸、格式和取图设置；CTL 0 状态；两个接口的 tear check；apps SMMU 中的显示流 |
+| `sheng-dpu=3` | 另外重写每条管线的当前地址，并测量 CTL flush 的锁存时间 |
+
+sheng 上两条 VIG 管线取同一个 32 位物理地址，右侧管线用自己的源 x 坐标；面板自行
+刷新，flush 不需要 start，5.4 ms 内锁存。显示 context bank 起始时关闭地址转换。
+
+直接扫描输出（`sheng-dpu-scanout=2`）为实验功能，默认关闭：它给显示 bank 一个
+stage 1 窗口（ShengUfs），让管线直接读取合成器的 surface。任何失败都会回退到 GPU 复制。
+
 ## 3. 确认亮度控制接口
 
 选择目标的 I2C、DSI 命令或 PWM 传输方式及亮度编码。

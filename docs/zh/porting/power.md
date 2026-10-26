@@ -79,10 +79,39 @@ Linux 提供协议和流生命周期参考。使用选定 XNU 的接口实现其
 - DSP 先提供小的 GLINK intent，请求后再给大的。远端 intent 表满时也要保留新给的 intent。
 - PRM 请求从 PRM 自己的端口发出，使用 PRM 时钟 ID；TX core 时钟是 `0x30c`，不是设备树里的编号。
 - VA macro 和 TX macro 都要打开 TX SoundWire master 的时钟门控。
-- 主麦克风链路：AMIC3 经 micbias 3 进入 ADC2，codec 数据端口 1 通道 2，master 端口 2，TX decimator 0，codec DMA TX3。
+- CoreAudio 假定 host clock 为 24 MHz。时基为 19.2 MHz 时，音频服务在启动时修正 CoreAudio 的这个常量，否则音频服务器的 IO 周期会长 25%，播放和录音都会卡顿。
 
 **结果：** 一条完整路由传输 PCM 数据、报告进度并释放资源。
 保存路由描述、格式、流计数和采集结果。下一端点使用自己的路由配置和观察记录。
+
+### 麦克风采集 {#microphone}
+
+采集路由在上面的流步骤之外，还需要 codec 和 SoundWire 链路。
+
+1. **给 codec 上电。** 释放复位并打开供电。投票 TX 和 VA macro 时钟，再打开两者的
+   门控：SM8550 上 VA macro 也门控 TX SoundWire master。
+2. **建立 SoundWire 链路。** 启动 TX master，等待 codec 枚举。配置前先读取厂商和器件 ID。
+3. **配置模拟通路。** 选择麦克风输入、偏置和 ADC，设置 ADC 增益，再把 ADC 映射到
+   codec 数据端口和通道。
+4. **配置数字通路。** 把 master 端口接到读取它的 TX decimator，再把 decimator 接到
+   DSP graph 使用的 codec DMA 接口。
+5. **读取缓冲区。** 通过读请求排队采集缓冲区。每个应答带有字节数和偏移，只取这些
+   字节；周期不满是正常的。
+6. **发布输入。** 直接采集已知声音成功后，再发布输入流。
+
+sheng 的路由，见 [AudioProbe.cpp](https://github.com/UniXNU/UniXNU-sheng/blob/main/package/AudioProbe.cpp)：
+
+| 阶段 | sheng 取值 |
+| --- | --- |
+| Codec | WCD938x，复位 gpio108，供电 ldob15，TX master（0x6d30000）上的 SoundWire 设备 1 |
+| 模拟 | AMIC3、micbias 3、ADC2 |
+| 链路 | codec 数据端口 1 通道 2 到 master 端口 2 |
+| 数字 | TX decimator 0 读取 SWR_MIC1，codec DMA TX3 |
+| 格式 | 单声道，48 kHz |
+| iOS | HAL 插件的输入端口；iOS 只在 Thunderbolt 传输类型下接受它 |
+
+用 `sheng-audio=4` 检查采集，它在启动时读取两秒：`[mic]` 和 `[mic capture]` 日志行
+给出返回的周期、字节数、非零样本比例和峰值。随后在应用中录音并读取 `[audio-io]`。
 
 ## 4. 实现电池状态上报 {#battery}
 
@@ -129,6 +158,9 @@ SM8550 上的调频输入：
 
 - CPU：每 16 ms 读取调度器记录的各 CPU 空闲时间。频域跟随其中最忙的 CPU，留 1.25 倍余量，连续四个较闲的窗口后才降频。
 - GPU：读取 GMU XO 忙碌计数器，按让 GPU 约一半时间忙碌的档位通过 HFI 投票，同时投该档位的带宽。
+- 触摸：收到触摸报告后，P 频域和 GPU 保持最高档，直到最后一次报告后 1 s（`sheng-cpufreq-boost-ms`、`sheng-gpu-dcvs-boost-ms`）。
+- 帧：最近 4 个窗口中有 2 个有 GPU 提交时，所有 CPU 频域在 300 ms 内不低于各自最高档的 60%。GPU 从空闲降频后恢复工作时，50 ms 内以当前频率的两倍运行，至少 578 MHz。
+- fence 等待：等待者睡眠到 fence 中断为止，最长 1 ms（`sheng-gpu-pause-us`），不再轮询。
 
 **结果：** 频率请求和电源转换产生可观察效果，并保持依赖设备正常运行。
 

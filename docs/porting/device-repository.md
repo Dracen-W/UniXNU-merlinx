@@ -113,12 +113,11 @@ Assign each area its supported [completion level](/porting/records#completion-le
    [github.com/topics/unixnu](https://github.com/topics/unixnu).
 4. Confirm the porting-record workflow passes on the published commit. Official
    device branches require its `Porting record` check.
-5. To publish the device on the central site, pin that commit in `devices.toml`,
-   add the English and Chinese device pages, and link them from [Devices](/devices/).
-   Follow [record publication](/porting/records#publishing-and-reuse) and
-   [documentation contribution](/contributing/documentation), then run
-   `npm --prefix docs run build` from UniXNU. Confirm the rendered record uses
-   the published revision.
+5. Publish `board.toml` and a valid `porting.toml`. The twice-daily catalog
+   workflow pins the source and generates the format 2 page and navigation.
+   Follow [record publication](/porting/records#publishing-and-reuse) to request
+   a scan or preview locally. Confirm the [device page](/devices/) links to the
+   published revision.
 
 **Result:** a published device repository with pinned sources, reproducible
 commands, a checked porting record, CI, common-guide links and the `unixnu` topic.

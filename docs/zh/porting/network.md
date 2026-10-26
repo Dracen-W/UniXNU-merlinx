@@ -81,6 +81,22 @@ rg -n 'nativewifi|wifi_module_objs|WifiNet|WifiProbe' scripts/build-gop-legacy-d
 **预期结果：** 扫描、认证、关联、地址配置、接收和发送分别成功。
 在网络记录中写明接入点配置、固件、重连行为和持续传输结果。
 
+## sheng 上的 WCN7850 {#sheng}
+
+sheng 能加入 WPA2-Personal 网络，通过 DHCP 获得地址并加载网页。
+`sheng-wifi=5` 启动 Wi-Fi；`sheng-wifi-aj=0` 让设置应用负责加入网络。
+
+| 方面 | 结论 |
+| --- | --- |
+| 供电 | 六路 PMU 电源都需要 RPMh 的模式、电压和使能请求。缺少模式请求时有两路不上电，链路无法训练。 |
+| PCIe | PCIe0 训练到 Gen2 x1；端点 ID 为 `17cb:1107`。 |
+| 中断 | 芯片的 MSI 经 PCIe0 自己的 MSI 接收器送到 SPI 141，工作线程在中断之间睡眠。 |
+| 固件 | c7-00108 可以运行；c2-00259 卡在按需分页器中。固件报告的 MAC 为零，由板级用芯片 ID 生成。 |
+| 扫描 | 不扫描 6 GHz：其 59 个被动信道会占用大部分扫描时间。 |
+| 关联 | 对端条目使用接入点自己的 HT 和 VHT 能力，而不是本机的。加入和四次握手约 100 ms。 |
+| 链路 | 5 s 内仍收到帧时忽略固件的 beacon 丢失。VHT MCS 10 和 11 的帧会被丢弃。 |
+| 系统 | 系统无法保存网络密码，因此不把该网络视为已知网络。 |
+
 ## 下一步
 
 继续 [DSP、音频和电源](/zh/porting/power)，或返回[驱动清单](/zh/porting/drivers)。

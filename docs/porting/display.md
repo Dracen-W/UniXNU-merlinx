@@ -63,6 +63,24 @@ the corresponding error path on timeout or failure.
 **Expected result:** XNU publishes the display, presents frames and completes
 swaps. Record requested refresh and measured frame timing separately.
 
+### Read the display pipes {#dpu-pipes}
+
+Before changing what the display fetches, read how firmware left it.
+`DisplayTimingProbe.cpp` does this on sheng:
+
+| Argument | Reads |
+| --- | --- |
+| `sheng-dpu=2` | VIG 0 and 1 source, size, format and fetch settings; CTL 0 state; the tear check of both interfaces; the display streams in the apps SMMU |
+| `sheng-dpu=3` | Also rewrites each pipe's current address and times the CTL flush latch |
+
+On sheng both VIG pipes fetch one 32-bit physical address, the right pipe from
+its own source x, and a flush latches within 5.4 ms without a start because the
+panel refreshes by itself. The display context bank starts with translation off.
+
+Direct scanout (`sheng-dpu-scanout=2`) is experimental and off by default: it
+gives the display bank a stage 1 window (ShengUfs) and points the pipes at the
+compositor's surfaces. Any failure falls back to the GPU copy.
+
 ## 3. Identify the brightness transport
 
 Select the target's I2C, DSI-command or PWM transport and its brightness encoding.

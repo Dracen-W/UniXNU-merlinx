@@ -99,10 +99,9 @@ python3 scripts/porting-record.py check --device "$DEVICE_DIR"
    输出应包含 `unixnu`。使用 GitHub 网页时，在仓库的 **About** 设置中编辑 **Topics**。
    设备仓库可通过 [github.com/topics/unixnu](https://github.com/topics/unixnu) 查找。
 4. 确认已发布提交的移植记录工作流通过。官方设备分支要求 `Porting record` 检查通过。
-5. 接入中央站点时，在 `devices.toml` 固定该提交，添加中英文设备页面，并从
-   [设备列表](/zh/devices/)链接它们。按[记录发布](/zh/porting/records#发布与复用)
-   和[文档贡献](/zh/contributing/documentation)操作，在 UniXNU 运行
-   `npm --prefix docs run build`，确认渲染的记录使用已发布版本。
+5. 发布 `board.toml` 和有效的 `porting.toml`。每天两次的目录工作流固定源码版本，
+   生成格式 2 设备页和导航。按[记录发布](/zh/porting/records#publishing-and-reuse)
+   手动触发扫描或在本地预览，再确认[设备页面](/zh/devices/)链接到已发布版本。
 
 **结果：** 已发布的设备仓库包含源码固定版本、可复现命令、通过检查的移植记录、CI、
 通用指南链接和 `unixnu` topic。

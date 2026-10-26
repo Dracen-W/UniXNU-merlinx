@@ -51,6 +51,8 @@ docs/
 
 ## 新增页面
 
+格式 2 设备页按[记录发布](/zh/porting/records#publishing-and-reuse)生成。手写指南使用以下步骤。
+
 1. 在对应章节创建 Markdown 文件。
 2. 在 `docs/.vitepress/config.mts` 的 sidebar 中加入页面。
 3. 在 `docs/zh/` 下创建中文页面，并加入中文 sidebar。
@@ -97,9 +99,11 @@ VitePress 在内部链接断开时构建失败。
 
 ## 设备记录
 
-站点构建需要 Python 3.11 或更新版本。`npm run build` 从 `devices.toml` 的固定版本
-获取设备记录，检查后生成页面。更新记录时修改设备仓库的 `porting.toml`，发布后更新
-注册版本。中英文设备页引用同一份记录。详见[记录指南](/zh/porting/records)。
+站点构建需要 Python 3.11 或更新版本。`npm run build` 渲染已提交的目录和记录快照。
+每天两次的目录工作流发现源码、固定版本并更新格式 2 设备页、索引和导航。
+更新设备记录时修改并发布设备仓库的 `porting.toml`，中英文页面使用同一份记录。
+已有旧格式页面保留原文，新收录的旧格式条目只包含仓库链接。
+详见[记录指南](/zh/porting/records#publishing-and-reuse)。
 
 ## 驱动指南
 

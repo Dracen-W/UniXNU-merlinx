@@ -8,11 +8,13 @@
 
 ## 当前状态
 
-内核已挂载 mockfs 内存根卷，并运行静态 EL0 测试 init。记录覆盖定时器活动、文本输出和 fork/exec 系统调用探针。当前诊断集中在子进程写入、退出和等待路径，完整 iPadOS 用户态仍待集成。
+eMMC 承载的 mockfs 根卷已运行静态 EL0 测试 init，记录覆盖 fork/exec、Mach 调用和从 EL0 触发内核 panic 的路径。
+
+当前源码包含 APFS 卷发布、挂载和文件读回探针。完整 Apple 用户态和这些 APFS 检查点仍需匹配的设备记录。
 
 ## 来源
 
-- [README: qine233/UniXNU-clover](https://github.com/qine233/UniXNU-clover/blob/f80c740a2c418639eb8f76b31eec2af0e13af862/README.md)
+- [README: qine233/UniXNU-clover](https://github.com/qine233/UniXNU-clover/blob/7dec18936cebae5c4a1bf9c1b7b4db48643ac788/README.md)
 
 ## 使用此移植
 

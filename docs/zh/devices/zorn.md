@@ -7,9 +7,9 @@ SM8650-AB 社区设备移植，由 kerrinz 维护。
 
 ## 当前状态
 
-12 GB / 256 GB 设备已运行 UEFI、菜单、DarwinBoot 和 XNU 平台初始化。iPadOS 17.7.11 恢复内存盘已作为 APFS `md0` 挂载，内核打开 `/sbin/launchd` 后停在 `parse_machfile` 调用前，屏幕显示 `PARSE`。
+设备已运行 UEFI、菜单、DarwinBoot 和 XNU 平台初始化。只读 UFS 探针读取 userdata 中的 SHNGROOT 清单，将 OS 的 APFS 容器注册为 `md0`，根卷已挂载，屏幕记录 `APOK`。
 
-原生 UFS、触控和 GPU 支持待完成。负载使用固件仓库的 `scripts/make-zorn-payload.py` 打包，其中 FAT 簇大小设为 512 字节。
+当前停在用户映射加载过程中的 `MEND`，此时两次 `vm_map_delete` 调用已返回。负载另含恢复内存盘。触控、GPU 和桌面待完成。负载使用固件仓库的打包器及其 512 字节 FAT 簇设置。
 
 ## 使用此移植
 
@@ -28,4 +28,4 @@ git submodule update --init --recursive
 
 ## 来源
 
-- [README](https://github.com/kerrinz/UniXNU-zorn/blob/af23788d9ca7d48ff1576ff83664bbac975ba3ad/README.md)
+- [README: kerrinz/UniXNU-zorn](https://github.com/kerrinz/UniXNU-zorn/blob/8e9d3a9cce8ea1f4e0641a124bc22baf7f4fd712/README.md)

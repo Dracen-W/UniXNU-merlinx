@@ -7,16 +7,17 @@ A community-maintained port for SM8250-AC. Current results are based on the main
 | [UniXNU-enuma](https://github.com/wh1stl3/UniXNU-enuma) | [wh1stl3](https://github.com/wh1stl3) |
 | [UniXNU-enuma](https://github.com/Tlrenhb/UniXNU-enuma) | [Tlrenhb](https://github.com/Tlrenhb) |
 | [uefi-enuma](https://github.com/Tlrenhb/uefi-enuma) | [Tlrenhb](https://github.com/Tlrenhb) |
+| [uefi-enuma](https://github.com/wh1stl3/uefi-enuma) | [wh1stl3](https://github.com/wh1stl3) |
 
 ## State
 
-The wh1stl3 port assembles an experimental 29-component prelink, structured ADT and 96 MiB FAT payload. Host-side loader checks pass. Storage transport, root integration and device boot validation remain pending.
+The source assembles prelink, ADT, FAT and boot-v3 payload inputs. Hardware diagnostics record bounded framebuffer reads in EL1 through calibrated timing observations. Visible GOP output and the UniXNU menu remain pending.
 
-The Tlrenhb repository supplies a separate board configuration with measured inputs still to complete.
+The current pixel candidate passes offline build and qualification checks. Device display validation, kernel startup, storage and userland require their own results.
 
 ## Sources
 
-- [README: wh1stl3/UniXNU-enuma](https://github.com/wh1stl3/UniXNU-enuma/blob/adfb63f9bc10532d0fe6603ea806d0fdda6fae9e/README.md)
+- [Status: wh1stl3/UniXNU-enuma](https://github.com/wh1stl3/UniXNU-enuma/blob/3be6fbff66613f7cdf610ed0371e76f69b383792/docs/STATUS.md)
 
 ## Use this port
 

@@ -71,6 +71,17 @@ Adreno740 serves one user-client core per connection. The render server gets a 1
 
 The GPU path covers discovery, command encoding, pipeline archives, IOSurface imports, fences, compositing and scanout. The render server and listed clients use the native device.
 
+## Memory and TLB
+
+| Item | Behavior |
+| --- | --- |
+| Objects per client | Up to 16384, found through a handle index |
+| Owned BOs | From the board's contiguous pool (1 GiB on sheng), else scattered pages. Mapped without the alias check against existing ranges |
+| Imported memory | Mapped without that check when every mapped import shares its cache class and it overlaps neither the pool nor an owned mapping; otherwise fully checked |
+| Unmap | Up to 512 pages invalidated one by one, larger unmaps by ASID |
+| Submission | No TLB invalidation; a stalled fence still invalidates |
+| Boot log rows | `[vm map]`, `[vm unmap]`, `[vm kinds]`, `[bo pool]` |
+
 ## Shader compilation
 
 The driver compiles the original UI shaders on the device:

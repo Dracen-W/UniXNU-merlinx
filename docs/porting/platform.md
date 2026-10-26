@@ -44,6 +44,23 @@ CPU receives timer interrupts, and each enabled secondary CPU reaches its entry
 and receives IPIs. On another GIC or PSCI interface, review ArmCpu's implementation
 before enabling additional cores.
 
+### Efficiency and performance clusters {#clusters}
+
+On a SoC with two core types, tag every CPU node in the board DTS with
+`unixnu,cluster-type = "E"` or `"P"`. The ADT then carries each CPU's
+`cluster-type`, and a scheduler patch runs XNU's Edge scheduler with one E and
+one P cluster. The sheng reference:
+
+| Input | sheng value |
+| --- | --- |
+| E cluster | cpu0 to cpu2 (Cortex-A510) |
+| P cluster | cpu3 to cpu7 (Cortex-A715, A710 and X3) |
+| DTS | [`dts/sheng.dts`](https://github.com/UniXNU/UniXNU-sheng/blob/main/dts/sheng.dts) |
+| Scheduler patch | [`patches/xnu/zzyf-sheng-amp.patch`](https://github.com/UniXNU/UniXNU-sheng/blob/main/patches/xnu/zzyf-sheng-amp.patch) |
+
+The patch keeps UI threads on the P cluster. Check the result with the CPU
+governor's per-domain busy share: UI work should load the P domains.
+
 ## 2. Account for memory and DMA
 
 Compare firmware RAM, secure carveouts, framebuffer, DSP/GPU firmware, payload

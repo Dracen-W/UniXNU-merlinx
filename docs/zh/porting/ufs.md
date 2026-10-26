@@ -74,6 +74,9 @@ PHY、复位、时钟和电源序列。
 - 容量、GPT 和根卷窗口边界分别检查。LBA 转字节始终使用实际逻辑块大小。
   参见 `RootLayout.h`。
 - 根卷读取、持久 Data 写入和复位处理分别定义完成条件。每次写入验证记录分配范围和恢复方法。
+- 接管 apps SMMU 的驱动也负责其他设备需要的 stage 1 窗口。ShengUfs 为显示 bank
+  （`sheng-dpu-scanout`）和 WiFi 端点（`sheng-wifi=2` 或更大）各建立一个，默认都关闭。
+  音频流保持直通：给它们使用转换 context 会让 sheng 复位。
 
 [sheng 存储记录](/zh/devices/sheng#storage)提供板级参数、实现引用和当前范围。
 

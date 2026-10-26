@@ -2,11 +2,13 @@
 
 fuxi 是搭载 SM8550 的小米 13。下面的仓库是独立的社区移植，UniXNU 组织不维护它们。
 
-| 仓库 | 维护者 | 状态 |
-| --- | --- | --- |
-| [UniXNU-fuxi](https://github.com/matejkoo217/UniXNU-fuxi) | [matejkoo217](https://github.com/matejkoo217) | 设备仓库，进行中 |
-| [unixnu-fuxi](https://github.com/hanzi123-bilp/unixnu-fuxi)、[uefi-fuxi](https://github.com/hanzi123-bilp/uefi-fuxi) | [hanzi123-bilp](https://github.com/hanzi123-bilp) | 阶段 A 和 B 构建输入，未记录真机运行 |
-| [unixnu-fuxi](https://github.com/Xyvern08371/unixnu-fuxi) | [Xyvern08371](https://github.com/Xyvern08371) | fuxi 替代仓库，状态未记录 |
+| 仓库 | 维护者 |
+| --- | --- |
+| [UniXNU-fuxi](https://github.com/matejkoo217/UniXNU-fuxi) | [matejkoo217](https://github.com/matejkoo217) |
+| [unixnu-fuxi](https://github.com/hanzi123-bilp/unixnu-fuxi) | [hanzi123-bilp](https://github.com/hanzi123-bilp) |
+| [uefi-fuxi](https://github.com/hanzi123-bilp/uefi-fuxi) | [hanzi123-bilp](https://github.com/hanzi123-bilp) |
+| [unixnu-fuxi](https://github.com/Xyvern08371/unixnu-fuxi) | [Xyvern08371](https://github.com/Xyvern08371) |
+| [UniXNU-fuxi](https://github.com/0721GPT/UniXNU-fuxi) | [0721GPT](https://github.com/0721GPT) |
 
 ## UniXNU-fuxi
 
@@ -19,3 +21,7 @@ UniXNU-fuxi 是基于 UniXNU-sheng 的 fuxi 板级数据分支。它沿用 iPad7
 ## 维护
 
 表中的维护者拥有仓库和发布决定。UniXNU 文档记录移植及其状态，不接管维护。
+
+## 来源
+
+- [板级配置: 0721GPT/UniXNU-fuxi](https://github.com/0721GPT/UniXNU-fuxi/blob/910abeb231567ab773d427b232c8c1c13b39a051/board.toml)

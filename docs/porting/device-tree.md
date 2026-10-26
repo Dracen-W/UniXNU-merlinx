@@ -64,6 +64,7 @@ See the [device template](/porting/device-repository) and [SoC support](/porting
 | `interrupt-parent` | Controller phandle | Little-endian phandle |
 | `iommus`, `clocks` | Phandle and provider-defined argument cells | Little-endian cells |
 | `unixnu,adt-name` | Exported hardware node name | Child name under `/arm-io` |
+| `unixnu,cluster-type` | `"E"` or `"P"` on a CPU node | `cluster-type`, the character as a little-endian u32 |
 | `status` | `okay`, `ok`, or disabled state | Selects enabled nodes |
 
 Every translated bus declares `ranges`. An empty `ranges` gives an identity

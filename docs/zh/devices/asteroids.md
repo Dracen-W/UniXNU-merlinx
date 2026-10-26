@@ -16,7 +16,7 @@ Adreno 810 和 GMU 集成正在开发，显示呈现和 GPU 执行待实机验�
 
 ## 来源
 
-- [README: rootstockos/UniXNU-asteroids](https://github.com/rootstockos/UniXNU-asteroids/blob/78d4286b8aee9e67f3022a7027f2a3c4f73dd7e3/README.md)
+- [板级配置: rootstockos/UniXNU-asteroids](https://github.com/rootstockos/UniXNU-asteroids/blob/3a54c7f1a5d19a2e9a79eaaeb0ed0a5c1abd1155/board.toml)
 
 ## 使用此移植
 

@@ -2,14 +2,20 @@
 
 amethyst is the Redmi Note 14 Pro+ 5G with the SM7635 SoC. The port below is an independent community project. The UniXNU organization does not maintain it. The target is the iPhone X (iPhone10,3) userland.
 
-| Repository | Maintainer | State |
-| --- | --- | --- |
-| [UniXNU-amethyst](https://github.com/andr0d1v/UniXNU-amethyst) | [andr0d1v](https://github.com/andr0d1v) | Board file and kernel config with the legacy display; no hardware run documented |
+| Repository | Maintainer |
+| --- | --- |
+| [UniXNU-amethyst](https://github.com/andr0d1v/UniXNU-amethyst) | [andr0d1v](https://github.com/andr0d1v) |
 
 ## State
 
-The repository contains `board.toml`, `configs/amethyst_defconfig` and `scripts/check-amethyst.py`. The kernel configuration enables the legacy display path. The README is a short work-in-progress description and records that UEFI is still missing. It does not record a hardware run.
+The board, ADT generator, payload preparation and kernel build pipeline are present. The port awaits a working target UEFI implementation before menu, DarwinBoot, kernel-entry and root checks can run.
+
+The firmware reference is BluedMC-Amethyst/uefi-amethyst on its `amethyst` branch. Use the device README for the required bootstrap and inputs.
 
 ## Maintenance
 
 The maintainer owns the repository and its release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+
+## Sources
+
+- [README: andr0d1v/UniXNU-amethyst](https://github.com/andr0d1v/UniXNU-amethyst/blob/6c4942ae506d1e16ae9637e1ad8d61fe1b50ee2e/README.md)

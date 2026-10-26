@@ -136,6 +136,7 @@ Save the paths from [requirements](/guide/requirements) in
 [local build configuration](/reference/configuration#local-build-inputs).
 Follow [Building](/building) in order: kernel, package, firmware, payload,
 userdata when required, then boot image. Check each output before proceeding.
+For a separate UniXNU partition, follow the [partition procedure](/porting/dual-system-partition) before installing the image.
 
 Follow [bring-up](/porting/bring-up) for firmware, menu, loader, kernel and root
 checkpoints. Use [boot and recovery](/guide/boot) for device commands. After

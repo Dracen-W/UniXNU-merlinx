@@ -2,11 +2,13 @@
 
 fuxi is the Xiaomi 13 with the SM8550 SoC. The repositories below are independent community ports. The UniXNU organization does not maintain them.
 
-| Repository | Maintainer | State |
-| --- | --- | --- |
-| [UniXNU-fuxi](https://github.com/matejkoo217/UniXNU-fuxi) | [matejkoo217](https://github.com/matejkoo217) | Device repository, work in progress |
-| [unixnu-fuxi](https://github.com/hanzi123-bilp/unixnu-fuxi), [uefi-fuxi](https://github.com/hanzi123-bilp/uefi-fuxi) | [hanzi123-bilp](https://github.com/hanzi123-bilp) | Stage A and stage B build inputs; no hardware run documented |
-| [unixnu-fuxi](https://github.com/Xyvern08371/unixnu-fuxi) | [Xyvern08371](https://github.com/Xyvern08371) | Alternate fuxi repository; status not documented |
+| Repository | Maintainer |
+| --- | --- |
+| [UniXNU-fuxi](https://github.com/matejkoo217/UniXNU-fuxi) | [matejkoo217](https://github.com/matejkoo217) |
+| [unixnu-fuxi](https://github.com/hanzi123-bilp/unixnu-fuxi) | [hanzi123-bilp](https://github.com/hanzi123-bilp) |
+| [uefi-fuxi](https://github.com/hanzi123-bilp/uefi-fuxi) | [hanzi123-bilp](https://github.com/hanzi123-bilp) |
+| [unixnu-fuxi](https://github.com/Xyvern08371/unixnu-fuxi) | [Xyvern08371](https://github.com/Xyvern08371) |
+| [UniXNU-fuxi](https://github.com/0721GPT/UniXNU-fuxi) | [0721GPT](https://github.com/0721GPT) |
 
 ## UniXNU-fuxi
 
@@ -19,3 +21,7 @@ The `hanzi123-bilp` repositories are a separate device and firmware port. The de
 ## Maintenance
 
 The maintainer named in the table owns the repository and its release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+
+## Sources
+
+- [Board configuration: 0721GPT/UniXNU-fuxi](https://github.com/0721GPT/UniXNU-fuxi/blob/910abeb231567ab773d427b232c8c1c13b39a051/board.toml)

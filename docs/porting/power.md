@@ -101,11 +101,44 @@ On SM8550 these firmware details decide whether a route starts:
 - The DSP offers small GLINK intents first and grants a larger one on request. Keep the granted intent even when the remote intent table is full.
 - PRM requests use the PRM's own port and PRM clock IDs; the TX core clock is `0x30c`, not the device tree index.
 - The VA macro gates the TX SoundWire master clock as well as the TX macro.
-- The primary microphone runs AMIC3 on micbias 3 into ADC2, codec data port 1 channel 2, master port 2, TX decimator 0 and codec DMA TX3.
+- CoreAudio assumes a 24 MHz host clock. On a 19.2 MHz timebase the audio service corrects CoreAudio's constant at start, otherwise the audio server's IO cycles run 25 percent long and playback and capture stutter.
 
 **Result:** a complete route carries PCM data, reports progress and releases its
 resources. Save the route description, format, stream counters and captured
 output. The next endpoint gets its own route configuration and observations.
+
+### Microphone capture {#microphone}
+
+A capture route adds a codec and a SoundWire link to the stream steps above.
+
+1. **Power the codec.** Release its reset and enable its supply. Vote the TX and
+   VA macro clocks, then open both gates: on SM8550 the VA macro also gates the
+   TX SoundWire master.
+2. **Bring up the SoundWire link.** Start the TX master and wait for the codec to
+   enumerate. Read its manufacturer and part IDs before configuring it.
+3. **Configure the analog path.** Select the microphone input, its bias and the
+   ADC, set the ADC gain, then map the ADC to a codec data port and channel.
+4. **Configure the digital path.** Connect the master port to the TX decimator
+   that reads it, and the decimator to the codec DMA interface the DSP graph uses.
+5. **Read buffers.** Queue capture buffers through the read request. Each answer
+   carries a byte count and an offset; take only those bytes, a short period is normal.
+6. **Publish the input.** Expose an input stream only after a direct capture of a
+   known sound succeeds.
+
+The sheng route, from [AudioProbe.cpp](https://github.com/UniXNU/UniXNU-sheng/blob/main/package/AudioProbe.cpp):
+
+| Stage | sheng value |
+| --- | --- |
+| Codec | WCD938x, reset gpio108, supply ldob15, SoundWire device 1 on the TX master (0x6d30000) |
+| Analog | AMIC3, micbias 3, ADC2 |
+| Link | Codec data port 1 channel 2 to master port 2 |
+| Digital | TX decimator 0 from SWR_MIC1, codec DMA TX3 |
+| Format | Mono, 48 kHz |
+| iOS | The HAL plug-in's input port; iOS accepts it with the Thunderbolt transport type |
+
+Check capture with `sheng-audio=4`, which reads two seconds at boot: the
+`[mic]` and `[mic capture]` log rows give returned periods, bytes, the share of
+non-zero samples and the peak. Then record in an app and read `[audio-io]`.
 
 ## 4. Implement battery reporting {#battery}
 
@@ -170,6 +203,9 @@ On SM8550 the governors use these inputs:
 
 - CPU: each CPU's idle time from the scheduler, read every 16 ms. A domain follows its busiest CPU with a 1.25 margin and steps down after four quieter windows.
 - GPU: the GMU XO busy counter. The level that keeps the GPU about half busy is voted over HFI together with that level's bandwidth.
+- Touch: a touch report holds the P CPU domains and the GPU at their top level until 1 s after the last report (`sheng-cpufreq-boost-ms`, `sheng-gpu-dcvs-boost-ms`).
+- Frames: GPU submissions in 2 of the last 4 windows keep every CPU domain at 60 percent of its top level or more for 300 ms. GPU work after an idle drop starts at twice the current clock, at least 578 MHz, for 50 ms.
+- Fence waits: a waiter sleeps until the fence interrupt, at most 1 ms (`sheng-gpu-pause-us`), instead of polling.
 
 **Result:** frequency requests and power transitions have observed effects and
 preserve the dependent devices' operation.

@@ -16,7 +16,7 @@ Adreno 810 and GMU integration are in development. Display presentation and GPU 
 
 ## Sources
 
-- [README: rootstockos/UniXNU-asteroids](https://github.com/rootstockos/UniXNU-asteroids/blob/78d4286b8aee9e67f3022a7027f2a3c4f73dd7e3/README.md)
+- [Board configuration: rootstockos/UniXNU-asteroids](https://github.com/rootstockos/UniXNU-asteroids/blob/3a54c7f1a5d19a2e9a79eaaeb0ed0a5c1abd1155/board.toml)
 
 ## Use this port
 

@@ -7,16 +7,17 @@
 | [UniXNU-enuma](https://github.com/wh1stl3/UniXNU-enuma) | [wh1stl3](https://github.com/wh1stl3) |
 | [UniXNU-enuma](https://github.com/Tlrenhb/UniXNU-enuma) | [Tlrenhb](https://github.com/Tlrenhb) |
 | [uefi-enuma](https://github.com/Tlrenhb/uefi-enuma) | [Tlrenhb](https://github.com/Tlrenhb) |
+| [uefi-enuma](https://github.com/wh1stl3/uefi-enuma) | [wh1stl3](https://github.com/wh1stl3) |
 
 ## 当前状态
 
-wh1stl3 移植已组装包含 29 个组件的实验性预链接内核、结构化 ADT 和 96 MiB FAT 负载，宿主机加载器检查通过。存储传输、根卷集成和设备启动验证待完成。
+源码可组装预链接、ADT、FAT 和 boot-v3 负载输入。实机诊断通过校准后的时序观察记录了 EL1 中限定范围的帧缓冲读取。可见 GOP 输出和 UniXNU 菜单待完成。
 
-Tlrenhb 仓库提供另一份板级配置，仍需补齐实测输入。
+当前像素候选通过离线构建和资格检查，设备显示验证、内核启动、存储和用户态仍需分别提供结果。
 
 ## 来源
 
-- [README: wh1stl3/UniXNU-enuma](https://github.com/wh1stl3/UniXNU-enuma/blob/adfb63f9bc10532d0fe6603ea806d0fdda6fae9e/README.md)
+- [状态: wh1stl3/UniXNU-enuma](https://github.com/wh1stl3/UniXNU-enuma/blob/3be6fbff66613f7cdf610ed0371e76f69b383792/docs/STATUS.md)
 
 ## 使用此移植
 

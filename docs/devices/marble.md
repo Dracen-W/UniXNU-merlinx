@@ -1,7 +1,17 @@
 # Redmi Note 12 Turbo / POCO F5 (marble)
 
-GitHub public access cannot currently retrieve this repository. Current build and device status need maintainer confirmation. Obtain an accessible source revision, board inputs and boot record before using this port.
+A community report for SM7475, maintained by sing0626.
 
-- [Enmmmmn/UniXNU-marble](https://github.com/Enmmmmn/UniXNU-marble)
+- [sing0626/UniXNU-marble](https://github.com/sing0626/UniXNU-marble)
 
-Complete the source and validation details in the [porting record](/porting/records), then continue with [Port a device](/porting/steps).
+## State
+
+The maintainer reports an experimental XNU 8796 / iOS 16.7.16 Hello screen on POCO F5, with a clean display. Physical touch remains unavailable.
+
+The accessible public repository contains documentation. Pinned implementation sources, reproducible build steps and complete device configuration remain to be published. Read that scope before attempting a build or preparing an image.
+
+## Sources
+
+- [README](https://github.com/sing0626/UniXNU-marble/blob/ca69ff9727213848fec0a6c3b7d9fc14fc0c562c/README.md)
+
+Use the [device repository specification](/porting/device-repository) and [porting record](/porting/records) to complete public sources, inputs and build instructions.

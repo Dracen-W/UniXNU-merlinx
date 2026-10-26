@@ -8,11 +8,13 @@ A community-maintained port for SDM660. Current results are based on the maintai
 
 ## State
 
-The kernel mounts a mockfs RAM root and runs a static EL0 test init. The record covers timer activity, text output and fork/exec system-call probes. Current diagnostics investigate the child process write, exit and wait paths. Full iPadOS userland remains a later integration step.
+An eMMC-backed mockfs root runs a static EL0 test init. Device records cover fork/exec, Mach calls and a kernel panic triggered from EL0.
+
+The current source contains APFS publication, mount and file-readback probes. Full Apple userland and those APFS checkpoints need matching device records.
 
 ## Sources
 
-- [README: qine233/UniXNU-clover](https://github.com/qine233/UniXNU-clover/blob/f80c740a2c418639eb8f76b31eec2af0e13af862/README.md)
+- [README: qine233/UniXNU-clover](https://github.com/qine233/UniXNU-clover/blob/7dec18936cebae5c4a1bf9c1b7b4db48643ac788/README.md)
 
 ## Use this port
 

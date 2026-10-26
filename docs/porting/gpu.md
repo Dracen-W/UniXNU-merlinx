@@ -72,6 +72,23 @@ into `libAdreno740.a`, then builds the accelerator through
 **Expected result:** commands complete, fences advance and the known image is
 correct. Record GPU results independently from desktop presentation.
 
+### Keep mapping and submission cheap {#memory-path}
+
+A desktop frame allocates, maps and frees many buffers, so per-call cost decides
+smoothness. Adreno740 and ArmSmmu4K use these rules; keep them when porting:
+
+| Operation | Rule |
+| --- | --- |
+| Object lookup | Each client holds up to 16384 objects and finds them through a handle index. |
+| Allocation | BOs come from a contiguous write-combined pool the board reserves (1 GiB on sheng), and from scattered pages when it is full. |
+| Map of owned memory | `ArmSmmu4KLiveMapContextBatchExclusive`: no alias check against the existing ranges. |
+| Map of imported memory | The same call when every mapped import shares its cache class and its pages overlap neither the pool nor an owned mapping; otherwise the fully checked batch map. |
+| Unmap | Up to 512 pages: one TLBIVAL per page. Larger: invalidate the ASID. |
+| Submission | No TLB invalidation. A map fills only invalid leaves, an unmap invalidates its own pages, and the upper tables never change. A stalled fence still invalidates. |
+
+The boot log's `[vm map]`, `[vm unmap]`, `[vm kinds]` and `[bo pool]` rows give
+the count and time of each operation. Compare them before and after a change.
+
 With `NativeAdrenoClient`, implement one bounded submission in this order:
 query ABI/capabilities, allocate a BO, map it to an allowed IOVA, populate commands,
 submit and wait for the returned fence. Bind `NativeAdrenoTransport.call` to the
@@ -97,6 +114,10 @@ boot image. For selected app processes, the staging command also accepts
 `--clients NAME,...`. The runtime plugin name is `NativeAdrenoMetal`.
 
 Check the selected OS profile's sandbox, user-client and trust-cache integration.
+The Metal bridge never returns a nil encoder: a pass it cannot encode gets an
+encoder whose command buffer is refused, because RenderBox caches the encoder's
+methods. The process's first problem appears on the driver's per-process text
+line (`[gpu client text]` in the boot log).
 AirNir is the offline compiler kit; the runtime frontend uses the
 AIR → SPIR-V → NIR → IR3 chain described in the component page.
 

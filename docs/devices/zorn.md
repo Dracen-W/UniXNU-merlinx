@@ -7,9 +7,9 @@ A community port for SM8650-AB, maintained by kerrinz.
 
 ## State
 
-The 12 GB / 256 GB device runs UEFI, the menu, DarwinBoot and XNU platform initialization. The iPadOS 17.7.11 restore RAM disk mounts as APFS `md0`. The kernel opens `/sbin/launchd` and stops before `parse_machfile`, with `PARSE` on screen.
+The device runs UEFI, the menu, DarwinBoot and XNU platform initialization. A read-only UFS probe reads the SHNGROOT manifest from userdata and registers its OS APFS container as `md0`; the root mounts and the screen records `APOK`.
 
-Native UFS, touch and GPU support remain pending. Payload packaging uses the firmware repository's `scripts/make-zorn-payload.py`, including its 512-byte FAT cluster setting.
+The current stop is `MEND`, after two `vm_map_delete` calls return while loading user mappings. The payload also carries a restore RAM disk. Touch, GPU and the desktop remain pending. Use the firmware repository's payload packager and its 512-byte FAT cluster setting.
 
 ## Use this port
 
@@ -28,4 +28,4 @@ git submodule update --init --recursive
 
 ## Sources
 
-- [README](https://github.com/kerrinz/UniXNU-zorn/blob/af23788d9ca7d48ff1576ff83664bbac975ba3ad/README.md)
+- [README: kerrinz/UniXNU-zorn](https://github.com/kerrinz/UniXNU-zorn/blob/8e9d3a9cce8ea1f4e0641a124bc22baf7f4fd712/README.md)

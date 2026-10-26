@@ -38,6 +38,21 @@ dtc -I dtb -O dts /tmp/board-hardware.dtb
 **预期结果：** platform expert 发布预期 nub，启动核收到定时器中断，启用的次级核完成入口并收到 IPI。
 使用其他 GIC 或 PSCI 接口时，启用更多 CPU 前核对 ArmCpu 实现。
 
+### 能效簇与性能簇 {#clusters}
+
+SoC 有两类核心时，在板级 DTS 中给每个 CPU 节点加 `unixnu,cluster-type = "E"`
+或 `"P"`。ADT 随后带上每个 CPU 的 `cluster-type`，调度器补丁让 XNU 的 Edge
+调度器按一个 E 簇和一个 P 簇运行。sheng 参考：
+
+| 输入 | sheng 取值 |
+| --- | --- |
+| E 簇 | cpu0 至 cpu2（Cortex-A510） |
+| P 簇 | cpu3 至 cpu7（Cortex-A715、A710 和 X3） |
+| DTS | [`dts/sheng.dts`](https://github.com/UniXNU/UniXNU-sheng/blob/main/dts/sheng.dts) |
+| 调度器补丁 | [`patches/xnu/zzyf-sheng-amp.patch`](https://github.com/UniXNU/UniXNU-sheng/blob/main/patches/xnu/zzyf-sheng-amp.patch) |
+
+该补丁让 UI 线程留在 P 簇。用 CPU 调频器各频域的忙碌比例检查结果：UI 负载应落在 P 频域。
+
 ## 2. 核对内存和 DMA
 
 对照固件 RAM、安全保留区、帧缓冲、DSP/GPU 固件、payload 和内核分配。

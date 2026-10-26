@@ -1,7 +1,7 @@
 # 设备适配记录
 
-每个官方设备仓库维护一份 `porting.toml`。维护者和 agent 在适配过程中使用同一份
-记录。文档站按 `devices.toml` 固定的版本生成设备页。
+格式 2 设备仓库维护 `porting.toml`，维护者和 agent 在开发过程中更新同一份记录。
+文档站从固定版本的源码快照生成设备页。
 
 ## 操作步骤 {#procedure}
 
@@ -9,7 +9,7 @@
 2. 按[记录字段](#记录格式)填写每个[必需部分](#必需部分)，包含所选组件、板级 package 代码、输入和有序操作。
 3. 按源码、主机或设备证据选择[完成等级](#completion-levels)，记录缺失输入和下一项具体操作。
 4. 运行[改动流程](#改动流程)中的检查器，修复报告的身份、覆盖范围和证据错误。
-5. 发布设备提交，按[发布与复用](#发布与复用)更新 `devices.toml` 并预览站点，确认渲染记录使用该版本。
+5. 发布设备提交，按[发布与复用](#publishing-and-reuse)操作，确认生成页面链接到已发布版本。
 
 ## 必需部分
 
@@ -81,7 +81,7 @@
 4. 接口变化时同步更新配置、步骤和完成条件。
 5. 运行记录检查和实现已有的相关检查。
 6. 代码和文档分别提交，放在同一个 pull request 中。
-7. 设备改动发布后，更新 UniXNU 的 `devices.toml` 固定版本。
+7. 发布设备改动，由目录工作流更新源码版本和生成页面。
 
 ```sh
 python3 scripts/porting-record.py check --device ../UniXNU-sheng
@@ -95,13 +95,39 @@ python3 scripts/porting-record.py check --device ../UniXNU-sheng --base origin/m
 设备模板包含 `.github/workflows/porting-record.yml`。官方设备分支要求其
 `Porting record` 检查通过。审阅者确认硬件事实、证据质量、组件复用和完成等级。
 
-## 发布与复用
+## 发布与复用 {#publishing-and-reuse}
 
-按[仓库发布步骤](/zh/porting/device-repository#publish)添加 `unixnu` GitHub topic，
-完成发布后再登记固定版本。
+按[仓库发布步骤](/zh/porting/device-repository#publish)添加 `unixnu` GitHub topic。
 
-`npm run build` 获取注册设备固定版本的 `porting.toml` 和 `board.toml`，检查后生成
-设备页。中英文页面使用同一份记录，记录正文使用简洁英语。站点源码和部署保留在 UniXNU。
+[目录工作流](https://github.com/UniXNU/UniXNU/actions/workflows/sync-devices.yml)
+每天在 UTC 00:00 和 12:00 运行，对应 UTC+8 的 08:00 和 20:00。检索范围包括 UniXNU
+组织、带 `unixnu` topic 的公开仓库，以及名称或描述包含 UniXNU 的公开仓库。
+工作流按固定提交读取根目录的 `board.toml` 和 `porting.toml`。
+
+`board.toml` 使用 `schema_version = 2`，记录使用 `schema_version = 1`。
+工作流检查设备身份、必需部分、组件覆盖和证据，按有效记录生成中英文设备页、设备索引
+和导航。格式 2 缺少记录或记录无效时，页面链接到仓库并说明需要补齐的记录。
+已有旧格式页面保留原文，新收录的旧格式条目只包含仓库链接。
+
+`devices.toml` 保存仓库身份、页面路径和源码版本，`docs/.vitepress/device-records/`
+保存源记录。站点构建使用这些已提交快照，中英文使用相同的记录正文。
+记录使用简洁英语，站点源码和部署保留在 UniXNU。
+
+立即触发扫描：
+
+```sh
+gh workflow run sync-devices.yml --repo UniXNU/UniXNU
+```
+
+本地扫描前用 `gh auth login` 登录，或设置 `GITHUB_TOKEN`，再从 UniXNU 检出目录执行：
+
+```sh
+python3 scripts/sync-devices.py
+npm --prefix docs run build
+```
+
+工作流先构建站点，再提交生成结果并通过 Docs 工作流发布该提交。
+源码记录错误会写入工作流摘要。修正设备记录并发布后，下一次扫描会重新处理。
 
 本地预览：
 

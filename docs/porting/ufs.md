@@ -83,6 +83,10 @@ clock and power sequence implemented and recorded.
   conversions tied to the observed logical block size. See `RootLayout.h`.
 - Root reads, persistent Data writes and reset handling have separate completion
   criteria. Record the allocation and recovery method for each write exercise.
+- The driver that takes over the apps SMMU also owns any stage 1 window another
+  device needs. ShengUfs sets one up for the display bank (`sheng-dpu-scanout`)
+  and one for the WiFi endpoint (`sheng-wifi=2` or more); both are off by default.
+  Audio streams stay in pass-through: a translating context for them resets sheng.
 
 The [sheng storage record](/devices/sheng#storage) supplies board values,
 implementation references and current limits.

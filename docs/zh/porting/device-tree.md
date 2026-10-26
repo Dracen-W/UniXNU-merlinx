@@ -63,6 +63,7 @@ payload 步骤运行 `dtc`，在解析后的输出目录写入 `device-tree/hard
 | `interrupt-parent` | 控制器 phandle | 小端 phandle |
 | `iommus`, `clocks` | phandle 和提供者定义的参数 cell | 小端 cell |
 | `unixnu,adt-name` | 导出的硬件节点名 | `/arm-io` 下的子节点名 |
+| `unixnu,cluster-type` | CPU 节点上的 `"E"` 或 `"P"` | `cluster-type`，该字符的小端 u32 |
 | `status` | `okay`、`ok` 或禁用状态 | 选择启用节点 |
 
 参与地址转换的总线声明 `ranges`，空 `ranges` 表示恒等映射。每个寄存器范围必须恰好

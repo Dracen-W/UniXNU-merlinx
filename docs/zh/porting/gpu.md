@@ -62,6 +62,23 @@ sheng 配方把这些 kit、ArmSmmu4K 和板级投票链接到 `libAdreno740.a`�
 
 **预期结果：** 命令完成、fence 推进、已知图像正确。GPU 结果与桌面呈现结果分别记录。
 
+### 降低映射与提交开销 {#memory-path}
+
+桌面每帧都会分配、映射和释放大量缓冲区，单次调用的开销决定流畅度。Adreno740
+和 ArmSmmu4K 遵循以下规则，移植时保持不变：
+
+| 操作 | 规则 |
+| --- | --- |
+| 对象查找 | 每个客户端最多 16384 个对象，通过 handle 索引查找。 |
+| 分配 | BO 来自板级预留的连续 write-combined 池（sheng 为 1 GiB），池满时使用分散页。 |
+| 映射自有内存 | `ArmSmmu4KLiveMapContextBatchExclusive`：不与已有区间做别名检查。 |
+| 映射导入内存 | 已映射的导入都属同一缓存类别，且其页不与池或自有映射重叠时，使用同一调用；否则使用完整检查的批量映射。 |
+| 解除映射 | 不超过 512 页时每页一次 TLBIVAL，更多时按 ASID 失效。 |
+| 提交 | 不做 TLB 失效。映射只填写无效叶子，解除映射会失效自己的页，上层页表不变。fence 卡住时仍会失效。 |
+
+启动日志的 `[vm map]`、`[vm unmap]`、`[vm kinds]` 和 `[bo pool]` 行给出每种操作的
+次数和耗时。修改前后对比这些行。
+
 使用 `NativeAdrenoClient` 接口时，按以下顺序实现一次有界提交：
 查询 ABI/能力，分配 BO，将其映射到允许的 IOVA，填写命令，再提交并等待返回的 fence。
 通过 `NativeAdrenoTransport.call` 连接实际内核分发端，保留各请求的输入/输出大小。
@@ -83,6 +100,9 @@ python3 scripts/add-gpu-plugin-data.py --publish /path/to/base.dbr /path/to/gpu.
 如需指定应用进程，还可传入 `--clients NAME,...`。运行时插件名为 `NativeAdrenoMetal`。
 
 核对所选 OS profile 的 sandbox、user-client 和 trust-cache 集成。
+Metal 桥接层从不返回 nil encoder：无法编码的 pass 会得到一个命令缓冲区被拒绝的
+encoder，因为 RenderBox 会缓存 encoder 的方法。进程的第一个问题写在驱动的进程
+文本行上（启动日志中的 `[gpu client text]`）。
 AirNir 是离线编译器 kit；运行时前端使用组件页说明的 AIR → SPIR-V → NIR → IR3 路径。
 
 **预期结果：** Metal 设备发现、客户端连接、pipeline 创建、渲染和呈现分别成功。

@@ -25,10 +25,10 @@ board packaging. Shared resources come from the selected SoC and component sourc
 - [Component catalog](https://unixnu.com/reference/components)
 - [Migration](https://unixnu.com/porting/migration)
 
-`porting.toml` is the shared maintainer and agent record. The site renders it
-from the device commit pinned in UniXNU's `devices.toml`. Publish that pin with
-the English and Chinese device pages. Put board driver submodules in this
-device repository. See the [record guide](https://unixnu.com/porting/records)
+`porting.toml` is the shared maintainer and agent record. Publish it with
+`board.toml` and the `unixnu` topic. The central catalog workflow pins the
+source and generates both language editions twice daily. Put board driver
+submodules in this device repository. See the [record guide](https://unixnu.com/porting/records)
 and [UFS guide](https://unixnu.com/porting/ufs).
 
 ```sh

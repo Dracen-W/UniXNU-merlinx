@@ -23,7 +23,7 @@ hero:
       link: https://github.com/UniXNU/UniXNU
     - theme: alt
       text: X
-      link: https://x.com/unixnu
+      link: https://x.com/UniXNU_new
     - theme: alt
       text: Telegram
       link: https://t.me/unixnu
