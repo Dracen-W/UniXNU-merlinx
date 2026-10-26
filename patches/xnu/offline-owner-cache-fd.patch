@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/kern_descrip.c b/bsd/kern/kern_descrip.c
-index c966085..df125ac 100644
+index c966085..09ef4ca 100644
 --- a/bsd/kern/kern_descrip.c
 +++ b/bsd/kern/kern_descrip.c
-@@ -2740,6 +2740,15 @@ outdrop:
+@@ -2740,10 +2740,27 @@ outdrop:
  	return sys_fcntl_outdrop(p, fd, fp, vp, error);
  }
  
@@ -13,12 +13,24 @@ index c966085..df125ac 100644
 +extern volatile long long native_owner_cache_fstat_last_size;
 +extern volatile int native_owner_cache_fcntl_calls;
 +extern volatile int native_owner_cache_fcntl_last_error;
++extern volatile int native_owner_cache_fcntl_any_calls;
++extern volatile int native_owner_cache_fcntl_last_cmd;
 +#endif
 +
  int
  sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
  {
-@@ -4098,6 +4107,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
+ 	int fd = uap->fd;
++#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
++	if (fd == native_owner_cache_last_fd) {
++		__atomic_fetch_add(&native_owner_cache_fcntl_any_calls, 1, __ATOMIC_RELAXED);
++		native_owner_cache_fcntl_last_cmd = uap->cmd;
++	}
++#endif
+ 	int cmd = uap->cmd;
+ 	struct fileproc *fp;
+ 	struct vnode *vp = NULLVP;      /* for AUDIT_ARG() at end */
+@@ -4098,6 +4115,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
  		}
  
  		(void) vnode_put(vp);
@@ -31,7 +43,7 @@ index c966085..df125ac 100644
  		break;
  	}
  #if CONFIG_SUPPLEMENTAL_SIGNATURES
-@@ -5528,6 +5543,15 @@ fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
+@@ -5528,6 +5551,15 @@ fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
  		}
  	}
  out:
@@ -48,10 +60,10 @@ index c966085..df125ac 100644
  	if (fsec != NULL) {
  		kauth_filesec_free(fsec);
 diff --git a/bsd/kern/sys_generic.c b/bsd/kern/sys_generic.c
-index f229fc1..2852f3b 100644
+index f229fc1..b90a74c 100644
 --- a/bsd/kern/sys_generic.c
 +++ b/bsd/kern/sys_generic.c
-@@ -392,14 +392,48 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
+@@ -392,14 +392,55 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
  	return read_nocancel(p, (struct read_nocancel_args *)uap, retval);
  }
  
@@ -66,6 +78,8 @@ index f229fc1..2852f3b 100644
 +extern volatile unsigned long long native_owner_cache_hdr_cs_offset;
 +extern volatile unsigned long long native_owner_cache_hdr_cs_size;
 +extern volatile unsigned int native_owner_cache_hdr_platform;
++extern volatile unsigned long long native_owner_cache_hdr_map_file_offset;
++extern volatile unsigned int native_owner_cache_hdr_map_max_prot;
 +#endif
 +
  int
@@ -82,7 +96,7 @@ index f229fc1..2852f3b 100644
 +		__atomic_fetch_add(&native_owner_cache_pread_calls, 1, __ATOMIC_RELAXED);
 +		native_owner_cache_pread_last_error = error;
 +		if (error == 0 && uap->offset == 0) {
-+			unsigned char hdr[0x80] = {};
++			unsigned char hdr[0x600] = {};
 +			if (copyin(uap->buf, hdr, sizeof(hdr)) == 0) {
 +				snprintf(native_owner_cache_pread_first_hex, sizeof(native_owner_cache_pread_first_hex),
 +				    "%02x%02x%02x%02x%02x%02x%02x%02x",
@@ -92,6 +106,11 @@ index f229fc1..2852f3b 100644
 +				memcpy((void *)&native_owner_cache_hdr_cs_offset, hdr + 0x28, 8);
 +				memcpy((void *)&native_owner_cache_hdr_cs_size, hdr + 0x30, 8);
 +				memcpy((void *)&native_owner_cache_hdr_platform, hdr + 0x68, 4);
++				unsigned int mo = native_owner_cache_hdr_mapping_offset;
++				if (mo + 32 <= sizeof(hdr)) {
++					memcpy((void *)&native_owner_cache_hdr_map_file_offset, hdr + mo + 16, 8);
++					memcpy((void *)&native_owner_cache_hdr_map_max_prot, hdr + mo + 24, 4);
++				}
 +				native_owner_cache_pread_first_valid = 1;
 +			}
 +		}
