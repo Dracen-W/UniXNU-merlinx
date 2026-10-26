@@ -48,10 +48,10 @@ index c966085..df125ac 100644
  	if (fsec != NULL) {
  		kauth_filesec_free(fsec);
 diff --git a/bsd/kern/sys_generic.c b/bsd/kern/sys_generic.c
-index f229fc1..88bad2f 100644
+index f229fc1..951b045 100644
 --- a/bsd/kern/sys_generic.c
 +++ b/bsd/kern/sys_generic.c
-@@ -392,14 +392,38 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
+@@ -392,14 +392,43 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
  	return read_nocancel(p, (struct read_nocancel_args *)uap, retval);
  }
  
@@ -77,11 +77,16 @@ index f229fc1..88bad2f 100644
 +		__atomic_fetch_add(&native_owner_cache_pread_calls, 1, __ATOMIC_RELAXED);
 +		native_owner_cache_pread_last_error = error;
 +		if (error == 0 && uap->offset == 0) {
-+			unsigned char first[8] = {};
-+			if (copyin(uap->buf, first, sizeof(first)) == 0) {
++			unsigned char hdr[0x80] = {};
++			if (copyin(uap->buf, hdr, sizeof(hdr)) == 0) {
 +				snprintf(native_owner_cache_pread_first_hex, sizeof(native_owner_cache_pread_first_hex),
 +				    "%02x%02x%02x%02x%02x%02x%02x%02x",
-+				    first[0], first[1], first[2], first[3], first[4], first[5], first[6], first[7]);
++				    hdr[0], hdr[1], hdr[2], hdr[3], hdr[4], hdr[5], hdr[6], hdr[7]);
++				memcpy((void *)&native_owner_cache_hdr_mapping_offset, hdr + 0x10, 4);
++				memcpy((void *)&native_owner_cache_hdr_mapping_count, hdr + 0x14, 4);
++				memcpy((void *)&native_owner_cache_hdr_cs_offset, hdr + 0x28, 8);
++				memcpy((void *)&native_owner_cache_hdr_cs_size, hdr + 0x30, 8);
++				memcpy((void *)&native_owner_cache_hdr_platform, hdr + 0x68, 4);
 +				native_owner_cache_pread_first_valid = 1;
 +			}
 +		}
