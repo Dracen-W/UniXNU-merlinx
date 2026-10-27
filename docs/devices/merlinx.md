@@ -20,7 +20,7 @@ merlinx is the Xiaomi Redmi Note 9 with the MediaTek MT6768/MT6769Z SoC. The por
 | Storage | NativeEmmc enumerates the userdata partition; the OS and SystemOS volumes appear; the owner path mounts the SystemOS cache carrier |
 | UniXNU and XNU | XNU reaches the root and the SystemOS cache; the 4 KiB kernel uses `CONFIG_XNU_NATIVE_CS_HASH_CACHE` for the original 16 KiB CodeDirectory; initproc and launchd exec complete |
 | Kernel display | the kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer |
-| Data | not mounted; the current image has no Data seed, so writable `/private/var` and the launchd service graph are pending |
+| Data | not verified; the repository does not include a Data seed, so writable `/private/var` and the launchd service graph are pending |
 | Userland | launchd exec is confirmed; userland services, display ownership and rendering are not verified |
 | Display polish | scanout starts mid-panel; the menu is shifted down and the OEM logo can remain in the upper half |
 
@@ -48,7 +48,7 @@ The firmware volume is `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`. Th
 
 ## Data seed
 
-The current image has no Data seed. The generation helpers are derived from the UniXNU-fajita Data seed generators and are licensed under BSD-2-Clause-Patent:
+The repository does not include a Data seed. The generation helpers are derived from the UniXNU-fajita Data seed generators and are licensed under BSD-2-Clause-Patent:
 
 - [make-data-seed-linux.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)
 - [make-data-seed-macos.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-macos.py)

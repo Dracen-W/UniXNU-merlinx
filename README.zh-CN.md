@@ -39,7 +39,7 @@ UniXNU 为不同 SoC 和设备的移植提供共享构建工具、ARM64 支持�
 
 UEFI 固件、BootShim、启动菜单和 64 MiB p33 启动镜像可用。NativeEmmc 枚举 userdata 和 SystemOS，XNU 到达根和 SystemOS cache，4 KiB 内核使用 `CONFIG_XNU_NATIVE_CS_HASH_CACHE` 处理原版 16 KiB CodeDirectory。initproc 和 launchd exec 完成。内核通过 GOP framebuffer 绘制 `ROOT`、`VOL`、`CACHE`、`EXEC` 和 `LAUNCHD` 状态行。
 
-当前镜像没有 Data seed。可写 `/private/var`、launchd 服务图、用户态显示接管和渲染尚未验证。Data seed 生成脚本参考 [UniXNU-fajita](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)，并在设备说明中记录。
+仓库不包含 Data seed。当前测试镜像使用本地生成的 packed seed；可写 `/private/var`、launchd 服务图、用户态显示接管和渲染尚未验证。Data seed 生成脚本参考 [UniXNU-fajita](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)，并在设备说明中记录。
 
 设备说明、构建步骤、启动条件和目标见 [docs/zh/devices/merlinx.md](docs/zh/devices/merlinx.md)。
 

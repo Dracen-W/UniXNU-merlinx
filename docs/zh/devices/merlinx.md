@@ -20,7 +20,7 @@ merlinx 是搭载联发科 MT6768/MT6769Z SoC 的 Redmi Note 9。下面的移植
 | 存储 | NativeEmmc 枚举 userdata 分区；OS 和 SystemOS 卷出现；owner 路径挂载 SystemOS cache carrier |
 | UniXNU 和 XNU | XNU 到达根和 SystemOS cache；4 KiB 内核使用 `CONFIG_XNU_NATIVE_CS_HASH_CACHE` 处理原版 16 KiB CodeDirectory；initproc 和 launchd exec 完成 |
 | 内核显示 | 内核通过 GOP framebuffer 绘制 `ROOT`、`VOL`、`CACHE`、`EXEC` 和 `LAUNCHD` 状态行 |
-| Data | 未挂载；当前镜像没有 Data seed，因此可写 `/private/var` 和 launchd 服务图待验证 |
+| Data | 未验证；仓库不包含 Data seed，因此可写 `/private/var` 和 launchd 服务图待验证 |
 | 用户态 | 已确认 launchd exec；用户态服务、显示接管和渲染尚未验证 |
 | 显示收尾 | 可见扫描输出从屏幕中部开始；菜单整体偏下，上半屏可能残留 OEM logo |
 
@@ -48,7 +48,7 @@ payload 步骤使用设备仓库声明的板级 trust cache、平台身份和其
 
 ## Data seed
 
-当前镜像没有 Data seed。生成脚本参考 UniXNU-fajita 的 Data seed 生成器，使用 BSD-2-Clause-Patent 许可：
+仓库不包含 Data seed。生成脚本参考 UniXNU-fajita 的 Data seed 生成器，使用 BSD-2-Clause-Patent 许可：
 
 - [make-data-seed-linux.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)
 - [make-data-seed-macos.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-macos.py)

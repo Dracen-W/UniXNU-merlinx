@@ -39,7 +39,7 @@ This fork carries the independent Xiaomi Redmi Note 9 (merlinx, MT6768/MT6769Z) 
 
 The UEFI firmware, BootShim, boot menu and 64 MiB p33 boot image work. NativeEmmc enumerates userdata and SystemOS, XNU reaches the root and SystemOS cache, and the 4 KiB kernel handles the original 16 KiB CodeDirectory with `CONFIG_XNU_NATIVE_CS_HASH_CACHE`. initproc and launchd exec complete. The kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer.
 
-The current image has no Data seed. Writable `/private/var`, the launchd service graph, userland display ownership and rendering are not verified. Data seed generation helpers are derived from the [UniXNU-fajita scripts](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py) and documented in the device notes.
+The repository does not include a Data seed. The current test image uses a locally generated packed seed; writable `/private/var`, the launchd service graph, userland display ownership and rendering are not verified. Data seed generation helpers are derived from the [UniXNU-fajita scripts](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py) and documented in the device notes.
 
 Device notes, build steps, boot conditions and goals are in [docs/devices/merlinx.md](docs/devices/merlinx.md).
 
