@@ -46,6 +46,37 @@ payload 步骤使用设备仓库声明的板级 trust cache、平台身份和其
 
 固件卷位于 `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`。启动镜像把该固件卷、裁剪后的设备树和 ramdisk 与修复后的 BootShim 打包在一起，再补齐到 p33 所需的 64 MiB。
 
+## Data seed
+
+当前镜像没有 Data seed。生成脚本参考 UniXNU-fajita 的 Data seed 生成器，使用 BSD-2-Clause-Patent 许可：
+
+- [make-data-seed-linux.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)
+- [make-data-seed-macos.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-macos.py)
+- [data-seed.json](https://github.com/johnpanos/UniXNU-fajita/blob/main/data-seed.json)
+
+`data-seed.json` 描述一个区分大小写、未加密、无 role 的 APFS Data 卷，只包含空目录和偏好设置文件，不包含密钥、用户记录或 Apple 文件。
+
+Linux 生成器使用 `mkapfs` 和 `apfsck` 格式化镜像并编辑新建的 APFS catalog，需要 UniXNU 树中的 packer：
+
+```sh
+python3 scripts/make-data-seed-linux.py \
+  --packer drivers/DarwinBoot/Test/packed_ramdisk.py \
+  --fetch-apfsprogs \
+  --spec data-seed.json \
+  --out .cache/data-seed
+```
+
+macOS 生成器使用 `diskutil` 和 `hdiutil`：
+
+```sh
+python3 scripts/make-data-seed-macos.py \
+  --packer drivers/DarwinBoot/Test/packed_ramdisk.py \
+  --spec data-seed.json \
+  --out .cache/data-seed
+```
+
+生成器写出 `data-linux.dbr` 或 `data-macos.dbr` 以及包含 APFS 卷 UUID 的 JSON 报告。把该 UUID 用于 `CONFIG_XNU_OWNER_DATA_VOLUME_UUID`，并通过 `--data-ramdisk` 把 packed seed 传给 payload 步骤。raw 镜像、packed seed 和报告都是本地输入，不提交到仓库。
+
 ## 启动
 
 ```sh
