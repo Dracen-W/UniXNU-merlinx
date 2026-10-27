@@ -27,6 +27,22 @@ UniXNU provides shared build tools, ARM64 support, OS profiles and reusable comp
 
 **🎉 News:** Adreno740 and AdrenoMetal provide GPU acceleration on sheng. See the [Adreno 740 driver documentation](https://unixnu.com/drivers/adreno740).
 
+## Redmi Note 9 (merlinx) port
+
+This fork carries the independent Xiaomi Redmi Note 9 (merlinx, MT6768/MT6769Z) port maintained by [Dracen-W](https://github.com/Dracen-W). The UniXNU organization does not maintain this fork.
+
+| Repository | Contents |
+| --- | --- |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | Board configuration, kernel patches, payload and boot image |
+| [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | Mu-Silicium firmware, fixed BootShim and GOP boot menu |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | Native eMMC block driver used by the userdata and SystemOS path |
+
+The UEFI firmware, BootShim, boot menu and 64 MiB p33 boot image work. NativeEmmc enumerates userdata and SystemOS, XNU reaches the root and SystemOS cache, and the 4 KiB kernel handles the original 16 KiB CodeDirectory with `CONFIG_XNU_NATIVE_CS_HASH_CACHE`. initproc and launchd exec complete. The kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer.
+
+The current image has no Data seed. Writable `/private/var`, the launchd service graph, userland display ownership and rendering are not verified.
+
+Device notes, build steps, boot conditions and goals are in [docs/devices/merlinx.md](docs/devices/merlinx.md).
+
 Documentation: [unixnu.com](https://unixnu.com). Start with [Port a device](https://unixnu.com/porting/) or [Build and boot](https://unixnu.com/building).
 
 ## Repositories
