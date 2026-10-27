@@ -75,6 +75,8 @@ python3 scripts/make-data-seed-macos.py \
   --out .cache/data-seed
 ```
 
+当前 bring-up 镜像使用临时的 NativeEmmc manifest stub 和 volatile RamBlock 路径，不提供持久化 Data，也不代表生产环境的 boot manifest 验证。
+
 生成器写出 `data-linux.dbr` 或 `data-macos.dbr` 以及包含 APFS 卷 UUID 的 JSON 报告。把该 UUID 用于 `CONFIG_XNU_OWNER_DATA_VOLUME_UUID`，并通过 `--data-ramdisk` 把 packed seed 传给 payload 步骤。raw 镜像、packed seed 和报告都是本地输入，不提交到仓库。
 
 ## 启动
