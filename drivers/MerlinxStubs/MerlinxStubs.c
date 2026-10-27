@@ -1,3 +1,5 @@
+#include <sys/types.h>
+
 /* Temporary link stubs for the first merlinx kernel build. */
 void
 native_legacy_display_probe (
@@ -44,4 +46,15 @@ unsigned
 native_ufs_store_gpt_check(void)
 {
 	return 0;
+}
+
+/* Bring-up stub: NativeEmmc has no verified-manifest backend yet. */
+int
+native_verified_block_manifest_sha384(dev_t device, const char *uuid, unsigned char digest[48])
+{
+	unsigned int i;
+	(void)device;
+	(void)uuid;
+	for (i = 0; i < 48; i++) digest[i] = 0;
+	return 1;
 }
