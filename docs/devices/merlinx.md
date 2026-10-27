@@ -20,7 +20,7 @@ merlinx is the Xiaomi Redmi Note 9 with the MediaTek MT6768/MT6769Z SoC. The por
 | Storage | NativeEmmc enumerates the userdata partition; the OS and SystemOS volumes appear; the owner path mounts the SystemOS cache carrier |
 | UniXNU and XNU | XNU reaches the root and the SystemOS cache; the 4 KiB kernel uses `CONFIG_XNU_NATIVE_CS_HASH_CACHE` for the original 16 KiB CodeDirectory; initproc and launchd exec complete |
 | Kernel display | the kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer |
-| Data | not mounted; the current image has no Data seed, so writable `/private/var` and the launchd service graph are pending |
+| Data | not verified; the repository does not include a Data seed, so writable `/private/var` and the launchd service graph are pending |
 | Userland | launchd exec is confirmed; userland services, display ownership and rendering are not verified |
 | Display polish | scanout starts mid-panel; the menu is shifted down and the OEM logo can remain in the upper half |
 
@@ -45,6 +45,37 @@ cd UniXNU-merlinx
 The payload step consumes the board trust cache, platform identity and other inputs described by the device repository. These inputs are not distributed. The Data seed is not part of the current image.
 
 The firmware volume is `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`. The boot image wraps that volume with the fixed BootShim, the trimmed device tree and the ramdisk, then pads the result to 64 MiB for p33.
+
+## Data seed
+
+The repository does not include a Data seed. The generation helpers are derived from the UniXNU-fajita Data seed generators and are licensed under BSD-2-Clause-Patent:
+
+- [make-data-seed-linux.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)
+- [make-data-seed-macos.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-macos.py)
+- [data-seed.json](https://github.com/johnpanos/UniXNU-fajita/blob/main/data-seed.json)
+
+`data-seed.json` describes a case-sensitive, unencrypted APFS Data volume with no role and only empty directories and preference files. It contains no keys, user records, or Apple files.
+
+On Linux, the generator formats the image with `mkapfs` and `apfsck` and edits the fresh APFS catalog. It needs a packer from the UniXNU tree:
+
+```sh
+python3 scripts/make-data-seed-linux.py \
+  --packer drivers/DarwinBoot/Test/packed_ramdisk.py \
+  --fetch-apfsprogs \
+  --spec data-seed.json \
+  --out .cache/data-seed
+```
+
+On macOS, the generator uses `diskutil` and `hdiutil`:
+
+```sh
+python3 scripts/make-data-seed-macos.py \
+  --packer drivers/DarwinBoot/Test/packed_ramdisk.py \
+  --spec data-seed.json \
+  --out .cache/data-seed
+```
+
+The generators write `data-linux.dbr` or `data-macos.dbr` and a JSON report with the APFS volume UUID. Use that UUID for `CONFIG_XNU_OWNER_DATA_VOLUME_UUID`, and pass the packed seed to the payload step with `--data-ramdisk`. The raw image, packed seed and report are local inputs and are not committed.
 
 ## Boot
 
