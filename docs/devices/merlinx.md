@@ -75,6 +75,8 @@ python3 scripts/make-data-seed-macos.py \
   --out .cache/data-seed
 ```
 
+The current bring-up image uses a temporary NativeEmmc manifest stub and a volatile RamBlock path. It does not provide persistent Data or production boot-manifest verification.
+
 The generators write `data-linux.dbr` or `data-macos.dbr` and a JSON report with the APFS volume UUID. Use that UUID for `CONFIG_XNU_OWNER_DATA_VOLUME_UUID`, and pass the packed seed to the payload step with `--data-ramdisk`. The raw image, packed seed and report are local inputs and are not committed.
 
 ## Boot
