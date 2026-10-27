@@ -48,7 +48,7 @@ payload 步骤使用设备仓库声明的板级 trust cache、平台身份和其
 
 ## Data seed
 
-仓库不包含 Data seed。生成脚本参考 UniXNU-fajita 的 Data seed 生成器，使用 BSD-2-Clause-Patent 许可：
+生成脚本位于 merlinx 设备仓库，不属于 UniXNU。仓库不包含 Data seed。生成脚本参考 UniXNU-fajita 的 Data seed 生成器，使用 BSD-2-Clause-Patent 许可：
 
 - [make-data-seed-linux.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)
 - [make-data-seed-macos.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-macos.py)

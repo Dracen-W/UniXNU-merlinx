@@ -48,7 +48,7 @@ The firmware volume is `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`. Th
 
 ## Data seed
 
-The repository does not include a Data seed. The generation helpers are derived from the UniXNU-fajita Data seed generators and are licensed under BSD-2-Clause-Patent:
+The scripts live in the merlinx device repository and are not part of UniXNU. The repository does not include a Data seed. The generation helpers are derived from the UniXNU-fajita Data seed generators and are licensed under BSD-2-Clause-Patent:
 
 - [make-data-seed-linux.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)
 - [make-data-seed-macos.py](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-macos.py)
