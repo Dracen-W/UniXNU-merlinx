@@ -34,6 +34,7 @@ archives = [
   "build-arm-driver.py NativeAES",
   "build-arm-driver.py NativeEmmc",
   "build-native-emmc-bindings.py",
+  "build-arm-driver.py RamBlock",
   "build-native-aes-bindings.py",
   "build-libpthread-kernel.py",
   "build-merlinx-stubs.py",
@@ -95,7 +96,7 @@ tool = "scripts/make-merlinx-adt.py"
 owned_memory_size = "0x10000000"
 cpu_regs = "0,0x100,0x200,0x300,0x400,0x500,0x600,0x700"
 psci_method = "smc"
-packed_data_ramdisk = false
+packed_data_ramdisk = true
 ipad_identity = false
 root_match_volume_uuid = "04769D26-2CA0-4825-B443-E2E5F88300F2"
 
