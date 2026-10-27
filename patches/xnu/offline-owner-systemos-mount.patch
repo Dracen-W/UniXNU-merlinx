@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8bba078..01d2b5f 100644
+index 8bba078..4bfd0d2 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
 @@ -183,7 +183,7 @@
@@ -120,8 +120,7 @@ index 8bba078..01d2b5f 100644
 +	__asm__ volatile("" : : "r"(status), "r"(authorized) : "memory");
 +}
 +
- static int
--load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
++static int
 +native_owner_cache_prepare(proc_t p, user_addr_t scratch, user_addr_t *envp)
 +{
 +#ifndef XNU_OWNER_CACHE_VOLUME_UUID
@@ -362,7 +361,8 @@ index 8bba078..01d2b5f 100644
 +}
 +#endif
 +
-+static int
+ static int
+-load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
 +load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path, user_addr_t envp)
  {
  	int retval[2];
@@ -388,7 +388,7 @@ index 8bba078..01d2b5f 100644
  }
  
  static const char * init_programs[] = {
-@@ -7148,6 +7497,16 @@ load_init_program(proc_t p)
+@@ -7148,9 +7497,21 @@ load_init_program(proc_t p)
  	mach_vm_size_t map_page_size = vm_map_page_size(map);
  
  	(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);
@@ -400,12 +400,17 @@ index 8bba078..01d2b5f 100644
 +#if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
 +	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
 +	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
-+	native_gop_text(5, "DATA");
 +#endif
  #if CONFIG_MEMORYSTATUS
  	(void) memorystatus_init_at_boot_snapshot();
  #endif /* CONFIG_MEMORYSTATUS */
-@@ -7162,7 +7521,7 @@ load_init_program(proc_t p)
++#if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
++	native_gop_text(5, "DATA");
++#endif
+ 
+ #if DEBUG || DEVELOPMENT
+ 	/* Check for boot-arg suffix first */
+@@ -7162,7 +7523,7 @@ load_init_program(proc_t p)
  
  		if (is_release_suffix) {
  			printf("load_init_program: attempting to load /sbin/launchd\n");
@@ -414,7 +419,7 @@ index 8bba078..01d2b5f 100644
  			if (!error) {
  				return;
  			}
-@@ -7173,7 +7532,7 @@ load_init_program(proc_t p)
+@@ -7173,7 +7534,7 @@ load_init_program(proc_t p)
  			strlcat(launchd_path, launchd_suffix, sizeof(launchd_path));
  
  			printf("load_init_program: attempting to load %s\n", launchd_path);
@@ -423,7 +428,7 @@ index 8bba078..01d2b5f 100644
  			if (!error) {
  				return;
  			} else if (error != ENOENT) {
-@@ -7186,7 +7545,7 @@ load_init_program(proc_t p)
+@@ -7186,7 +7547,7 @@ load_init_program(proc_t p)
  	error = ENOENT;
  	for (i = 0; i < sizeof(init_programs) / sizeof(init_programs[0]); i++) {
  		printf("load_init_program: attempting to load %s\n", init_programs[i]);
