@@ -4,9 +4,9 @@ merlinx is the Xiaomi Redmi Note 9 with the MediaTek MT6768/MT6769Z SoC. The por
 
 | Repository | Maintainer | State |
 | --- | --- | --- |
-| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | UEFI boots, custom menu and boot image work; storage init blocks UniXNU and XNU |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | XNU mounts SystemOS, initproc runs, and launchd exec succeeds; Data volume and userland services are pending |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | [Dracen-W](https://github.com/Dracen-W) | Mu-Silicium port, fixed BootShim and custom GOP boot menu |
-| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | Native eMMC driver for merlinx |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | Native eMMC block driver used by the userdata and SystemOS path |
 
 ## State
 
@@ -16,9 +16,12 @@ merlinx is the Xiaomi Redmi Note 9 with the MediaTek MT6768/MT6769Z SoC. The por
 | UEFI firmware | `merlinxPkg` builds from source and boots from p33 |
 | BootShim | self-overwrite fixed; the 320-byte source shim relocates the copy/clean block before loading the firmware volume |
 | Boot menu | custom GOP menu renders on the panel; volume-down scrolls; volume-up and power both select a menu entry; the current source mapping is confirmed working |
-| Boot image | 64 MiB p33 image with the fixed BootShim, 3 MiB firmware volume, trimmed DTB and Magisk ramdisk; flashes with `fastboot flash boot` |
-| Storage | SdCardDxe and eMMC init time out; Internal Storage reports `EFI_NOT_FOUND`; USB boot also fails |
-| UniXNU and XNU | not reached; no ADT, payload or kernel run |
+| Boot image | 64 MiB p33 image with the fixed BootShim, 3 MiB firmware volume, trimmed DTB and ramdisk; flashes with `fastboot flash boot` |
+| Storage | NativeEmmc enumerates the userdata partition; the OS and SystemOS volumes appear; the owner path mounts the SystemOS cache carrier |
+| UniXNU and XNU | XNU reaches the root and the SystemOS cache; the 4 KiB kernel uses `CONFIG_XNU_NATIVE_CS_HASH_CACHE` for the original 16 KiB CodeDirectory; initproc and launchd exec complete |
+| Kernel display | the kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer |
+| Data | not mounted; the current image has no Data seed, so writable `/private/var` and the launchd service graph are pending |
+| Userland | launchd exec is confirmed; userland services, display ownership and rendering are not verified |
 | Display polish | scanout starts mid-panel; the menu is shifted down and the OEM logo can remain in the upper half |
 
 Volume-up and power both select a menu entry because the PMIC key mask covers both the power and home/volume-up bits. Both keys work; this is the current mapping, not the final dedicated key layout.
@@ -33,8 +36,13 @@ The device repository keeps `Mu_Basecore` at the upstream commit. `board.toml` l
 git clone --recurse-submodules https://github.com/Dracen-W/UniXNU-merlinx
 git clone https://github.com/Dracen-W/uefi-merlinx
 cd UniXNU-merlinx
-./unixnu build firmware -D . --uefi ../uefi-merlinx --edk2 ../uefi-merlinx/Mu_Basecore
+./unixnu defconfig merlinx_defconfig -D .
+./unixnu build kernel
+./unixnu build payload
+./unixnu build bootimg --uefi ../uefi-merlinx --dtb <merlinx.dtb>
 ```
+
+The payload step consumes the board trust cache, platform identity and other inputs described by the device repository. These inputs are not distributed. The Data seed is not part of the current image.
 
 The firmware volume is `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`. The boot image wraps that volume with the fixed BootShim, the trimmed device tree and the ramdisk, then pads the result to 64 MiB for p33.
 
@@ -53,14 +61,14 @@ The panel is an FT8719 at 1080x2340. The visible UEFI scanout starts partway dow
 
 ## Goals
 
-1. Fix the SdCardDxe and eMMC timeout so Internal Storage enumerates.
-2. Make USB storage or USB boot usable as a recovery path.
-3. Clean up the panel offset, background and logo handoff.
-4. Add the ADT and payload, then reach XNU entry.
-5. Move from XNU entry to root mount and iOS userland.
+1. Mount a Data seed and prove that `/private/var` is writable.
+2. Confirm the first launchd services and identify the first missing service or resource.
+3. Add a userland display path after the early service graph is stable. Userland rendering is not implemented.
+4. Clean up the panel offset, background and logo handoff.
+5. Add a persistent log or recovery path without relying on UART.
 
 There is no UART on this device. Early boot evidence comes from the panel and from flashing test images to p33.
 
 ## Maintenance
 
-The maintainer owns both repositories and their release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.
+The maintainer owns the three repositories and their release decisions. UniXNU documentation lists the port and its state; it does not take over maintenance.

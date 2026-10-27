@@ -4,9 +4,9 @@ merlinx 是搭载联发科 MT6768/MT6769Z SoC 的 Redmi Note 9。下面的移植
 
 | 仓库 | 维护者 | 状态 |
 | --- | --- | --- |
-| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | UEFI 可启动，自定义菜单和启动镜像工作；存储初始化阻塞 UniXNU 和 XNU |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | XNU 挂载 SystemOS，initproc 已运行，launchd exec 成功；Data 卷和用户态服务待处理 |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | [Dracen-W](https://github.com/Dracen-W) | Mu-Silicium 移植、修复后的 BootShim 和自定义 GOP 启动菜单 |
-| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | merlinx 的原生 eMMC 驱动 |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | userdata 和 SystemOS 路径使用的原生 eMMC 块驱动 |
 
 ## 状态
 
@@ -16,9 +16,12 @@ merlinx 是搭载联发科 MT6768/MT6769Z SoC 的 Redmi Note 9。下面的移植
 | UEFI 固件 | `merlinxPkg` 可从源码构建，并从 p33 启动 |
 | BootShim | 自覆盖问题已修复；320 字节源码 shim 会先把 copy/clean 代码块搬到安全地址，再加载固件卷 |
 | 启动菜单 | 自定义 GOP 菜单可在屏幕上显示；音量下滚动；音量上和电源键都能选中菜单项；当前源码映射已确认可用 |
-| 启动镜像 | 64 MiB p33 镜像，包含修复后的 BootShim、3 MiB 固件卷、裁剪后的 DTB 和 Magisk ramdisk；用 `fastboot flash boot` 刷入 |
-| 存储 | SdCardDxe 和 eMMC 初始化超时；Internal Storage 报 `EFI_NOT_FOUND`；USB 启动也失败 |
-| UniXNU 和 XNU | 尚未到达；没有 ADT、负载或内核运行记录 |
+| 启动镜像 | 64 MiB p33 镜像，包含修复后的 BootShim、3 MiB 固件卷、裁剪后的 DTB 和 ramdisk；用 `fastboot flash boot` 刷入 |
+| 存储 | NativeEmmc 枚举 userdata 分区；OS 和 SystemOS 卷出现；owner 路径挂载 SystemOS cache carrier |
+| UniXNU 和 XNU | XNU 到达根和 SystemOS cache；4 KiB 内核使用 `CONFIG_XNU_NATIVE_CS_HASH_CACHE` 处理原版 16 KiB CodeDirectory；initproc 和 launchd exec 完成 |
+| 内核显示 | 内核通过 GOP framebuffer 绘制 `ROOT`、`VOL`、`CACHE`、`EXEC` 和 `LAUNCHD` 状态行 |
+| Data | 未挂载；当前镜像没有 Data seed，因此可写 `/private/var` 和 launchd 服务图待验证 |
+| 用户态 | 已确认 launchd exec；用户态服务、显示接管和渲染尚未验证 |
 | 显示收尾 | 可见扫描输出从屏幕中部开始；菜单整体偏下，上半屏可能残留 OEM logo |
 
 当前 PMIC 按键掩码同时覆盖电源键和 home/音量上键，所以音量上和电源键都会选中菜单项。两个键都能正常使用；这是当前映射，不是最终的独立按键布局。
@@ -33,8 +36,13 @@ PMIC 协议在运行时查找，没有加入 `Depex`；因此 PMIC wrapper 驱�
 git clone --recurse-submodules https://github.com/Dracen-W/UniXNU-merlinx
 git clone https://github.com/Dracen-W/uefi-merlinx
 cd UniXNU-merlinx
-./unixnu build firmware -D . --uefi ../uefi-merlinx --edk2 ../uefi-merlinx/Mu_Basecore
+./unixnu defconfig merlinx_defconfig -D .
+./unixnu build kernel
+./unixnu build payload
+./unixnu build bootimg --uefi ../uefi-merlinx --dtb <merlinx.dtb>
 ```
+
+payload 步骤使用设备仓库声明的板级 trust cache、平台身份和其他输入；这些输入不随仓库分发。当前镜像不包含 Data seed。
 
 固件卷位于 `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`。启动镜像把该固件卷、裁剪后的设备树和 ramdisk 与修复后的 BootShim 打包在一起，再补齐到 p33 所需的 64 MiB。
 
@@ -53,14 +61,14 @@ fastboot reboot
 
 ## 目标
 
-1. 修复 SdCardDxe 和 eMMC 超时，让 Internal Storage 枚举出来。
-2. 让 USB 存储或 USB 启动可作为恢复路径。
-3. 清理屏幕偏移、背景和 logo 交接。
-4. 加入 ADT 和负载，进入 XNU 入口。
-5. 从 XNU 入口推进到根挂载和 iOS 用户态。
+1. 挂载 Data seed，并验证 `/private/var` 可写。
+2. 确认 launchd 首先启动的服务，并找出第一个缺失的服务或资源。
+3. 在早期服务图稳定后加入用户态显示路径。当前没有用户态渲染。
+4. 清理屏幕偏移、背景和 logo 交接。
+5. 在不依赖 UART 的前提下加入持久化日志或恢复路径。
 
 这台设备没有 UART。早期启动证据来自屏幕显示，以及向 p33 刷入测试镜像。
 
 ## 维护
 
-维护者拥有两个仓库及其发布决定。UniXNU 文档只记录移植和状态，不接管维护。
+维护者拥有三个仓库及其发布决定。UniXNU 文档只记录移植和状态，不接管维护。
