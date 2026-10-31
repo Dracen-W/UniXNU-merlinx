@@ -1,3 +1,10 @@
+
+<p align="center">
+  <a href="README.md">English</a> | 简体中文
+</p>
+
+# UniXNU 官方页面
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
@@ -12,20 +19,6 @@
   <a href="https://qun.qq.com/universal-share/share?ac=1&authKey=Pubz23DOCY76nxjlGuSms2zesk4jRvas4zrXJRYk7omf7CprXbGQigLEI%2BCoYR8D&busi_data=eyJncm91cENvZGUiOiIxMTI2MTE2NzU5IiwidG9rZW4iOiJwSHJsUDN1UnN2Vi8yM210TjJRbzBIcERmcUpyOS9lb0hHVVpadWdvVFdScVpSYUFLT1YzTk5TWC9mN2xWYmtIIiwidWluIjoiMzE1MTEwOTc0MSJ9&data=_cJgr-jX9yJ2-GXwVjRN5FOhDyk5B-HAfIk5LSunbW_XkkmKqNXbpH33wzP93J0p9DI1fbjgBUrUfTVhwDcxjg&svctype=4&tempid=h5_group_info"><img alt="QQ 群" src="https://img.shields.io/badge/QQ%20Group-join-12B7F5?logo=qq&logoColor=white"></a>
   <a href="https://x.com/unixnu"><img alt="X" src="https://img.shields.io/badge/X-@unixnu-000000?logo=x&logoColor=white"></a>
 </p>
-
-<p align="center">
-  <a href="README.md">English</a> | 简体中文
-</p>
-
-# UniXNU
-
-> **迁移通知：** 请按[迁移指南](https://unixnu.com/zh/porting/migration)更新设备仓库，接入共享 SoC 支持并统一组件名称。
-
-一个独立项目，通过 UEFI 在非 Apple ARM64 硬件上运行 iOS 与 macOS。UniXNU 类似 OpenCore，是通用的 UEFI 环境和驱动加载系统：通过统一的 UEFI 层加载设备所需的驱动并启动系统。
-
-UniXNU 为不同 SoC 和设备的移植提供共享构建工具、ARM64 支持、OS 配置和可复用组件。SoC 仓库提供公共平台支持，设备仓库提供板级配置和硬件集成。
-
-**🎉 News:** Adreno740 和 AdrenoMetal 在 sheng 上提供 GPU 加速。详见 [Adreno 740 驱动文档](https://unixnu.com/zh/drivers/adreno740)。
 
 ## Redmi Note 9（merlinx）移植
 
@@ -43,22 +36,24 @@ UEFI 固件、BootShim、启动菜单和 64 MiB p33 启动镜像可用。NativeE
 
 设备说明、构建步骤、启动条件和目标见 [docs/zh/devices/merlinx.md](docs/zh/devices/merlinx.md)。
 
-文档：[unixnu.com](https://unixnu.com/zh/)。从[移植设备](https://unixnu.com/zh/porting/)或[构建与启动](https://unixnu.com/zh/building)开始。
+## 文档
 
-## 仓库
+下列文件存在于UniXNU的官方网站:
 
-| 仓库 | 内容 |
-| --- | --- |
-| [UniXNU](https://github.com/UniXNU/UniXNU) | 构建工具、组件目录、ARM64 支持、OS 配置、UEFI package、文档 |
-| [UniXNU-sm8550-common](https://github.com/UniXNU/UniXNU-sm8550-common) | SM8550 共享支持 |
-| [UniXNU-sheng](https://github.com/UniXNU/UniXNU-sheng) | 小米平板 6S Pro |
-| [uefi-sheng](https://github.com/UniXNU/uefi-sheng) | 小米平板 6S Pro 的 UEFI 固件 |
+- [merlinx 设备说明](https://unixnu.com/devices/merlinx)
+- [构建](https://unixnu.com/building)
+- [设备仓库具体结构说明](https://unixnu.com/porting/device-repository)
+- [设备树具体说明](https://unixnu.com/porting/device-tree)
+- [组件目录](https://unixnu.com/reference/components)
+- [移植](https://unixnu.com/porting/migration)
 
-克隆时使用 `--recurse-submodules`。
-
-## 参与贡献
-
-见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+提交报告时，请把以下几项内容分开写，并且记得加上你的代码版本（Commit ID）和执行的命令：
+• 编译/构建结果（装得顺不顺利，有没有报错）
+• 设备开机情况（能不能正常启动）
+• 存储盘情况（认不认得出硬盘/闪存，读写正不正常）
+• 屏幕显示（画面出不出得来，有没有花屏）
+• 输入设备（键盘、鼠标、触摸屏好不好使）
+• 显卡/GPU 表现（画面卡不卡，3D 加速正不正常）
 
 ## 许可证
 
