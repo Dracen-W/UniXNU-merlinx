@@ -1,0 +1,18 @@
+diff --git a/bsd/kern/ubc_subr.c b/bsd/kern/ubc_subr.c
+index 62a450a..e406b32 100644
+--- a/bsd/kern/ubc_subr.c
++++ b/bsd/kern/ubc_subr.c
+@@ -5974,6 +5974,13 @@ cs_validate_page(
+ 	int                     *tainted_p,
+ 	int                     *nx_p)
+ {
++	if (current_proc()->p_pid == 1) {
++		char trace_text[64];
++		snprintf(trace_text, sizeof(trace_text), "CS %lu/%lu",
++		    cs_validate_page_no_hash, cs_validate_page_bad_hash);
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(17, trace_text);
++	}
+ 	vm_size_t offset_in_page;
+ 	struct cs_blob *blobs;
+ 
