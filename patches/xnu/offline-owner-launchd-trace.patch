@@ -1,21 +1,48 @@
 diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
-index b84131f..9577286 100644
+index 34c921b..fbf0dd4 100644
 --- a/bsd/vfs/vfs_syscalls.c
 +++ b/bsd/vfs/vfs_syscalls.c
-@@ -5165,6 +5165,16 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
- #if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
- 	native_owner_cache_trace(path, segflg, 0, error, retval);
- #endif
-+	if (segflg != UIO_SYSSPACE && vfs_context_proc(ctx)->p_pid == 1) {
-+		char trace_path[128], trace_text[160];
-+		size_t trace_len = 0;
-+		if (copyinstr(path, trace_path, sizeof(trace_path), &trace_len) == 0 && trace_len) {
-+			const char *base = strrchr(trace_path, '/');
-+			snprintf(trace_text, sizeof(trace_text), "%s %d", base ? base + 1 : trace_path, error);
-+			extern void native_gop_text(unsigned line, const char *text);
-+			native_gop_text(10, trace_text);
-+		}
-+	}
+@@ -5121,6 +5121,20 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+ 	return error;
+ }
  
- 	kfree_type(typeof(*__open_data), __open_data);
++extern void native_gop_text(unsigned line, const char *text);
++
++static void
++native_launchd_open_result(user_addr_t path, enum uio_seg segflg, int error)
++{
++	if (segflg == UIO_SYSSPACE || vfs_context_proc(vfs_context_current())->p_pid != 1) return;
++	char trace_path[128], trace_text[160];
++	size_t trace_len = 0;
++	if (copyinstr(path, trace_path, sizeof(trace_path), &trace_len) != 0 || !trace_len) return;
++	const char *base = strrchr(trace_path, '/');
++	snprintf(trace_text, sizeof(trace_text), "%s %d", base ? base + 1 : trace_path, error);
++	native_gop_text(10, trace_text);
++}
++
+ int
+ open(proc_t p, struct open_args *uap, int32_t *retval)
+ {
+@@ -5132,16 +5146,20 @@ int
+ open_nocancel(__unused proc_t p, struct open_nocancel_args *uap,
+     int32_t *retval)
+ {
+-	return openat_internal(vfs_context_current(), uap->path, uap->flags,
++	int error = openat_internal(vfs_context_current(), uap->path, uap->flags,
+ 	           uap->mode, AT_FDCWD, UIO_USERSPACE, retval);
++	native_launchd_open_result(uap->path, UIO_USERSPACE, error);
++	return error;
+ }
  
+ int
+ openat_nocancel(__unused proc_t p, struct openat_nocancel_args *uap,
+     int32_t *retval)
+ {
+-	return openat_internal(vfs_context_current(), uap->path, uap->flags,
++	int error = openat_internal(vfs_context_current(), uap->path, uap->flags,
+ 	           uap->mode, uap->fd, UIO_USERSPACE, retval);
++	native_launchd_open_result(uap->path, UIO_USERSPACE, error);
++	return error;
+ }
+ 
+ int
