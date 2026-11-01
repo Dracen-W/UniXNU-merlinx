@@ -6,10 +6,12 @@ The provider has no hardware access: the iPad7,1 AppleT8011PMGR read returns
 AMFI's ConfigurationSettings check can complete.
 """
 import json
+import os
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+DEVICE = Path(os.environ.get('UNIXNU_DEVICE', ROOT))
 OUT = ROOT / 'build/sheng-platform-power'
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -35,6 +37,8 @@ header += '};\nstatic_assert(sizeof(ApplePMGR)==0x4b8a8,"ApplePMGR ABI size");\n
 (OUT / 'GuardedPMGRSlots.inc').write_text(guards)
 
 source = ROOT / 'kits/merlinx/ShengPlatformPower.cpp'
+if not source.is_file():
+    source = DEVICE / 'package/ShengPlatformPower.cpp'
 record = json.loads((ROOT / 'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOPlatformExpert.cpo.json').read_text().strip().rstrip(','))
 obj = OUT / 'ShengPlatformPower.o'
 command = []
