@@ -256,9 +256,9 @@ jobs:
         with:
           name: merlinx-artifacts-${{ github.run_id }}
           path: |
-            out/merlinx/kernel/kernel.macho
-            out/merlinx/payload/payload.img
-            out/merlinx/boot/boot.img
+            out/merlinx/**/kernel/kernel.macho
+            out/merlinx/**/payload/payload.img
+            out/merlinx/**/boot/boot.img
           if-no-files-found: ignore
           retention-days: 7
 
