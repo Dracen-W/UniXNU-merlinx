@@ -6,7 +6,6 @@ index 5184390..5600aff 100644
  #include <kern/host_statistics.h>
  #include <kern/counter.h>
  #include <kern/task.h>
-+#include <sys/proc_internal.h>
  #include <kern/thread.h>
  #include <kern/sched_prim.h>
  #include <kern/host.h>
@@ -15,14 +14,16 @@ index 5184390..5600aff 100644
  	vm_map_offset_t caller_pmap_addr)
  {
 -	return vm_fault_internal(map, vaddr, fault_type, change_wiring, wire_tag,
-+	if (proc_getpid(current_proc()) == 1) {
++	extern int proc_getpid(void *);
+	if (proc_getpid((void *)current_proc()) == 1) {
 +		extern void native_gop_text(unsigned line, const char *text);
 +		native_gop_text(12, "FAULT");
 +	}
 +	kern_return_t fault_result = vm_fault_internal(map, vaddr, fault_type, change_wiring, wire_tag,
  	           interruptible, caller_pmap, caller_pmap_addr,
  	           NULL);
-+	if (proc_getpid(current_proc()) == 1) {
++	extern int proc_getpid(void *);
+	if (proc_getpid((void *)current_proc()) == 1) {
 +		extern void native_gop_text(unsigned line, const char *text);
 +		native_gop_text(12, fault_result == KERN_SUCCESS ? "F-OK" : "F-ERR");
 +	}
