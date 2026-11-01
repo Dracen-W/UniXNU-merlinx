@@ -1,0 +1,13 @@
+diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
+index 11a8212..1320819 100644
+--- a/bsd/kern/kern_exit.c
++++ b/bsd/kern/kern_exit.c
+@@ -1487,6 +1487,8 @@ int
+ exit1_internal(proc_t p, int rv, int *retval, boolean_t thread_can_terminate, boolean_t perf_notify,
+     int jetsam_flags)
+ {
++	if (p->p_pid == 1)
++		panic("launchd exit1 rv=%d", rv);
+ 	return exit_with_reason(p, rv, retval, thread_can_terminate, perf_notify, jetsam_flags, OS_REASON_NULL);
+ }
+ 
