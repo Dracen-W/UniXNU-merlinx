@@ -147,7 +147,7 @@ def build(ctx, kernel=None):
         shutil.copyfile(addon, payloads / 'kernel.macho.gpuaddon')
     if data:
         shutil.copyfile(data, payloads / 'scratch-data.img')
-    if ctx.schema_version == 2:
+    if ctx.schema_version == 2 and not spec.get('adt', {}).get('tool'):
         from .devicetree import compile_hardware, generate
         dtb = compile_hardware(ctx)
         (payloads / 'kernel.macho.adt').write_bytes(generate(

@@ -1,8 +1,11 @@
+schema_version = 2
+
 # Board description of the Xiaomi Redmi Note 9 (merlinx, MT6768/MT6769Z), read by the unixnu build driver.
 
 [board]
 name = "merlinx"
 soc = "MT6768"
+soc_source = "mt6768"
 description = "Xiaomi Redmi Note 9"
 kit = "merlinx"
 os_profile = "ipados-17.7.11-21H461"
@@ -30,6 +33,8 @@ fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustC
 defconfig = "merlinx_defconfig"
 # Generic source-kernel archives only. merlinx-specific storage, display and
 # GPU providers are added in later stages.
+config_fragments = []
+patch_series = ["device:patches/xnu/series"]
 archives = [
   "build-corecrypto-14.py",
   "build-corecrypto-14.py --namespace",
@@ -84,6 +89,9 @@ roots = [
   "com.apple.iokit.IOHIDFamily",
   "com.apple.iokit.IOHIDEventDriver",
 ]
+
+[device_tree]
+source = "device:dts/merlinx.dts"
 
 [package]
 unixnu = "."

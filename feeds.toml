@@ -69,3 +69,8 @@ kind = "refer"
 git = "https://github.com/apple-oss-distributions/IOStorageFamily.git"
 ref = "main"
 commit = "e45fbe30a7879e0b16e26dddb78538f1b00e0bff"
+
+[[source]]
+name = "mt6768"
+kind = "soc"
+local = "."
