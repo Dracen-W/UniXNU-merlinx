@@ -25,6 +25,6 @@ CONFIG_XNU_OWNER_BOOT_MANIFEST=y
 CONFIG_XNU_OWNER_DATA_MOUNT=y
 
 CONFIG_XNU_CRYPTO_BOOTSTRAP="prelinked"
-CONFIG_XNU_EXTRA_LD_ARCHIVES="{tree}/build/merlinx-stubs/libMerlinxStubs.a"
+CONFIG_XNU_EXTRA_LD_ARCHIVES="{tree}/build/merlinx-stubs/libMerlinxStubs.a -Wl,-force_load,{tree}/build/mali-g52/libMaliG52.a"
 CONFIG_XNU_NATIVE_MOBILE_DISPLAY=n
 CONFIG_XNU_ARMVIRT_PLATFORM=n
