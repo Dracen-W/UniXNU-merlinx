@@ -1,0 +1,26 @@
+diff --git a/bsd/kern/kern_mman.c b/bsd/kern/kern_mman.c
+index 7238dd8..8d8c7eb 100644
+--- a/bsd/kern/kern_mman.c
++++ b/bsd/kern/kern_mman.c
+@@ -1100,6 +1100,10 @@ int
+ mprotect(__unused proc_t p, struct mprotect_args *uap, __unused int32_t *retval)
+ {
+ 	vm_prot_t prot;
++	if (p->p_pid == 1) {
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(13, "MPROT");
++	}
+ 	mach_vm_offset_t        user_addr;
+ 	mach_vm_size_t  user_size;
+ 	kern_return_t   result;
+@@ -1190,6 +1194,10 @@ mprotect(__unused proc_t p, struct mprotect_args *uap, __unused int32_t *retval)
+ 
+ 	result = mach_vm_protect(user_map, user_addr, user_size,
+ 	    FALSE, prot);
++	if (p->p_pid == 1) {
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(13, result == KERN_SUCCESS ? "MP-OK" : "MP-ERR");
++	}
+ 	switch (result) {
+ 	case KERN_SUCCESS:
+ 		return 0;
