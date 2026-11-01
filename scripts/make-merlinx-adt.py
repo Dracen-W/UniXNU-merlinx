@@ -198,7 +198,10 @@ def main():
                                                 GIC_DIST - ARMIO_BASE, GIC_DIST_SIZE,
                                                 GIC_REDIST - ARMIO_BASE, GIC_REDIST_SIZE)),
                             ('redistributor-stride', struct.pack('<Q', 0x40000))]),
-              node('mali', [('compatible', b'mediatek,mali\0arm,mali-valhall\0')])]),
+              ]),
+        # Root-level node: the GPU window is absolute, not inside arm-io's range.
+        node('mali', [('compatible', b'mediatek,mali\0arm,mali-valhall\0'),
+                      ('reg', struct.pack('<4Q', 0, 0x13040000, 0, 0x4000))]),
     ])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(tree)
