@@ -1,0 +1,15 @@
+diff --git a/bsd/pthread/pthread_shims.c b/bsd/pthread/pthread_shims.c
+index 952da76..2da0501 100644
+--- a/bsd/pthread/pthread_shims.c
++++ b/bsd/pthread/pthread_shims.c
+@@ -342,6 +342,10 @@ bsdthread_create(struct proc *p, struct bsdthread_create_args *uap, user_addr_t
+ int
+ bsdthread_register(struct proc *p, struct bsdthread_register_args *uap, __unused int32_t *retval)
+ {
++	if (p->p_pid == 1) {
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(15, "BTREG");
++	}
+ 	kern_return_t kr;
+ 	static_assert(offsetof(struct bsdthread_register_args, threadstart) + sizeof(user_addr_t) ==
+ 	    offsetof(struct bsdthread_register_args, wqthread));
