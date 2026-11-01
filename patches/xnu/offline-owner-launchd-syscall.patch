@@ -1,0 +1,17 @@
+diff --git a/bsd/dev/arm/systemcalls.c b/bsd/dev/arm/systemcalls.c
+index 8a1ec42..7529a90 100644
+--- a/bsd/dev/arm/systemcalls.c
++++ b/bsd/dev/arm/systemcalls.c
+@@ -101,6 +101,12 @@ unix_syscall(
+ 	uthread_reset_proc_refcount(uthread);
+ 
+ 	code = arm_get_syscall_number(state);
++	if (proc->p_pid == 1) {
++		char trace_text[32];
++		snprintf(trace_text, sizeof(trace_text), "SC %u", (unsigned)code);
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(16, trace_text);
++	}
+ 
+ #define unix_syscall_kprintf(x...)      /* kprintf("unix_syscall: " x) */
+ 
