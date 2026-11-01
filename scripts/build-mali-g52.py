@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Build the Mali-G52 kernel service and its pure NativeMali layers."""
+import argparse
 import json
 import subprocess
 from pathlib import Path
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--m2-writes', action='store_true')
+args = parser.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'build/mali-g52'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -35,6 +39,8 @@ for source in sources:
                 '-Wno-deprecated-enum-enum-conversion', '-Wno-unnecessary-virtual-specifier',
                 '-I', str(OUT), '-I', str(SOURCE), '-I', str(SOURCE / 'xnu'),
                 '-I', str(ROOT / '.cache/xnu-work/osfmk')]
+    if args.m2_writes:
+        command.append('-DNATIVE_MALI_M2_WRITES=1')
     (OUT / (source.stem + '-command.json')).write_text(json.dumps(command, indent=2) + '\n')
     result = subprocess.run(command, cwd=record['directory'], stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True)

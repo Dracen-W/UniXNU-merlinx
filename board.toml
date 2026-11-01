@@ -48,7 +48,7 @@ archives = [
   "build-libpthread-kernel.py",
   "build-merlinx-stubs.py",
   "build-merlinx-platform-power.py",
-  "build-mali-g52.py",
+  "build-mali-g52.py --m2-writes",
 ]
 
 [kernel.prelink]
