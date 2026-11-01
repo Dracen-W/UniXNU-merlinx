@@ -1,17 +1,12 @@
 diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
-index 34c921b..207be34 100644
+index 34c921b..0e11214 100644
 --- a/bsd/vfs/vfs_syscalls.c
 +++ b/bsd/vfs/vfs_syscalls.c
-@@ -5089,10 +5089,20 @@ open_dprotected_np(__unused proc_t p, struct open_dprotected_np_args *uap, int32
- }
+@@ -5102,6 +5102,16 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+ 	int cmode;
+ 	int error;
  
- static int
-+extern void native_gop_text(unsigned line, const char *text);
-+
- openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
-     int fd, enum uio_seg segflg, int *retval)
- {
- 	struct filedesc *fdp = &vfs_context_proc(ctx)->p_fd;
++	extern void native_gop_text(unsigned line, const char *text);
 +	if (segflg != UIO_SYSSPACE && vfs_context_proc(ctx)->p_pid == 1) {
 +		char trace_path[128];
 +		size_t trace_len = 0;
@@ -20,6 +15,7 @@ index 34c921b..207be34 100644
 +			native_gop_text(9, base ? base + 1 : trace_path);
 +		}
 +	}
- 	struct {
- 		struct vnode_attr va;
- 		struct nameidata nd;
++
+ 	__open_data = kalloc_type(typeof(*__open_data), Z_WAITOK);
+ 	vap = &__open_data->va;
+ 	ndp = &__open_data->nd;
