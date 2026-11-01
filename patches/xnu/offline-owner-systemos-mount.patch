@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8bba078..d99509d 100644
+index 8bba078..9200400 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
 @@ -98,6 +98,11 @@
@@ -54,7 +54,7 @@ index 8bba078..d99509d 100644
  	return err;
  }
  
-@@ -7013,8 +7026,371 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
+@@ -7013,8 +7026,374 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -120,6 +120,9 @@ index 8bba078..d99509d 100644
 +	volatile uint32_t *fb = (volatile uint32_t *)(uintptr_t)vinfo.v_baseaddr;
 +	uint32_t stride = vinfo.v_rowbytes / 4;
 +	uint32_t x = 32, y = 320 + line * 60;
++	for (uint32_t py = y; py < y + 36 && py < vinfo.v_height; py++)
++		for (uint32_t px = 0; px < vinfo.v_width; px++)
++			fb[(uint64_t)py * stride + px] = 0;
 +	for (; *text; text++) {
 +		unsigned char ch = (unsigned char)*text;
 +		if (ch < 32 || ch > 126) { x += 18; continue; }
@@ -427,7 +430,7 @@ index 8bba078..d99509d 100644
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7462,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
+@@ -7086,7 +7465,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
@@ -436,7 +439,7 @@ index 8bba078..d99509d 100644
  
  	/*
  	 * So that init task is set with uid,gid 0 token
-@@ -7096,7 +7472,10 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
+@@ -7096,7 +7475,10 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
  	set_security_token(p, proc_ucred_unsafe(p));
  
@@ -448,7 +451,7 @@ index 8bba078..d99509d 100644
  }
  
  static const char * init_programs[] = {
-@@ -7148,6 +7527,15 @@ load_init_program(proc_t p)
+@@ -7148,6 +7530,15 @@ load_init_program(proc_t p)
  	mach_vm_size_t map_page_size = vm_map_page_size(map);
  
  	(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);
@@ -464,7 +467,7 @@ index 8bba078..d99509d 100644
  #if CONFIG_MEMORYSTATUS
  	(void) memorystatus_init_at_boot_snapshot();
  #endif /* CONFIG_MEMORYSTATUS */
-@@ -7162,7 +7550,7 @@ load_init_program(proc_t p)
+@@ -7162,7 +7553,7 @@ load_init_program(proc_t p)
  
  		if (is_release_suffix) {
  			printf("load_init_program: attempting to load /sbin/launchd\n");
@@ -473,7 +476,7 @@ index 8bba078..d99509d 100644
  			if (!error) {
  				return;
  			}
-@@ -7173,7 +7561,7 @@ load_init_program(proc_t p)
+@@ -7173,7 +7564,7 @@ load_init_program(proc_t p)
  			strlcat(launchd_path, launchd_suffix, sizeof(launchd_path));
  
  			printf("load_init_program: attempting to load %s\n", launchd_path);
@@ -482,7 +485,7 @@ index 8bba078..d99509d 100644
  			if (!error) {
  				return;
  			} else if (error != ENOENT) {
-@@ -7186,7 +7574,7 @@ load_init_program(proc_t p)
+@@ -7186,7 +7577,7 @@ load_init_program(proc_t p)
  	error = ENOENT;
  	for (i = 0; i < sizeof(init_programs) / sizeof(init_programs[0]); i++) {
  		printf("load_init_program: attempting to load %s\n", init_programs[i]);
