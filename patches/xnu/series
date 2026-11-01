@@ -71,3 +71,5 @@ zzy-staged-system-apps.patch
 zzyb-native-cryptex-os-view.patch
 zzyc-owner-skip-launch-constraints.patch
 zzz-boot-progress.patch
+component:XnuPrelink/patches/xnu-10063.141.1-sparse-index.patch
+component:XnuPrelink/patches/xnu-10063.141.1-security-init.patch
