@@ -31,6 +31,15 @@ source and generates both language editions twice daily. Put board driver
 submodules in this device repository. See the [record guide](https://unixnu.com/porting/records)
 and [UFS guide](https://unixnu.com/porting/ufs).
 
+The catalog renders `porting.toml` only for a format 2 device repository:
+`board.toml` must start with `schema_version = 2`, and `porting.toml` must sit
+beside it at the repository root. A format 1 board keeps its legacy page and
+does not get a generated record, even when `porting.toml` exists. After
+publication, inspect the entry for the repository in UniXNU `devices.toml`:
+`format` must be `2`, `revision` must match the published commit, and
+`record_state` must be `available`. The catalog writes this entry; do not
+hand-maintain the device revision in the device repository.
+
 ```sh
 python3 scripts/porting-record.py check --device ../UniXNU-example
 ```
