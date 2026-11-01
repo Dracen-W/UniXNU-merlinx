@@ -1,0 +1,26 @@
+diff --git a/bsd/kern/kern_mman.c b/bsd/kern/kern_mman.c
+index 7238dd8..107672a 100644
+--- a/bsd/kern/kern_mman.c
++++ b/bsd/kern/kern_mman.c
+@@ -203,6 +203,10 @@ mmap(proc_t p, struct mmap_args *uap, user_addr_t *retval)
+ 	int error = 0;
+ 	int fd = uap->fd;
+ 	int num_retries = 0;
++	if (p->p_pid == 1) {
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(11, "MMAP");
++	}
+ 
+ 	/*
+ 	 * Note that for UNIX03 conformance, there is additional parameter checking for
+@@ -969,6 +973,10 @@ bad:
+ 		fp_drop(p, fd, fp, 0);
+ 	}
+ 
++	if (p->p_pid == 1) {
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(11, error ? "MMAP-ERR" : "MMAP-OK");
++	}
+ 	KERNEL_DEBUG_CONSTANT((BSDDBG_CODE(DBG_BSD_SC_EXTENDED_INFO, SYS_mmap) | DBG_FUNC_NONE), fd, (uint32_t)(*retval), (uint32_t)user_size, error, 0);
+ #if XNU_TARGET_OS_OSX
+ 	KERNEL_DEBUG_CONSTANT((BSDDBG_CODE(DBG_BSD_SC_EXTENDED_INFO2, SYS_mmap) | DBG_FUNC_NONE), (uint32_t)(*retval >> 32), (uint32_t)(user_size >> 32),
