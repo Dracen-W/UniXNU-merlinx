@@ -1,8 +1,20 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8bba078..a79be84 100644
+index 8bba078..3cbbf67 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -183,7 +183,7 @@
+@@ -98,6 +98,11 @@
+ #include <sys/stat.h>
+ #include <sys/uio_internal.h>
+ #include <sys/acct.h>
++
++static void native_gop_text(unsigned line, const char *text);
++#if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
++static int native_owner_data_writable(proc_t p);
++#endif
+ #include <sys/exec.h>
+ #include <sys/kdebug.h>
+ #include <sys/signal.h>
+@@ -183,7 +188,7 @@
  
  #include "kern_exec_internal.h"
  
@@ -11,7 +23,7 @@ index 8bba078..a79be84 100644
  
  #include <mach/exclaves.h>
  
-@@ -5131,6 +5131,14 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5131,6 +5136,14 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -26,7 +38,7 @@ index 8bba078..a79be84 100644
  
  	return err;
  }
-@@ -7013,8 +7021,371 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
+@@ -7013,8 +7026,371 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -308,7 +320,8 @@ index 8bba078..a79be84 100644
 +uint8_t native_owner_data_seed_sha256[32];
 +char native_owner_data_device_path[64];
 +
-+static int
+ static int
+-load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
 +native_owner_data_prepare(proc_t p, user_addr_t scratch)
 +{
 +	uint64_t base = 0, size = 0;
@@ -393,13 +406,12 @@ index 8bba078..a79be84 100644
 +}
 +#endif
 +
- static int
--load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
++static int
 +load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path, user_addr_t envp)
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7457,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
+@@ -7086,7 +7462,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
@@ -408,7 +420,7 @@ index 8bba078..a79be84 100644
  
  	/*
  	 * So that init task is set with uid,gid 0 token
-@@ -7096,7 +7467,10 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
+@@ -7096,7 +7472,10 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
  	set_security_token(p, proc_ucred_unsafe(p));
  
@@ -420,7 +432,7 @@ index 8bba078..a79be84 100644
  }
  
  static const char * init_programs[] = {
-@@ -7148,6 +7522,15 @@ load_init_program(proc_t p)
+@@ -7148,6 +7527,15 @@ load_init_program(proc_t p)
  	mach_vm_size_t map_page_size = vm_map_page_size(map);
  
  	(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);
@@ -436,7 +448,7 @@ index 8bba078..a79be84 100644
  #if CONFIG_MEMORYSTATUS
  	(void) memorystatus_init_at_boot_snapshot();
  #endif /* CONFIG_MEMORYSTATUS */
-@@ -7162,7 +7545,7 @@ load_init_program(proc_t p)
+@@ -7162,7 +7550,7 @@ load_init_program(proc_t p)
  
  		if (is_release_suffix) {
  			printf("load_init_program: attempting to load /sbin/launchd\n");
@@ -445,7 +457,7 @@ index 8bba078..a79be84 100644
  			if (!error) {
  				return;
  			}
-@@ -7173,7 +7556,7 @@ load_init_program(proc_t p)
+@@ -7173,7 +7561,7 @@ load_init_program(proc_t p)
  			strlcat(launchd_path, launchd_suffix, sizeof(launchd_path));
  
  			printf("load_init_program: attempting to load %s\n", launchd_path);
@@ -454,7 +466,7 @@ index 8bba078..a79be84 100644
  			if (!error) {
  				return;
  			} else if (error != ENOENT) {
-@@ -7186,7 +7569,7 @@ load_init_program(proc_t p)
+@@ -7186,7 +7574,7 @@ load_init_program(proc_t p)
  	error = ENOENT;
  	for (i = 0; i < sizeof(init_programs) / sizeof(init_programs[0]); i++) {
  		printf("load_init_program: attempting to load %s\n", init_programs[i]);
