@@ -1,0 +1,13 @@
+diff --git a/osfmk/ipc/mach_msg.c b/osfmk/ipc/mach_msg.c
+index 9930b6a..27e28b5 100644
+--- a/osfmk/ipc/mach_msg.c
++++ b/osfmk/ipc/mach_msg.c
+@@ -830,6 +830,8 @@ mach_msg_return_t
+ mach_msg_overwrite_trap(
+ 	struct mach_msg_overwrite_trap_args *args)
+ {
++	extern void native_gop_text(unsigned line, const char *text);
++	native_gop_text(14, "MSG");
+ #if IPC_HAS_LEGACY_MACH_MSG_TRAP
+ 	mach_msg_option64_t     options = args->option;
+ 	mach_msg_return_t       mr = MACH_MSG_SUCCESS;
