@@ -408,6 +408,16 @@
       {
         "FBLaunchWatchdogScale": 20.0
       }
+    ],
+    [
+      "db/com.apple.xpc.launchd/disabled.plist",
+      0,
+      0,
+      "0644",
+      "plist",
+      {
+        "com.apple.watchdogd": true
+      }
     ]
   ],
   "files_comment": "Preferences iOS writes after its first boot, seeded so it skips them: the data migrators (com.apple.migration LastSystemVersion; without it backboardd reruns them every boot), Setup Assistant, and launch watchdogs scaled for a CPU-rendered display. Values follow HackiOS's userland (iOS 16.5) for build 21H461."
