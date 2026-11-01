@@ -1,21 +1,21 @@
 diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
-index 34c921b..0e11214 100644
+index b84131f..9577286 100644
 --- a/bsd/vfs/vfs_syscalls.c
 +++ b/bsd/vfs/vfs_syscalls.c
-@@ -5102,6 +5102,16 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
- 	int cmode;
- 	int error;
- 
-+	extern void native_gop_text(unsigned line, const char *text);
+@@ -5165,6 +5165,16 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+ #if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
+ 	native_owner_cache_trace(path, segflg, 0, error, retval);
+ #endif
 +	if (segflg != UIO_SYSSPACE && vfs_context_proc(ctx)->p_pid == 1) {
-+		char trace_path[128];
++		char trace_path[128], trace_text[160];
 +		size_t trace_len = 0;
 +		if (copyinstr(path, trace_path, sizeof(trace_path), &trace_len) == 0 && trace_len) {
 +			const char *base = strrchr(trace_path, '/');
-+			native_gop_text(9, base ? base + 1 : trace_path);
++			snprintf(trace_text, sizeof(trace_text), "%s %d", base ? base + 1 : trace_path, error);
++			extern void native_gop_text(unsigned line, const char *text);
++			native_gop_text(10, trace_text);
 +		}
 +	}
-+
- 	__open_data = kalloc_type(typeof(*__open_data), Z_WAITOK);
- 	vap = &__open_data->va;
- 	ndp = &__open_data->nd;
+ 
+ 	kfree_type(typeof(*__open_data), __open_data);
+ 
