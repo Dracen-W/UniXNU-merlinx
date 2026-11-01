@@ -17,6 +17,7 @@ def common():
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument('--config', metavar='FILE', help='local build inputs (default: unixnu.local.toml in the UniXNU checkout)')
     p.add_argument('-D', '--device', metavar='DIR', help='device repository (remembered; or UNIXNU_DEVICE)')
+    p.add_argument('--os', metavar='VERSION', help='OS profile for this run: 17, 26, 27 or a profiles/os directory name (default: the board os_profile)')
     p.add_argument('--out', metavar='DIR', help='output root (default: out/ here, or UNIXNU_OUT)')
     p.add_argument('-j', '--jobs', type=int, help='parallel jobs')
     p.add_argument('--local', metavar='DIR', help='directory laid out like this repository; its drivers, kits, patches, scripts and package are used')

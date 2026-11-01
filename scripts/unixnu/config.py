@@ -145,6 +145,8 @@ class Context:
             raise Error('[board] name must be a directory name')
         self.work = self.out_root / self.name
         self.config_name = None
+        if self.schema_version == 1:
+            self.config_name = self.board.get('kernel', {}).get('defconfig')
         if self.schema_version == 2:
             configurations = state.get('configurations', {})
             selected = (getattr(args, 'name', None) if args.command == 'defconfig' else None)

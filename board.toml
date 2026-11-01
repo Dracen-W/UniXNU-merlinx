@@ -5,6 +5,10 @@ name = "merlinx"
 soc = "MT6768"
 description = "Xiaomi Redmi Note 9"
 kit = "merlinx"
+os_profile = "ipados-17.7.11-21H461"
+
+[components]
+include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink"]
 
 # The target is the unchanged iPad7,1 iPadOS 17.7.11 restore image for the
 # first kernel bring-up. The final phone target can switch to iOS later.
@@ -80,6 +84,13 @@ roots = [
   "com.apple.iokit.IOHIDFamily",
   "com.apple.iokit.IOHIDEventDriver",
 ]
+
+[package]
+unixnu = "."
+boot_partition_bytes = 67108864
+
+[package.defconfig]
+"ipados-17.7.11-21H461" = "merlinx_defconfig"
 
 [payload]
 volume = "MERLINX"

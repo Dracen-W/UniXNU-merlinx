@@ -34,7 +34,7 @@ The UEFI firmware, BootShim, boot menu and 64 MiB p33 boot image work. NativeEmm
 
 The repository does not include a Data seed. The current test image uses a locally generated packed seed; writable `/private/var`, the launchd service graph, userland display ownership and rendering are not verified. Data seed generation helpers are derived from the [UniXNU-fajita scripts](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py) and documented in the device notes.
 
-Device notes, build steps, boot conditions and goals are in [docs/devices/merlinx.md](docs/devices/merlinx.md).
+Device notes, build steps, boot conditions and goals are in [docs/devices/merlinx.md](docs/devices/merlinx.md). The fixed packaging entry point is `scripts/package.sh`; board values are in `[package]` and the structured record is [porting.toml](porting.toml).
 
 ## Documentation
 
