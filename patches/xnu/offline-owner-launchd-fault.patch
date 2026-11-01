@@ -1,8 +1,16 @@
 diff --git a/osfmk/vm/vm_fault.c b/osfmk/vm/vm_fault.c
-index 5184390..ddc57ca 100644
+index 5184390..5600aff 100644
 --- a/osfmk/vm/vm_fault.c
 +++ b/osfmk/vm/vm_fault.c
-@@ -3996,9 +3996,18 @@ vm_fault(
+@@ -77,6 +77,7 @@
+ #include <kern/host_statistics.h>
+ #include <kern/counter.h>
+ #include <kern/task.h>
++#include <sys/proc_internal.h>
+ #include <kern/thread.h>
+ #include <kern/sched_prim.h>
+ #include <kern/host.h>
+@@ -3996,9 +3997,18 @@ vm_fault(
  	pmap_t          caller_pmap,
  	vm_map_offset_t caller_pmap_addr)
  {
