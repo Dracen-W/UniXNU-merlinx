@@ -1,0 +1,13 @@
+diff --git a/osfmk/vm/vm_user.c b/osfmk/vm/vm_user.c
+index 319affa..caf2187 100644
+--- a/osfmk/vm/vm_user.c
++++ b/osfmk/vm/vm_user.c
+@@ -4709,6 +4709,8 @@ mach_vm_remap(
+ 	vm_prot_t               *max_protection,   /* OUT */
+ 	vm_inherit_t            inheritance)
+ {
++	extern void native_gop_text(unsigned line, const char *text);
++	native_gop_text(19, "VMREM");
+ 	return mach_vm_remap_external(target_map, address, size, mask, flags, src_map, memory_address,
+ 	           copy, cur_protection, max_protection, inheritance);
+ }
