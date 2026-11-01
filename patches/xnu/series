@@ -1,6 +1,8 @@
 apple-only-cpu-tunables.patch
 architectural-timer-entry.patch
 armvirt-platform-personality.patch
+component:XnuPrelink/patches/xnu-10063.141.1-security-init.patch
+component:XnuPrelink/patches/xnu-10063.141.1-sparse-index.patch
 cxx-flag-dependencies.patch
 disabled-deferred-reclaim.patch
 external-archive-dependencies.patch
@@ -18,6 +20,7 @@ native-aes-personality.patch
 native-arm-pan.patch
 native-dt-panic-region.patch
 native-lookup-trace.patch
+native-mali-personality.patch
 native-priv-work-interval.patch
 native-quiet-managed-page-report.patch
 native-smp-secondary.patch
@@ -71,5 +74,3 @@ zzy-staged-system-apps.patch
 zzyb-native-cryptex-os-view.patch
 zzyc-owner-skip-launch-constraints.patch
 zzz-boot-progress.patch
-component:XnuPrelink/patches/xnu-10063.141.1-sparse-index.patch
-component:XnuPrelink/patches/xnu-10063.141.1-security-init.patch

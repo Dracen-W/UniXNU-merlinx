@@ -197,7 +197,8 @@ def main():
                             ('reg', struct.pack('<4Q',
                                                 GIC_DIST - ARMIO_BASE, GIC_DIST_SIZE,
                                                 GIC_REDIST - ARMIO_BASE, GIC_REDIST_SIZE)),
-                            ('redistributor-stride', struct.pack('<Q', 0x40000))])]),
+                            ('redistributor-stride', struct.pack('<Q', 0x40000))]),
+              node('mali', [('compatible', b'mediatek,mali\0arm,mali-valhall\0')])]),
     ])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(tree)

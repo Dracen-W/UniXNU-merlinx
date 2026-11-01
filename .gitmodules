@@ -58,3 +58,6 @@
 [submodule "drivers/NativeEmmc"]
 	path = drivers/NativeEmmc
 	url = https://github.com/Dracen-W/NativeEmmc.git
+[submodule "drivers/MaliG52"]
+	path = drivers/MaliG52
+	url = https://github.com/Dracen-W/Mali-G52.git
