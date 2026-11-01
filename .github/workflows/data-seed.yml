@@ -1,0 +1,21 @@
+name: Data seed
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build the Data seed
+        run: python3 scripts/make-data-seed-macos.py --packer drivers/DarwinBoot/Test/packed_ramdisk.py --spec data-seed.json --out .cache/data-seed
+      - name: Upload the Data seed
+        uses: actions/upload-artifact@v4
+        with:
+          name: merlinx-data-seed
+          path: |
+            .cache/data-seed/data-macos.dbr
+            .cache/data-seed/data-macos.json
