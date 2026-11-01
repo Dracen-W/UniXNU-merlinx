@@ -547,5 +547,5 @@ dependencies = ["ArmDTPlatform"]
 source_files = ["xnu/NativeMaliGpuService.cpp", "xnu/NativeMaliXnuSupport.cpp", "NativeMaliService.cpp"]
 runtime_identifiers = ["NativeMaliGpuService", "NativeMaliService.cpp", "NativeMaliABI.h"]
 build_stage = "kernel"
-build = ["build-mali-g52.py --m2-writes"]
+build = ["build-mali-g52.py", "--m2-writes"]
 outputs = ["build/mali-g52/libMaliG52.a"]
