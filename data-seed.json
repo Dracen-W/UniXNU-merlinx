@@ -328,6 +328,36 @@
       0,
       0,
       "0755"
+    ],
+    [
+      "db/com.apple.xpc.launchd",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "db/com.apple.xpc.launchd/disabled",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "db/com.apple.xpc.launchd/system",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "db/com.apple.xpc.launchd/user",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "db/com.apple.xpc.launchd/log",
+      0,
+      0,
+      "0755"
     ]
   ],
   "files": [
