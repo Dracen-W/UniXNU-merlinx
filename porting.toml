@@ -4,7 +4,7 @@ schema_version = 1
 name = "merlinx"
 soc = "MT6768"
 os_profile = "ipados-17.7.11-21H461"
-summary = "Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache, initproc and launchd exec; Data and userland display remain incomplete."
+summary = "Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userland, plus a Mali-G52 kernel probe that reaches M2 voltage and stops at the VSRAM pwrap read; Data persistence, userland display and GPU execution remain incomplete."
 
 [[area]]
 id = "configuration"
@@ -80,10 +80,10 @@ paths = ["drivers/NativeEmmc", "drivers/RamBlock", "patches/xnu/offline-owner-*"
 inputs = ["The eMMC userdata partition, the OS and SystemOS APFS volumes and the local Data seed."]
 configuration = ["NativeEmmc publishes userdata and the OS and SystemOS volumes. The owner path mounts the SystemOS cache carrier and a packed Data seed."]
 procedure = ["Flash the boot image, start XNU and read the ROM/status output."]
-findings = ["NativeEmmc replaces the timed-out UEFI storage path. The kernel mounts SystemOS, executes initproc and reaches launchd exec."]
-completion = ["Root and SystemOS mount, initproc runs and the Data volume is writable with launchd services."]
-limits = ["Data mount is a bring-up test. The NativeEmmc manifest backend and UFS persistence are stubbed, so the Data store is volatile."]
-next_action = ["Verify writable /private/var and the first launchd services, then replace the bring-up stubs."]
+findings = ["NativeEmmc replaces the timed-out UEFI storage path. The kernel mounts SystemOS, executes initproc and reaches launchd, xpcproxy and SpringBoard. The macOS-generated Data seed mounts read-write and disables watchdogd through the launchd disabled plist."]
+completion = ["Root and SystemOS mount, initproc runs, Data is writable and the launchd service graph remains alive."]
+limits = ["Data is a bring-up seed. The NativeEmmc manifest backend and UFS persistence are stubbed, so the Data store is volatile and the full user data set is not present."]
+next_action = ["Verify writable /private/var across reboot, then replace the bring-up stubs and keep watchdogd disabled only for diagnostics."]
 evidence = [
   { kind = "source", reference = "configs/merlinx_defconfig", result = "NativeEmmc, RamBlock and the owner Data path are selected." },
   { kind = "device", reference = "https://github.com/Dracen-W/UniXNU-merlinx", command = "fastboot flash boot <merlinx-boot.img>", revision = "237c204655577c1ed1c9536a4bdc890bb2eaf1cc", result = "SystemOS mounts, initproc runs and launchd exec succeeds." },
@@ -97,10 +97,10 @@ paths = ["patches/xnu/offline-owner-systemos-mount.patch", "scripts/xnu-panic-sc
 inputs = ["The UEFI GOP framebuffer at 1080x2340 and the panning offset observed on the panel."]
 configuration = ["The kernel uses the retained GOP framebuffer for panic and boot-stage text. Userland display ownership is not configured."]
 procedure = ["Flash a diagnostic image and read the status lines from the panel."]
-findings = ["The GOP base, row stride and 32-bit format work. The kernel draws ROOT, VOL, CACHE, EXEC and LAUNCHD."]
+findings = ["The GOP base, row stride and 32-bit format work. The kernel draws ROOT, VOL, CACHE, EXEC, LAUNCHD and Mali diagnostics. Userland reaches SpringBoard, but IOMFB_FDR_loader exits with status 1 and no scanout provider is published."]
 completion = ["The kernel console is visible and userland presentation and backlight control work."]
-limits = ["No userland display provider or renderer is implemented. The scanout starts mid-panel."]
-next_action = ["Add a userland display path after the early service graph is stable."]
+limits = ["No userland display provider or renderer is implemented. IOMFB_FDR_loader fails before GPU display handoff. The scanout starts mid-panel."]
+next_action = ["Trace IOMFB_FDR_loader exit 1 and add the userland display and GPU scanout path after the service graph is stable."]
 evidence = [
   { kind = "source", reference = "patches/xnu/offline-owner-systemos-mount.patch", result = "The GOP status lines and panic screen are linked into the kernel." },
 ]
@@ -121,17 +121,21 @@ evidence = []
 
 [[area]]
 id = "gpu"
-status = "planned"
-components = []
-paths = ["drivers/**", "package/**", "scripts/**"]
-inputs = ["Mali-G52 GPU, GPU firmware and the display composition path."]
-configuration = ["No GPU driver is selected in merlinx_defconfig."]
-procedure = ["Inventory the GPU, firmware and IOMMU resources before implementing a provider."]
-findings = ["The current bring-up uses CPU rendering and has no GPU submission path."]
-completion = ["GPU submissions complete and the display server presents a known frame."]
-limits = ["GPU support is outside the current bring-up scope."]
-next_action = ["Record the GPU and IOMMU inventory when display work starts."]
-evidence = []
+status = "implemented"
+components = ["MaliG52"]
+paths = ["components.toml", "drivers/MaliG52/**", "scripts/build-mali-g52.py", "scripts/make-merlinx-adt.py", "patches/xnu/native-mali-personality.patch", "board.toml", "configs/merlinx_defconfig"]
+inputs = ["Mali-G52 r1p0 at 0x13040000, MT6358 VGPU/VSRAM via pwrap WACS2, and the SPM, INFRACFG, topckgen and mfgcfg clock and power windows."]
+configuration = ["MaliG52 is selected by board.toml and components.toml. The kernel personality matches mediatek,mali. build-mali-g52.py is invoked with --m2-writes so the fixed-voltage, clock-source, four power-domain and clock-gate writes are compiled in. M3, M4 and M6 writes remain off."]
+procedure = ["Build the kernel, build a payload with the Mali diagnostic image, flash it to p33 and read the MALI status lines through the GOP framebuffer."]
+findings = ["The kernel matches the Mali provider and maps all six windows. GICD_PIDR2 reads 0x3b, proving the physical MMIO path. PMIC PSEQ_ID reads 0x0800, proving pwrap reads. The M2 marker reaches M2V, then V1 read VSRAM, and stops before V2, so the first pwrap VSRAM read blocks. GPU_ID has never been read and no GPU job has run."]
+completion = ["M2 completes, GPU_ID reads 0x70021000 with the expected feature and present masks, and a bounded GPU submission returns a completed fence."]
+limits = ["The M2 voltage read path is blocked at VSRAM. M3 reset, M4 MMU enable, M6 jobs and MaliMetal are not yet exercised. The current image has no panic screen because the local UEFI font input was unavailable."]
+next_action = ["Add pwrap read sub-markers inside readRail, compare the VSRAM path with the successful PSEQ_ID read, and consider reusing the M1 rail snapshot instead of re-reading it in setFixed()."]
+evidence = [
+  { kind = "source", reference = "drivers/MaliG52/xnu/NativeMaliGpuService.cpp", result = "The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages." },
+  { kind = "source", reference = "components.toml", result = "The MaliG52 component pins revision 2a422ae and the M2-enabled build recipe." },
+  { kind = "device", reference = "https://github.com/Dracen-W/UniXNU-merlinx", command = "fastboot flash boot out/merlinx-uefi-emmc-mali-vsteps.img", revision = "382ed687ee82860d3276cadd8cd889c7f98ffb0b", result = "The panel shows MALI MATCH, MALI M2P, M2V, then V1 read VSRAM and stops." },
+]
 
 [[area]]
 id = "network"
@@ -201,10 +205,10 @@ paths = ["patches/xnu/offline-owner-cache-*", "scripts/xnu-panic-screen.c", "doc
 inputs = ["Panel output, panic screen and the GOP status lines."]
 configuration = ["The kernel draws ROOT, VOL, CACHE, EXEC and LAUNCHD through the GOP framebuffer. The panic screen renders kernel panics on the panel."]
 procedure = ["Flash a diagnostic image to p33 and read the panel."]
-findings = ["The status lines identified the cache and launchd checkpoints without a UART."]
+findings = ["The status lines identified the cache and launchd checkpoints without a UART. The Mali diagnostics add MATCH, START, RC, M2W, M2P, PMIC, GIC and staged M2 voltage markers. The launchd exit trace showed IOMFB_FDR_loader exit 1 while SpringBoard did not exit."]
 completion = ["Each claimed milestone has a panel checkpoint or a reproducible panic result."]
-limits = ["There is no UART and no userland log transport. Data seed mount success is inferred from the absence of a Data panic."]
-next_action = ["Add a Data writable check and the first launchd service checkpoint."]
+limits = ["There is no UART and no userland log transport. The current Mali image omits the panic screen because the local UEFI font input was unavailable. Data I/O and userland display remain inferred from panel checkpoints."]
+next_action = ["Add pwrap read sub-markers for the VSRAM path and restore the panic screen in the next CI payload build."]
 evidence = [
   { kind = "source", reference = "docs/devices/merlinx.md", result = "The device page records the panel checkpoints and their limits." },
   { kind = "device", reference = "https://github.com/Dracen-W/UniXNU-merlinx", command = "fastboot flash boot <merlinx-boot.img>", revision = "237c204655577c1ed1c9536a4bdc890bb2eaf1cc", result = "The panel shows ROOT, VOL, CACHE, EXEC and LAUNCHD." },
