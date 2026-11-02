@@ -61,3 +61,6 @@
 [submodule "drivers/MaliG52"]
 	path = drivers/MaliG52
 	url = https://github.com/Dracen-W/Mali-G52.git
+[submodule "drivers/MaliMetal"]
+	path = drivers/MaliMetal
+	url = https://github.com/Dracen-W/MaliMetal
