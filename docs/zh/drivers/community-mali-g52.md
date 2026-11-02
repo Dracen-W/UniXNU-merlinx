@@ -20,10 +20,6 @@
 
 bring-up 使用的内核状态行包括 `MALI MATCH`、`MALI START`、`MALI RC`、`MALI M2P`、`MALI PMIC`、`MALI GIC`、`M2V` 到 `M2G`，以及电压子步骤 `V1` 到 `V4` 和 `VOK`。
 
-## 参考实现
-
-IOKit 服务形态、归档布局、ADT 匹配和 bring-up 分层参考官方 [Adreno740](https://github.com/UniXNU/Adreno740) 驱动。Adreno740 只作为集成和 ABI 参考；Mali 的寄存器、电源、时钟和固件行为来自联发科厂商源码与 panfrost，不来自 Adreno。
-
 ## 源码
 
 | 源码 | 用途 |

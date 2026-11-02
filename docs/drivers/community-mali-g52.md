@@ -20,10 +20,6 @@ Community XNU GPU driver for the ARM Mali-G52 in the Xiaomi Redmi Note 9 (merlin
 
 The kernel status lines used during bring-up are `MALI MATCH`, `MALI START`, `MALI RC`, `MALI M2P`, `MALI PMIC`, `MALI GIC`, `M2V` through `M2G`, and the voltage sub-steps `V1` through `V4` and `VOK`.
 
-## Reference implementation
-
-The IOKit service shape, archive layout, ADT matching and bring-up staging follow the official [Adreno740](https://github.com/UniXNU/Adreno740) driver. Adreno740 is used as the integration and ABI reference only. Mali register, power, clock and firmware behavior comes from MediaTek vendor sources and panfrost, not from Adreno.
-
 ## Sources
 
 | Source | Purpose |
