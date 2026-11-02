@@ -84,10 +84,10 @@ jobs:
           (tools / 'docs/drivers').mkdir(parents=True, exist_ok=True)
           (tools / 'docs/zh/drivers').mkdir(parents=True, exist_ok=True)
           for source, target in (
-              (device / 'docs/drivers/community-mali-g52.md', tools / 'docs/drivers/community-mali-g52.md'),
-              (device / 'docs/zh/drivers/community-mali-g52.md', tools / 'docs/zh/drivers/community-mali-g52.md'),
-              (device / 'docs/drivers/community-native-emmc.md', tools / 'docs/drivers/community-native-emmc.md'),
-              (device / 'docs/zh/drivers/community-native-emmc.md', tools / 'docs/zh/drivers/community-native-emmc.md'),
+              (device / 'templates/docs/drivers/community-mali-g52.md', tools / 'docs/drivers/community-mali-g52.md'),
+              (device / 'templates/docs/zh/drivers/community-mali-g52.md', tools / 'docs/zh/drivers/community-mali-g52.md'),
+              (device / 'templates/docs/drivers/community-native-emmc.md', tools / 'docs/drivers/community-native-emmc.md'),
+              (device / 'templates/docs/zh/drivers/community-native-emmc.md', tools / 'docs/zh/drivers/community-native-emmc.md'),
           ):
               if source.is_file():
                   shutil.copyfile(source, target)
@@ -103,8 +103,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           for page, fragment in (
-              (Path('tools/docs/devices/merlinx.md'), Path('device/docs/fragments/merlinx-repositories.md')),
-              (Path('tools/docs/zh/devices/merlinx.md'), Path('device/docs/zh/fragments/merlinx-repositories.md')),
+              (Path('tools/docs/devices/merlinx.md'), Path('device/templates/docs/fragments/merlinx-repositories.md')),
+              (Path('tools/docs/zh/devices/merlinx.md'), Path('device/templates/docs/zh/fragments/merlinx-repositories.md')),
           ):
               text = page.read_text()
               marker = '\n<div v-pre>\n'
