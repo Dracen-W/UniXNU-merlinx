@@ -86,6 +86,8 @@ jobs:
           for source, target in (
               (device / 'docs/drivers/community-mali-g52.md', tools / 'docs/drivers/community-mali-g52.md'),
               (device / 'docs/zh/drivers/community-mali-g52.md', tools / 'docs/zh/drivers/community-mali-g52.md'),
+              (device / 'docs/drivers/community-native-emmc.md', tools / 'docs/drivers/community-native-emmc.md'),
+              (device / 'docs/zh/drivers/community-native-emmc.md', tools / 'docs/zh/drivers/community-native-emmc.md'),
           ):
               if source.is_file():
                   shutil.copyfile(source, target)
@@ -122,8 +124,10 @@ jobs:
           test -s tools/docs/zh/devices/merlinx.md
           test -s tools/docs/.vitepress/device-records/merlinx.toml
           test -s tools/docs/drivers/community-mali-g52.md
+          test -s tools/docs/drivers/community-native-emmc.md
           grep -q 'Mali-G52' tools/docs/devices/merlinx.md
-          grep -q 'Mali-G52' tools/docs/drivers/community-mali-g52.md
+          grep -q 'Adreno740' tools/docs/drivers/community-mali-g52.md
+          grep -q 'SystemOS' tools/docs/drivers/community-native-emmc.md
 
       - name: Sync the device branch before publishing
         run: |
@@ -138,6 +142,8 @@ jobs:
           cp tools/docs/.vitepress/device-records/merlinx.toml device/docs/.vitepress/device-records/merlinx.toml
           cp tools/docs/drivers/community-mali-g52.md device/docs/drivers/community-mali-g52.md
           cp tools/docs/zh/drivers/community-mali-g52.md device/docs/zh/drivers/community-mali-g52.md
+          cp tools/docs/drivers/community-native-emmc.md device/docs/drivers/community-native-emmc.md
+          cp tools/docs/zh/drivers/community-native-emmc.md device/docs/zh/drivers/community-native-emmc.md
 
       - name: Commit and publish the generated documentation
         env:
@@ -148,7 +154,8 @@ jobs:
         run: |
           git -C device add docs/devices/merlinx.md docs/zh/devices/merlinx.md \
             docs/.vitepress/device-records/merlinx.toml \
-            docs/drivers/community-mali-g52.md docs/zh/drivers/community-mali-g52.md
+            docs/drivers/community-mali-g52.md docs/zh/drivers/community-mali-g52.md \
+            docs/drivers/community-native-emmc.md docs/zh/drivers/community-native-emmc.md
           if ! git -C device diff --cached --quiet; then
             git -C device commit -m "docs: refresh generated merlinx documentation"
             git -C device push origin "HEAD:$GITHUB_REF_NAME"
@@ -164,4 +171,6 @@ jobs:
             tools/docs/.vitepress/device-records/merlinx.toml
             tools/docs/drivers/community-mali-g52.md
             tools/docs/zh/drivers/community-mali-g52.md
+            tools/docs/drivers/community-native-emmc.md
+            tools/docs/zh/drivers/community-native-emmc.md
           if-no-files-found: error
