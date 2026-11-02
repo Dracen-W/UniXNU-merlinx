@@ -6,7 +6,7 @@
 
 Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userland, plus a Mali-G52 kernel path that completes M2/M3/M4/M6, reads GPU\_ID and reports MALI RC 0; a GPU job/fence, NativeMali service, PanVK device and userland display remain incomplete.
 
-源记录: [porting.toml](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/porting.toml), `836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a`.
+源记录: [porting.toml](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/porting.toml), `fc4c510c467c2119561a63e5154d19ed541f0e75`.
 
 本页按设备记录自动生成。
 
@@ -73,7 +73,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [Board name, SoC, OS profile, components and package defconfig are declared.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/board.toml)
+- `source`: [Board name, SoC, OS profile, components and package defconfig are declared.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/board.toml)
 - `device`: [The UEFI menu, kernel and payload start on the phone.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
@@ -113,7 +113,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [The device tree reserves the splash region and describes the board.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/dts/merlinx.dts)
+- `source`: [The device tree reserves the splash region and describes the board.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/dts/merlinx.dts)
 - `device`: [UniXNU and DarwinBoot start from p33.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
@@ -153,7 +153,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [ArmCpu and the architectural timer are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/configs/merlinx_defconfig)
+- `source`: [ArmCpu and the architectural timer are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/configs/merlinx_defconfig)
 
 ## 内存与 DMA {#memory}
 
@@ -191,7 +191,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [The generator encodes the DRAM and owned-memory values.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/scripts/make-merlinx-adt.py)
+- `source`: [The generator encodes the DRAM and owned-memory values.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/scripts/make-merlinx-adt.py)
 
 ## 存储与根卷 {#storage}
 
@@ -229,7 +229,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [NativeEmmc, RamBlock and the owner Data path are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/configs/merlinx_defconfig)
+- `source`: [NativeEmmc, RamBlock and the owner Data path are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/configs/merlinx_defconfig)
 - `device`: [SystemOS mounts, initproc runs and launchd exec succeeds.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
@@ -267,7 +267,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [The GOP status lines and panic screen are linked into the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/patches/xnu/offline-owner-systemos-mount.patch)
+- `source`: [The GOP status lines and panic screen are linked into the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/patches/xnu/offline-owner-systemos-mount.patch)
 
 ## 输入 {#input}
 
@@ -345,8 +345,8 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/drivers/MaliG52/xnu/NativeMaliGpuService.cpp)
-- `source`: [The MaliG52 component pins revision be5ed4437fed98def5b9e392f9fa4da790b341e1 and the M2/M3/M4/M6 build recipe.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/components.toml)
+- `source`: [The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/drivers/MaliG52/xnu/NativeMaliGpuService.cpp)
+- `source`: [The MaliG52 component pins revision be5ed4437fed98def5b9e392f9fa4da790b341e1 and the M2/M3/M4/M6 build recipe.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/components.toml)
 - `device`: [MALI RC 0; GPU\_ID 0x74021000; M3 reset, M4 MMU and M6 job-write stages enabled.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot out/merlinx-uefi-emmc-mali-m4m6.img</code>. Revision: `22f479e03dcdf22006415cb22300f509faa75bbf`.
 
@@ -456,7 +456,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [The platform power archive is built for the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/scripts/build-merlinx-platform-power.py)
+- `source`: [The platform power archive is built for the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/scripts/build-merlinx-platform-power.py)
 
 ## 镜像组装 {#packaging}
 
@@ -494,7 +494,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [The fixed packaging entry point is present.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/scripts/package.sh)
+- `source`: [The fixed packaging entry point is present.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/scripts/package.sh)
 
 ## 诊断 {#diagnostics}
 
@@ -530,7 +530,7 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 
 ### 证据
 
-- `source`: [The device page records the panel checkpoints and their limits.](https://github.com/Dracen-W/UniXNU-merlinx/blob/836e1a4137d5d58ded5aaaec36e5194bf4fa1a9a/docs/devices/merlinx.md)
+- `source`: [The device page records the panel checkpoints and their limits.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/docs/devices/merlinx.md)
 - `device`: [The panel shows ROOT, VOL, CACHE, EXEC and LAUNCHD.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
