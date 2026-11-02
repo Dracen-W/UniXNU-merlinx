@@ -6,7 +6,7 @@
 
 Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userland, plus a Mali-G52 kernel path that completes M2/M3/M4/M6, reads GPU\_ID and reports MALI RC 0; a GPU job/fence, NativeMali service, PanVK device and userland display remain incomplete.
 
-Source record: [porting.toml](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/porting.toml), `fc4c510c467c2119561a63e5154d19ed541f0e75`.
+Source record: [porting.toml](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/porting.toml), `bd233b51198173b2a042cfd872bccf9382ecc2e0`.
 
 This page is generated from the device record.
 
@@ -73,7 +73,7 @@ Components: `ArmDTPlatform`, `ArmCpu`, `SoftwareAES`, `DarwinBoot`, `XnuPrelink`
 
 ### Evidence
 
-- `source`: [Board name, SoC, OS profile, components and package defconfig are declared.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/board.toml)
+- `source`: [Board name, SoC, OS profile, components and package defconfig are declared.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/board.toml)
 - `device`: [The UEFI menu, kernel and payload start on the phone.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
@@ -113,7 +113,7 @@ Components: `DarwinBoot`, `XnuPrelink`.
 
 ### Evidence
 
-- `source`: [The device tree reserves the splash region and describes the board.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/dts/merlinx.dts)
+- `source`: [The device tree reserves the splash region and describes the board.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/dts/merlinx.dts)
 - `device`: [UniXNU and DarwinBoot start from p33.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
@@ -153,7 +153,7 @@ Components: `ArmCpu`.
 
 ### Evidence
 
-- `source`: [ArmCpu and the architectural timer are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/configs/merlinx_defconfig)
+- `source`: [ArmCpu and the architectural timer are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/configs/merlinx_defconfig)
 
 ## Memory and DMA {#memory}
 
@@ -191,7 +191,7 @@ Components: `ArmDTPlatform`.
 
 ### Evidence
 
-- `source`: [The generator encodes the DRAM and owned-memory values.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/scripts/make-merlinx-adt.py)
+- `source`: [The generator encodes the DRAM and owned-memory values.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/scripts/make-merlinx-adt.py)
 
 ## Storage and root {#storage}
 
@@ -229,7 +229,7 @@ Components: `NativeEmmc`, `RamBlock`.
 
 ### Evidence
 
-- `source`: [NativeEmmc, RamBlock and the owner Data path are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/configs/merlinx_defconfig)
+- `source`: [NativeEmmc, RamBlock and the owner Data path are selected.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/configs/merlinx_defconfig)
 - `device`: [SystemOS mounts, initproc runs and launchd exec succeeds.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
@@ -267,7 +267,7 @@ Components: `NativeEmmc`, `RamBlock`.
 
 ### Evidence
 
-- `source`: [The GOP status lines and panic screen are linked into the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/patches/xnu/offline-owner-systemos-mount.patch)
+- `source`: [The GOP status lines and panic screen are linked into the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/patches/xnu/offline-owner-systemos-mount.patch)
 
 ## Input {#input}
 
@@ -345,10 +345,12 @@ Components: `MaliG52`, `MaliMetal`.
 
 ### Evidence
 
-- `source`: [The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/drivers/MaliG52/xnu/NativeMaliGpuService.cpp)
-- `source`: [The MaliG52 component pins revision be5ed4437fed98def5b9e392f9fa4da790b341e1 and the M2/M3/M4/M6 build recipe.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/components.toml)
+- `source`: [The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/drivers/MaliG52/xnu/NativeMaliGpuService.cpp)
+- `source`: [The MaliG52 component pins revision be5ed4437fed98def5b9e392f9fa4da790b341e1 and the M2/M3/M4/M6 build recipe.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/components.toml)
 - `device`: [MALI RC 0; GPU\_ID 0x74021000; M3 reset, M4 MMU and M6 job-write stages enabled.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot out/merlinx-uefi-emmc-mali-m4m6.img</code>. Revision: `22f479e03dcdf22006415cb22300f509faa75bbf`.
+- `host`: [All five jobs passed, including the full mesa-panvk compile of the 0001-0006 patch series.](https://github.com/Dracen-W/MaliMetal/actions/runs/41444900463)
+  Command: <code>tests/run.sh; meson setup build-vk ...; ninja -C build-vk src/panfrost/vulkan/libvulkan_panfrost.so</code>. Revision: `df45b652c8d321c4a98d4195c8eb47896c62072d`.
 
 ## Network {#network}
 
@@ -456,7 +458,7 @@ Collect evidence using the next action.
 
 ### Evidence
 
-- `source`: [The platform power archive is built for the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/scripts/build-merlinx-platform-power.py)
+- `source`: [The platform power archive is built for the kernel.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/scripts/build-merlinx-platform-power.py)
 
 ## Image assembly {#packaging}
 
@@ -494,7 +496,7 @@ Components: `DarwinBoot`, `XnuPrelink`.
 
 ### Evidence
 
-- `source`: [The fixed packaging entry point is present.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/scripts/package.sh)
+- `source`: [The fixed packaging entry point is present.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/scripts/package.sh)
 
 ## Diagnostics {#diagnostics}
 
@@ -530,7 +532,7 @@ Components: `DarwinBoot`, `XnuPrelink`.
 
 ### Evidence
 
-- `source`: [The device page records the panel checkpoints and their limits.](https://github.com/Dracen-W/UniXNU-merlinx/blob/fc4c510c467c2119561a63e5154d19ed541f0e75/docs/devices/merlinx.md)
+- `source`: [The device page records the panel checkpoints and their limits.](https://github.com/Dracen-W/UniXNU-merlinx/blob/bd233b51198173b2a042cfd872bccf9382ecc2e0/docs/devices/merlinx.md)
 - `device`: [The panel shows ROOT, VOL, CACHE, EXEC and LAUNCHD.](https://github.com/Dracen-W/UniXNU-merlinx)
   Command: <code>fastboot flash boot &lt;merlinx-boot.img&gt;</code>. Revision: `237c204655577c1ed1c9536a4bdc890bb2eaf1cc`.
 
