@@ -96,10 +96,24 @@ jobs:
         run: python3 scripts/sync-devices.py --render
         working-directory: tools
 
+      - name: Inject the device repository table
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for page, fragment in (
+              (Path('tools/docs/devices/merlinx.md'), Path('device/docs/fragments/merlinx-repositories.md')),
+              (Path('tools/docs/zh/devices/merlinx.md'), Path('device/docs/zh/fragments/merlinx-repositories.md')),
+          ):
+              text = page.read_text()
+              marker = '\n<div v-pre>\n'
+              assert marker in text
+              page.write_text(text.replace(marker, '\n' + fragment.read_text().strip() + '\n' + marker, 1))
+          PY
+
       - name: Build the documentation site
         run: |
           npm ci
-          npm run build
+          npm run build --ignore-scripts
         working-directory: tools/docs
 
       - name: Verify generated pages
