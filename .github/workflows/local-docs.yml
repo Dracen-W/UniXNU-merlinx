@@ -81,16 +81,6 @@ jobs:
           snapshot = tools / 'docs/.vitepress/device-records' / f'{name}.toml'
           snapshot.parent.mkdir(parents=True, exist_ok=True)
           shutil.copyfile(device / 'porting.toml', snapshot)
-          (tools / 'docs/drivers').mkdir(parents=True, exist_ok=True)
-          (tools / 'docs/zh/drivers').mkdir(parents=True, exist_ok=True)
-          for source, target in (
-              (device / 'templates/docs/drivers/community-mali-g52.md', tools / 'docs/drivers/community-mali-g52.md'),
-              (device / 'templates/docs/zh/drivers/community-mali-g52.md', tools / 'docs/zh/drivers/community-mali-g52.md'),
-              (device / 'templates/docs/drivers/community-native-emmc.md', tools / 'docs/drivers/community-native-emmc.md'),
-              (device / 'templates/docs/zh/drivers/community-native-emmc.md', tools / 'docs/zh/drivers/community-native-emmc.md'),
-          ):
-              if source.is_file():
-                  shutil.copyfile(source, target)
           print('catalog entry:', name, os.environ['DEVICE_REVISION'])
           PY
 
@@ -98,24 +88,10 @@ jobs:
         run: python3 scripts/sync-devices.py --render
         working-directory: tools
 
-      - name: Inject the device repository table
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          for page, fragment in (
-              (Path('tools/docs/devices/merlinx.md'), Path('device/templates/docs/fragments/merlinx-repositories.md')),
-              (Path('tools/docs/zh/devices/merlinx.md'), Path('device/templates/docs/zh/fragments/merlinx-repositories.md')),
-          ):
-              text = page.read_text()
-              marker = '\n<div v-pre>\n'
-              assert marker in text
-              page.write_text(text.replace(marker, '\n' + fragment.read_text().strip() + '\n' + marker, 1))
-          PY
-
       - name: Build the documentation site
         run: |
           npm ci
-          npm run build --ignore-scripts
+          npm run build
         working-directory: tools/docs
 
       - name: Verify generated pages
@@ -123,27 +99,18 @@ jobs:
           test -s tools/docs/devices/merlinx.md
           test -s tools/docs/zh/devices/merlinx.md
           test -s tools/docs/.vitepress/device-records/merlinx.toml
-          test -s tools/docs/drivers/community-mali-g52.md
-          test -s tools/docs/drivers/community-native-emmc.md
-          grep -q 'Mali-G52' tools/docs/devices/merlinx.md
-          grep -q 'Adreno740' tools/docs/drivers/community-mali-g52.md
-          grep -q 'SystemOS' tools/docs/drivers/community-native-emmc.md
 
       - name: Sync the device branch before publishing
         run: |
           git -C device fetch origin "$GITHUB_REF_NAME"
           git -C device rebase "origin/$GITHUB_REF_NAME"
 
-      - name: Copy generated documentation into the device repository
+      - name: Copy the official generated documentation
         run: |
           mkdir -p device/docs/.vitepress/device-records
           cp tools/docs/devices/merlinx.md device/docs/devices/merlinx.md
           cp tools/docs/zh/devices/merlinx.md device/docs/zh/devices/merlinx.md
           cp tools/docs/.vitepress/device-records/merlinx.toml device/docs/.vitepress/device-records/merlinx.toml
-          cp tools/docs/drivers/community-mali-g52.md device/docs/drivers/community-mali-g52.md
-          cp tools/docs/zh/drivers/community-mali-g52.md device/docs/zh/drivers/community-mali-g52.md
-          cp tools/docs/drivers/community-native-emmc.md device/docs/drivers/community-native-emmc.md
-          cp tools/docs/zh/drivers/community-native-emmc.md device/docs/zh/drivers/community-native-emmc.md
 
       - name: Commit and publish the generated documentation
         env:
@@ -152,10 +119,8 @@ jobs:
           GIT_COMMITTER_NAME: UniXNU Docs
           GIT_COMMITTER_EMAIL: docs@unixnu.com
         run: |
-          git -C device add docs/devices/merlinx.md docs/zh/devices/merlinx.md \
-            docs/.vitepress/device-records/merlinx.toml \
-            docs/drivers/community-mali-g52.md docs/zh/drivers/community-mali-g52.md \
-            docs/drivers/community-native-emmc.md docs/zh/drivers/community-native-emmc.md
+          git -C device add docs/devices/merlinx.md docs/zh/devices/merlinx.md \\
+            docs/.vitepress/device-records/merlinx.toml
           if ! git -C device diff --cached --quiet; then
             git -C device commit -m "docs: refresh generated merlinx documentation"
             git -C device push origin "HEAD:$GITHUB_REF_NAME"
@@ -169,8 +134,4 @@ jobs:
             tools/docs/devices/merlinx.md
             tools/docs/zh/devices/merlinx.md
             tools/docs/.vitepress/device-records/merlinx.toml
-            tools/docs/drivers/community-mali-g52.md
-            tools/docs/zh/drivers/community-mali-g52.md
-            tools/docs/drivers/community-native-emmc.md
-            tools/docs/zh/drivers/community-native-emmc.md
           if-no-files-found: error
