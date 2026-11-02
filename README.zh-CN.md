@@ -29,8 +29,11 @@
 | [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | 板级配置、内核补丁、payload 和启动镜像 |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | Mu-Silicium 固件、修复后的 BootShim 和 GOP 启动菜单 |
 | [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | userdata 和 SystemOS 路径使用的原生 eMMC 块驱动 |
+| [UniXNU-MT6768-common](https://github.com/Dracen-W/UniXNU-MT6768-common) | 共享 MT6768 SoC DTS、配置和补丁 |
+| [Mali-G52](https://github.com/Dracen-W/Mali-G52) | Mali-G52 内核服务和 NativeMali ABI |
+| [MaliMetal](https://github.com/Dracen-W/MaliMetal) | 基于 PanVK 和 NativeMali 服务的 Metal 前端 |
 
-UEFI 固件、BootShim、启动菜单和 64 MiB p33 启动镜像可用。NativeEmmc 枚举 userdata 和 SystemOS，XNU 到达根和 SystemOS cache，4 KiB 内核使用 `CONFIG_XNU_NATIVE_CS_HASH_CACHE` 处理原版 16 KiB CodeDirectory。initproc 和 launchd exec 完成。内核通过 GOP framebuffer 绘制 `ROOT`、`VOL`、`CACHE`、`EXEC` 和 `LAUNCHD` 状态行。
+UEFI 固件、BootShim、启动菜单和 64 MiB p33 启动镜像可用。NativeEmmc 枚举 userdata 和 SystemOS，XNU 到达根和 SystemOS cache，4 KiB 内核使用 `CONFIG_XNU_NATIVE_CS_HASH_CACHE` 处理原版 16 KiB CodeDirectory。initproc 和 launchd exec 完成。内核通过 GOP framebuffer 绘制 `ROOT`、`VOL`、`CACHE`、`EXEC` 和 `LAUNCHD` 状态行。Mali-G52 内核路径已完成 M2/M3/M4/M6，输出 `MALI RC 0` 并读到 GPU_ID `0x74021000`；GPU job/fence、PanVK 设备、MaliMetal 发布和用户态 scanout 尚未运行。
 
 仓库不包含 Data seed。当前测试镜像使用本地生成的 packed seed；可写 `/private/var`、launchd 服务图、用户态显示接管和渲染尚未验证。Data seed 生成脚本参考 [UniXNU-fajita](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py)，并在设备说明中记录。
 

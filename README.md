@@ -29,8 +29,11 @@ This fork carries the independent Xiaomi Redmi Note 9 (merlinx, MT6768/MT6769Z) 
 | [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | Board configuration, kernel patches, payload and boot image |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | Mu-Silicium firmware, fixed BootShim and GOP boot menu |
 | [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | Native eMMC block driver used by the userdata and SystemOS path |
+| [UniXNU-MT6768-common](https://github.com/Dracen-W/UniXNU-MT6768-common) | Shared MT6768 SoC DTS, config and patches |
+| [Mali-G52](https://github.com/Dracen-W/Mali-G52) | Mali-G52 kernel service and NativeMali ABI |
+| [MaliMetal](https://github.com/Dracen-W/MaliMetal) | Metal frontend over PanVK and the NativeMali service |
 
-The UEFI firmware, BootShim, boot menu and 64 MiB p33 boot image work. NativeEmmc enumerates userdata and SystemOS, XNU reaches the root and SystemOS cache, and the 4 KiB kernel handles the original 16 KiB CodeDirectory with `CONFIG_XNU_NATIVE_CS_HASH_CACHE`. initproc and launchd exec complete. The kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer.
+The UEFI firmware, BootShim, boot menu and 64 MiB p33 boot image work. NativeEmmc enumerates userdata and SystemOS, XNU reaches the root and SystemOS cache, and the 4 KiB kernel handles the original 16 KiB CodeDirectory with `CONFIG_XNU_NATIVE_CS_HASH_CACHE`. initproc and launchd exec complete. The kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer. The Mali-G52 kernel path now completes M2/M3/M4/M6, reports `MALI RC 0` and reads GPU_ID `0x74021000`; no GPU job/fence, PanVK device, MaliMetal publish or userland scanout has run yet.
 
 The repository does not include a Data seed. The current test image uses a locally generated packed seed; writable `/private/var`, the launchd service graph, userland display ownership and rendering are not verified. Data seed generation helpers are derived from the [UniXNU-fajita scripts](https://github.com/johnpanos/UniXNU-fajita/blob/main/scripts/make-data-seed-linux.py) and documented in the device notes.
 
