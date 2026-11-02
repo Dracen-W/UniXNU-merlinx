@@ -1,0 +1,123 @@
+name: Local device docs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out device repository
+        uses: actions/checkout@v4
+        with:
+          path: device
+          submodules: recursive
+
+      - name: Check out UniXNU tools
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: main
+          path: tools
+
+      - name: Install Python and Node
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/docs/package-lock.json
+
+      - name: Validate the local porting record
+        run: python3 device/scripts/porting-record.py check --device device
+
+      - name: Prepare the local catalog and record snapshot
+        env:
+          DEVICE_REPOSITORY: ${{ github.repository }}
+          DEVICE_REVISION: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          import tomllib
+          from pathlib import Path
+
+          device = Path('device')
+          tools = Path('tools')
+          board = tomllib.loads((device / 'board.toml').read_text())
+          record = tomllib.loads((device / 'porting.toml').read_text())
+          identity = board['board']
+          name = identity['name']
+          entry = {
+              'name': name,
+              'repository': os.environ['DEVICE_REPOSITORY'],
+              'title': f"{identity.get('description', name)} ({name})",
+              'title_zh': f"{identity.get('description', name)}（{name}）",
+              'format': 2,
+              'legacy_page': 'link',
+              'soc': str(identity['soc']),
+              'summary': record['device']['summary'],
+              'revision': os.environ['DEVICE_REVISION'],
+              'board': name,
+              'os_profile': str(identity['os_profile']),
+              'components': board['components']['include'],
+              'record_state': 'available',
+          }
+          tools.joinpath('devices.toml').write_text(
+              'schema_version = 2\n\n[[device]]\n'
+              + ''.join(f'{key} = {json.dumps(value, ensure_ascii=False)}\n'
+                        for key, value in entry.items()))
+          snapshot = tools / 'docs/.vitepress/device-records' / f'{name}.toml'
+          snapshot.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copyfile(device / 'porting.toml', snapshot)
+          (tools / 'docs/drivers').mkdir(parents=True, exist_ok=True)
+          (tools / 'docs/zh/drivers').mkdir(parents=True, exist_ok=True)
+          for source, target in (
+              (device / 'docs/drivers/community-mali-g52.md', tools / 'docs/drivers/community-mali-g52.md'),
+              (device / 'docs/zh/drivers/community-mali-g52.md', tools / 'docs/zh/drivers/community-mali-g52.md'),
+          ):
+              if source.is_file():
+                  shutil.copyfile(source, target)
+          print('catalog entry:', name, os.environ['DEVICE_REVISION'])
+          PY
+
+      - name: Render with the upstream catalog renderer
+        run: python3 scripts/sync-devices.py --render
+        working-directory: tools
+
+      - name: Build the documentation site
+        run: |
+          npm ci
+          npm run build
+        working-directory: tools/docs
+
+      - name: Verify generated pages
+        run: |
+          test -s tools/docs/devices/merlinx.md
+          test -s tools/docs/zh/devices/merlinx.md
+          test -s tools/docs/.vitepress/device-records/merlinx.toml
+          test -s tools/docs/drivers/community-mali-g52.md
+          grep -q 'Mali-G52' tools/docs/devices/merlinx.md
+          grep -q 'Mali-G52' tools/docs/drivers/community-mali-g52.md
+
+      - name: Upload generated documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: merlinx-docs-${{ github.run_id }}
+          path: |
+            tools/docs/devices/merlinx.md
+            tools/docs/zh/devices/merlinx.md
+            tools/docs/.vitepress/device-records/merlinx.toml
+            tools/docs/drivers/community-mali-g52.md
+            tools/docs/zh/drivers/community-mali-g52.md
+          if-no-files-found: error
