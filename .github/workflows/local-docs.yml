@@ -119,7 +119,7 @@ jobs:
           GIT_COMMITTER_NAME: UniXNU Docs
           GIT_COMMITTER_EMAIL: docs@unixnu.com
         run: |
-          git -C device add docs/devices/merlinx.md docs/zh/devices/merlinx.md \\
+          git -C device add docs/devices/merlinx.md docs/zh/devices/merlinx.md \
             docs/.vitepress/device-records/merlinx.toml
           if ! git -C device diff --cached --quiet; then
             git -C device commit -m "docs: refresh generated merlinx documentation"
