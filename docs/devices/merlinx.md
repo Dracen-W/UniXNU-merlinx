@@ -26,6 +26,17 @@ This page is generated from the device record.
 | [Image assembly](#packaging) | `implemented` |
 | [Diagnostics](#diagnostics) | `device-verified` |
 
+## Related repositories {#repositories}
+
+| Repository | Role |
+| --- | --- |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | device |
+| [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | firmware |
+| [UniXNU-MT6768-common](https://github.com/Dracen-W/UniXNU-MT6768-common) | soc |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | storage |
+| [Mali-G52](https://github.com/Dracen-W/Mali-G52) | gpu-kernel |
+| [MaliMetal](https://github.com/Dracen-W/MaliMetal) | gpu-userland |
+
 ## Configuration {#configuration}
 
 `device-verified`

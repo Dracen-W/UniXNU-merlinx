@@ -26,6 +26,17 @@ Redmi Note 9 bring-up: UEFI boot, native eMMC, SystemOS cache and launchd userla
 | [镜像组装](#packaging) | `implemented` |
 | [诊断](#diagnostics) | `device-verified` |
 
+## 相关仓库 {#repositories}
+
+| 仓库 | 用途 |
+| --- | --- |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | device |
+| [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | firmware |
+| [UniXNU-MT6768-common](https://github.com/Dracen-W/UniXNU-MT6768-common) | soc |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | storage |
+| [Mali-G52](https://github.com/Dracen-W/Mali-G52) | gpu-kernel |
+| [MaliMetal](https://github.com/Dracen-W/MaliMetal) | gpu-userland |
+
 ## 配置 {#configuration}
 
 `device-verified`

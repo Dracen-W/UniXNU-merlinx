@@ -112,6 +112,9 @@ jobs:
           cp tools/docs/zh/devices/merlinx.md device/docs/zh/devices/merlinx.md
           cp tools/docs/.vitepress/device-records/merlinx.toml device/docs/.vitepress/device-records/merlinx.toml
 
+      - name: Add the related-repository table
+        run: python3 device/scripts/render-repositories.py device
+
       - name: Commit and publish the generated documentation
         env:
           GIT_AUTHOR_NAME: UniXNU Docs
