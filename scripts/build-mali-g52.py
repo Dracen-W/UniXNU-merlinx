@@ -7,6 +7,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--m2-writes', action='store_true')
+parser.add_argument('--m3-writes', action='store_true')
 args = parser.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'build/mali-g52'
@@ -41,6 +42,8 @@ for source in sources:
                 '-I', str(ROOT / '.cache/xnu-work/osfmk')]
     if args.m2_writes:
         command.append('-DNATIVE_MALI_M2_WRITES=1')
+    if args.m3_writes:
+        command.append('-DNATIVE_MALI_M3_WRITES=1')
     (OUT / (source.stem + '-command.json')).write_text(json.dumps(command, indent=2) + '\n')
     result = subprocess.run(command, cwd=record['directory'], stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True)
