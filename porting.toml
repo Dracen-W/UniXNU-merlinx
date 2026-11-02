@@ -145,6 +145,7 @@ evidence = [
   { kind = "source", reference = "drivers/MaliG52/xnu/NativeMaliGpuService.cpp", result = "The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages." },
   { kind = "source", reference = "components.toml", result = "The MaliG52 component pins revision be5ed4437fed98def5b9e392f9fa4da790b341e1 and the M2/M3/M4/M6 build recipe." },
   { kind = "device", reference = "https://github.com/Dracen-W/UniXNU-merlinx", command = "fastboot flash boot out/merlinx-uefi-emmc-mali-m4m6.img", revision = "22f479e03dcdf22006415cb22300f509faa75bbf", result = "MALI RC 0; GPU_ID 0x74021000; M3 reset, M4 MMU and M6 job-write stages enabled." },
+  { kind = "host", reference = "https://github.com/Dracen-W/MaliMetal/actions/runs/41444900463", command = "tests/run.sh; meson setup build-vk ...; ninja -C build-vk src/panfrost/vulkan/libvulkan_panfrost.so", revision = "df45b652c8d321c4a98d4195c8eb47896c62072d", result = "All five jobs passed, including the full mesa-panvk compile of the 0001-0006 patch series." },
 ]
 
 [[area]]
