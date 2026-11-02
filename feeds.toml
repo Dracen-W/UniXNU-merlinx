@@ -73,4 +73,5 @@ commit = "e45fbe30a7879e0b16e26dddb78538f1b00e0bff"
 [[source]]
 name = "mt6768"
 kind = "soc"
-local = "."
+git = "https://github.com/Dracen-W/UniXNU-MT6768-common"
+commit = "f5e29183dda414ac92d710b3568ce40121e573bc"
