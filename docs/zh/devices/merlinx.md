@@ -4,7 +4,7 @@ merlinx 是搭载联发科 MT6768/MT6769Z SoC 的 Redmi Note 9。下面的移植
 
 | 仓库 | 维护者 | 状态 |
 | --- | --- | --- |
-| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | XNU 挂载 SystemOS，initproc 已运行，launchd exec 成功；Data 卷和用户态服务待处理 |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | XNU 挂载 SystemOS，initproc 和 launchd 已运行，Data seed 已读写挂载，Mali-G52 内核探针到达 M2 电压；显示和 GPU 执行待处理 |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | [Dracen-W](https://github.com/Dracen-W) | Mu-Silicium 移植、修复后的 BootShim 和自定义 GOP 启动菜单 |
 | [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | userdata 和 SystemOS 路径使用的原生 eMMC 块驱动 |
 
@@ -20,8 +20,9 @@ merlinx 是搭载联发科 MT6768/MT6769Z SoC 的 Redmi Note 9。下面的移植
 | 存储 | NativeEmmc 枚举 userdata 分区；OS 和 SystemOS 卷出现；owner 路径挂载 SystemOS cache carrier |
 | UniXNU 和 XNU | XNU 到达根和 SystemOS cache；4 KiB 内核使用 `CONFIG_XNU_NATIVE_CS_HASH_CACHE` 处理原版 16 KiB CodeDirectory；initproc 和 launchd exec 完成 |
 | 内核显示 | 内核通过 GOP framebuffer 绘制 `ROOT`、`VOL`、`CACHE`、`EXEC` 和 `LAUNCHD` 状态行 |
-| Data | 未验证；仓库不包含 Data seed，因此可写 `/private/var` 和 launchd 服务图待验证 |
-| 用户态 | 已确认 launchd exec；用户态服务、显示接管和渲染尚未验证 |
+| Data | macOS 生成的 seed 已读写挂载；通过 launchd disabled plist 禁用 watchdogd；重启后持久化尚未验证 |
+| 用户态 | launchd、xpcproxy 和 SpringBoard 已启动；`IOMFB_FDR_loader` 以状态 1 退出，显示接管和渲染尚未验证 |
+| Mali-G52 | 内核匹配 `mediatek,mali`，映射六个窗口，读到 GICD_PIDR2 `0x3b` 和 PMIC PSEQ_ID `0x0800`，随后停在 M2 的 VSRAM pwrap 读取，尚未读到 GPU_ID |
 | 显示收尾 | 可见扫描输出从屏幕中部开始；菜单整体偏下，上半屏可能残留 OEM logo |
 
 当前 PMIC 按键掩码同时覆盖电源键和 home/音量上键，所以音量上和电源键都会选中菜单项。两个键都能正常使用；这是当前映射，不是最终的独立按键布局。
@@ -42,7 +43,7 @@ cd UniXNU-merlinx
 ./unixnu build bootimg --uefi ../uefi-merlinx --dtb <merlinx.dtb>
 ```
 
-payload 步骤使用设备仓库声明的板级 trust cache、平台身份和其他输入；这些输入不随仓库分发。当前镜像不包含 Data seed。
+payload 步骤使用设备仓库声明的板级 trust cache、平台身份和其他输入；这些输入不随仓库分发。当前 bring-up 镜像还包含本地打包的 Data seed。
 
 固件卷位于 `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`。启动镜像把该固件卷、裁剪后的设备树和 ramdisk 与修复后的 BootShim 打包在一起，再补齐到 p33 所需的 64 MiB。
 
@@ -94,11 +95,12 @@ fastboot reboot
 
 ## 目标
 
-1. 挂载 Data seed，并验证 `/private/var` 可写。
-2. 确认 launchd 首先启动的服务，并找出第一个缺失的服务或资源。
-3. 在早期服务图稳定后加入用户态显示路径。当前没有用户态渲染。
-4. 清理屏幕偏移、背景和 logo 交接。
-5. 在不依赖 UART 的前提下加入持久化日志或恢复路径。
+1. 修复 Mali-G52 M2 的 VSRAM pwrap 读取，然后读取 `GPU_ID = 0x70021000`。
+2. 排查 `IOMFB_FDR_loader` 状态 1，并加入用户态显示和 GPU scanout。
+3. 持久化 Data seed，并验证重启后 `/private/var` 仍可写。
+4. 确认其余 SpringBoard 和 launchd 服务。
+5. 清理屏幕偏移、背景和 logo 交接。
+6. 在不依赖 UART 的前提下加入持久化日志或恢复路径。
 
 这台设备没有 UART。早期启动证据来自屏幕显示，以及向 p33 刷入测试镜像。
 

@@ -4,7 +4,7 @@ merlinx is the Xiaomi Redmi Note 9 with the MediaTek MT6768/MT6769Z SoC. The por
 
 | Repository | Maintainer | State |
 | --- | --- | --- |
-| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | XNU mounts SystemOS, initproc runs, and launchd exec succeeds; Data volume and userland services are pending |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | [Dracen-W](https://github.com/Dracen-W) | XNU mounts SystemOS, initproc and launchd run, the Data seed mounts read-write, and the Mali-G52 kernel probe reaches M2 voltage; display and GPU execution are pending |
 | [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | [Dracen-W](https://github.com/Dracen-W) | Mu-Silicium port, fixed BootShim and custom GOP boot menu |
 | [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | [Dracen-W](https://github.com/Dracen-W) | Native eMMC block driver used by the userdata and SystemOS path |
 
@@ -20,8 +20,9 @@ merlinx is the Xiaomi Redmi Note 9 with the MediaTek MT6768/MT6769Z SoC. The por
 | Storage | NativeEmmc enumerates the userdata partition; the OS and SystemOS volumes appear; the owner path mounts the SystemOS cache carrier |
 | UniXNU and XNU | XNU reaches the root and the SystemOS cache; the 4 KiB kernel uses `CONFIG_XNU_NATIVE_CS_HASH_CACHE` for the original 16 KiB CodeDirectory; initproc and launchd exec complete |
 | Kernel display | the kernel draws `ROOT`, `VOL`, `CACHE`, `EXEC` and `LAUNCHD` status lines through the GOP framebuffer |
-| Data | not verified; the repository does not include a Data seed, so writable `/private/var` and the launchd service graph are pending |
-| Userland | launchd exec is confirmed; userland services, display ownership and rendering are not verified |
+| Data | the macOS-generated seed mounts read-write; watchdogd is disabled through the launchd disabled plist; persistence across reboot is not verified |
+| Userland | launchd, xpcproxy and SpringBoard start; `IOMFB_FDR_loader` exits with status 1, so display ownership and rendering are not verified |
+| Mali-G52 | the kernel matches `mediatek,mali`, maps the six windows, reads GICD_PIDR2 `0x3b` and PMIC PSEQ_ID `0x0800`, then stops at the M2 VSRAM pwrap read before GPU_ID |
 | Display polish | scanout starts mid-panel; the menu is shifted down and the OEM logo can remain in the upper half |
 
 Volume-up and power both select a menu entry because the PMIC key mask covers both the power and home/volume-up bits. Both keys work; this is the current mapping, not the final dedicated key layout.
@@ -42,7 +43,7 @@ cd UniXNU-merlinx
 ./unixnu build bootimg --uefi ../uefi-merlinx --dtb <merlinx.dtb>
 ```
 
-The payload step consumes the board trust cache, platform identity and other inputs described by the device repository. These inputs are not distributed. The Data seed is not part of the current image.
+The payload step consumes the board trust cache, platform identity and other inputs described by the device repository. These inputs are not distributed. The current bring-up image also carries the local packed Data seed.
 
 The firmware volume is `Build/merlinxPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd`. The boot image wraps that volume with the fixed BootShim, the trimmed device tree and the ramdisk, then pads the result to 64 MiB for p33.
 
@@ -94,11 +95,12 @@ The panel is an FT8719 at 1080x2340. The visible UEFI scanout starts partway dow
 
 ## Goals
 
-1. Mount a Data seed and prove that `/private/var` is writable.
-2. Confirm the first launchd services and identify the first missing service or resource.
-3. Add a userland display path after the early service graph is stable. Userland rendering is not implemented.
-4. Clean up the panel offset, background and logo handoff.
-5. Add a persistent log or recovery path without relying on UART.
+1. Fix the Mali-G52 M2 VSRAM pwrap read, then read `GPU_ID = 0x70021000`.
+2. Trace `IOMFB_FDR_loader` exit 1 and add userland display and GPU scanout.
+3. Persist the Data seed and verify writable `/private/var` across reboot.
+4. Confirm the remaining SpringBoard and launchd services.
+5. Clean up the panel offset, background and logo handoff.
+6. Add a persistent log or recovery path without relying on UART.
 
 There is no UART on this device. Early boot evidence comes from the panel and from flashing test images to p33.
 
