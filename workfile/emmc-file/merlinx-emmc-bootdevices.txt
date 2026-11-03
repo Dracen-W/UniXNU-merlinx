@@ -1,0 +1,1 @@
+bootdevice,soc/11230000.mmc,11230000.mmc
