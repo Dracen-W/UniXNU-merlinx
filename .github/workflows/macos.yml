@@ -6,7 +6,7 @@ on:
       device_repository:
         description: Device repository as owner/name
         required: true
-        default: Dracen-W/UniXNU-merlinx
+        default: Dracen-W/UniXNU-merlinx-ci
       device_ref:
         description: Device repository ref
         required: true
