@@ -11,7 +11,7 @@ kit = "merlinx"
 os_profile = "ipados-17.7.11-21H461"
 
 [components]
-include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52"]
+include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52", "GopFramebuffer"]
 
 # The target is the unchanged iPad7,1 iPadOS 17.7.11 restore image for the
 # first kernel bring-up. The final phone target can switch to iOS later.
