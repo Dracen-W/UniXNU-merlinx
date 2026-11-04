@@ -95,6 +95,7 @@ volatile uint32_t native_legacy_client_calls,native_legacy_client_type;
 volatile int native_legacy_client_pid,native_legacy_client_status=-1;
 volatile uint64_t native_legacy_client_task,native_legacy_client_object;
 char native_legacy_client_class[64];
+static char native_legacy_client_name[32];
 extern kern_return_t OSKextLoadKextWithIdentifier(const char *);
 int boot_progress_prepare_scanout(void) { return 1; }
 void boot_progress_cancel_scanout(void) {}
@@ -252,6 +253,7 @@ void native_legacy_swap_validation_observed(bool accepted,unsigned reason,const 
     else {native_legacy_swap_rejected_count=native_legacy_swap_rejected_count+1;recordRejectedSwap(reason,request,surface);}
     native_legacy_swap_validation_calls=native_legacy_swap_validation_calls+1;
     native_legacy_swap_validation_result=accepted;native_legacy_swap_validation_reason=reason;
+    dline(26,"DISP VAL %d R%u",accepted,reason);
     native_legacy_swap_request=(uintptr_t)request;native_legacy_swap_surface=(uintptr_t)surface;
     native_legacy_swap_validation_checkpoint(accepted,reason,request,surface);
 }
@@ -323,7 +325,9 @@ void native_legacy_registration_observed(IOService *display) {
 void native_legacy_client_enter(task_t task,uint32_t type) {
     native_legacy_client_calls=native_legacy_client_calls+1;native_legacy_client_task=(uintptr_t)task;
     native_legacy_client_type=type;native_legacy_client_pid=task?proc_pid((proc_t)get_bsdtask_info(task)):0;
-    dline(28,"DISP CLIENT %d T%u",native_legacy_client_pid,type);
+    native_legacy_client_name[0]=0;
+    if(native_legacy_client_pid)proc_name(native_legacy_client_pid,native_legacy_client_name,sizeof(native_legacy_client_name));
+    dline(28,"DISP CLIENT %d %s T%u",native_legacy_client_pid,native_legacy_client_name,type);
 }
 // Every framebuffer user client seen (object, pid), with what it does: the original client's vtable is copied and two entries (externalMethod, slot 168,
 // and registerNotificationPort(port,type,refCon), slot 175) are pointed at wrappers that count and forward to the original function. The original code
@@ -425,7 +429,7 @@ void native_legacy_client_observed(IOReturn status,IOUserClient *client) {
     if(client && !status)interpose(client,native_legacy_client_pid);
     native_legacy_client_status=status;native_legacy_client_object=(uintptr_t)client;
     if(client)strlcpy(native_legacy_client_class,client->getMetaClass()->getClassName(),sizeof(native_legacy_client_class));
-    dline(28,"DISP CLIENT %d %x",native_legacy_client_pid,(unsigned)status);
+    dline(28,"DISP CLIENT %d %s %x",native_legacy_client_pid,native_legacy_client_name,(unsigned)status);
     native_legacy_client_checkpoint();
 }
 __attribute__((noinline)) bool native_legacy_gop_mapping_observed(IOService *object,IOMemoryMap *mapping,uint32_t width,uint32_t height) {
