@@ -1,7 +1,7 @@
 #include <sys/types.h>
 
 /* Temporary link stubs for the first merlinx kernel build. */
-void
+__attribute__((weak)) void
 native_legacy_display_probe (
   void
   )
