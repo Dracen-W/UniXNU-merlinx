@@ -92,7 +92,6 @@ volatile uint64_t native_legacy_prepare_wait_us;
 static uint64_t probeNowUs(void) {uint64_t ns;absolutetime_to_nanoseconds(mach_absolute_time(),&ns);return ns/1000;}
 bool native_legacy_prepare_scanout(void) {
     native_legacy_prepare_calls=native_legacy_prepare_calls+1;native_legacy_prepare_reason=0;native_legacy_prepare_attempts=0;
-    if (!boot_progress_prepare_scanout) return true;
     if (ml_at_interrupt_context()) {native_legacy_prepare_reason=1;return false;}
     if (!ml_get_interrupts_enabled()) {native_legacy_prepare_reason=2;return false;}
     // Yield to any in-flight diagnostic writer; never spin on a preempted
@@ -111,7 +110,7 @@ bool native_legacy_prepare_scanout(void) {
     }
     native_legacy_prepare_failures=native_legacy_prepare_failures+1;native_legacy_prepare_wait_us=native_legacy_prepare_wait_us+(probeNowUs()-began);
     native_legacy_prepare_reason=3;
-    if(boot_progress_cancel_scanout)boot_progress_cancel_scanout();
+    boot_progress_cancel_scanout();
     return false;
 }
 __attribute__((noinline)) void native_legacy_display_checkpoint(void) {__asm__ volatile("" ::: "memory");}
@@ -253,7 +252,7 @@ __attribute__((noinline)) void native_legacy_transfer_observed(IOReturn status,c
     native_legacy_transfer_calls=native_legacy_transfer_calls+1;
     if(status==kIOReturnSuccess)native_legacy_swap_stage(2);
     native_legacy_transfer_status=status;native_legacy_transfer_request=(uintptr_t)request;native_legacy_transfer_bytes=bytes;
-    if(status!=kIOReturnSuccess && boot_progress_stage) {
+    if(status!=kIOReturnSuccess) {
         char message[120];snprintf(message,sizeof(message),"DISPLAY COPY FAILED status=%08x prepare=%u tries=%u",
           (unsigned)status,native_legacy_prepare_reason,native_legacy_prepare_attempts);
         boot_progress_stage(message);
@@ -411,7 +410,7 @@ __attribute__((noinline)) bool native_legacy_gop_mapping_observed(IOService *obj
     native_legacy_gop_map=(uintptr_t)mapping;native_legacy_gop_virtual=mapping->getVirtualAddress();
     native_legacy_gop_physical=mapping->getPhysicalAddress();native_legacy_gop_bytes=mapping->getLength();
     native_legacy_gop_width=width;native_legacy_gop_height=height;
-    if(boot_progress_pulse_anchor && !diagnosticAnchorMapping) {
+    if(!diagnosticAnchorMapping) {
         PE_Video anchorVideo={};
         if(!PE_current_console(&anchorVideo) && anchorVideo.v_depth==32 &&
            anchorVideo.v_rowBytes<=65536 &&
