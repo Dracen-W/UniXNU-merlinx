@@ -26,6 +26,41 @@ static void dline(unsigned line, const char *format, ...) {
     native_gop_text(line, text);
 }
 
+/* Last-resort visual path: prove the boot GOP still scans out even when the
+ * original framebuffer provider is not accepted by userland. */
+static void gopPaint(const char *why, bool full) {
+    PE_Video video = {};
+    if (PE_current_console(&video) || !video.v_baseAddr || !video.v_width ||
+        !video.v_height || video.v_depth != 32 || video.v_rotate ||
+        !video.v_rowBytes || video.v_width > 16384 || video.v_height > 16384) {
+        dline(21, "GOP NOVID %s", why);
+        return;
+    }
+    IODeviceMemory *memory = IODeviceMemory::withRange(video.v_baseAddr,
+        (IOByteCount)video.v_rowBytes * video.v_height);
+    IOMemoryMap *mapping = memory ? memory->map(kIOMapAnywhere | kIOMapInhibitCache) : nullptr;
+    if (memory) memory->release();
+    if (!mapping || !mapping->getVirtualAddress()) {
+        dline(21, "GOP NOMAP %s", why);
+        OSSafeReleaseNULL(mapping);
+        return;
+    }
+    static const uint32_t colors[8] = {
+        0xFFFFFFFFU, 0xFFFFFF00U, 0xFF00FFFFU, 0xFF00FF00U,
+        0xFFFF00FFU, 0xFFFF0000U, 0xFF0000FFU, 0xFF000000U,
+    };
+    volatile uint8_t *base = reinterpret_cast<volatile uint8_t *>(mapping->getVirtualAddress());
+    const uint32_t first = full ? 0 : (video.v_height > 320 ? video.v_height - 320 : 0);
+    for (uint32_t y = first; y < video.v_height; ++y) {
+        volatile uint32_t *row = reinterpret_cast<volatile uint32_t *>(base + (uint64_t)y * video.v_rowBytes);
+        for (uint32_t x = 0; x < video.v_width; ++x)
+            row[x] = colors[(uint64_t)x * 8 / video.v_width];
+    }
+    __asm__ volatile("dsb sy" ::: "memory");
+    dline(21, "GOP FALLBACK %s", why);
+    mapping->release();
+}
+
 extern "C" kmod_info_t g_kernel_kmod_info;
 extern "C" void native_legacy_display_static_init(void) __asm__("__GLOBAL__sub_I_NativeLegacyDisplay.cpp");
 extern "C" IOService *native_legacy_display_allocate(void);
@@ -514,7 +549,7 @@ void native_legacy_display_probe(void) {
         // Retain this actual object until that normal lifecycle boundary.
         pendingLegacyDisplay=display;return;
     }
-    native_legacy_stage=7;display->release();native_legacy_released=1;native_legacy_stage=8;
+    native_legacy_stage=7;gopPaint("EARLY", true);display->release();native_legacy_released=1;native_legacy_stage=8;
     native_legacy_display_checkpoint();
 }
 void native_legacy_display_late_probe(void);
@@ -569,6 +604,8 @@ void native_legacy_display_late_probe(void) {
                     if(attached){native_legacy_stage=5;started=display->start(nub);native_legacy_start_result=started;dline(26,"DISP P%d A%d S%d",native_legacy_probe_match,attached,started);}
                     if(started && phase==4) {
                         activeLegacyDisplay=display;activeGOPNub=nub;native_legacy_stage=10;dline(31,"DISP UP");
+                        unsigned gopTest=0;PE_parse_boot_argn("merlinx-gop-test",&gopTest,sizeof(gopTest));
+                        if(gopTest==1)gopPaint("TEST", false);
                         {
                             unsigned gpu=0;PE_parse_boot_argn("sheng-fb-gpu",&gpu,sizeof gpu);
                             if(gpu==1) {
@@ -596,7 +633,7 @@ void native_legacy_display_late_probe(void) {
         OSSafeReleaseNULL(ranges);OSSafeReleaseNULL(memory);OSSafeReleaseNULL(nub);
         OSSafeReleaseNULL(displayTreeParent);
     }
-    native_legacy_stage=7;display->release();native_legacy_released=1;native_legacy_stage=8;
+    native_legacy_stage=7;gopPaint("FALLBACK", true);display->release();native_legacy_released=1;native_legacy_stage=8;
     native_legacy_display_checkpoint();
 }
 }

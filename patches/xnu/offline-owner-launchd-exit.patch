@@ -2,16 +2,20 @@ diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
 index 11a8212..1d02ae6 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1487,6 +1487,14 @@ int
+@@ -1487,6 +1487,18 @@ int
  exit1_internal(proc_t p, int rv, int *retval, boolean_t thread_can_terminate, boolean_t perf_notify,
      int jetsam_flags)
  {
 +	if (p->p_pid == 1)
 +		panic("launchd exit1 rv=%d", rv);
 +	if (p->p_pid > 1) {
++		static unsigned int exit_trace_slot;
 +		char trace_text[96];
++		unsigned int trace_line;
 +		snprintf(trace_text, sizeof(trace_text), "EXIT %d %d %s", p->p_pid, rv, p->p_comm);
 +		extern void native_gop_text(unsigned line, const char *text);
++		trace_line = 5 + (exit_trace_slot++ & 3);
++		native_gop_text(trace_line, trace_text);
 +		native_gop_text(20, trace_text);
 +	}
  	return exit_with_reason(p, rv, retval, thread_can_terminate, perf_notify, jetsam_flags, OS_REASON_NULL);
