@@ -1,15 +1,8 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8cf7580..1f4ff55 100644
+index 8cf7580..8cd886d 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -99,10 +99,50 @@
- #include <sys/stat.h>
- #include <sys/uio_internal.h>
- #include <sys/acct.h>
-+#include <kern/thread_call.h>
-+#include <mach/arm/thread_status.h>
-+#include <vm/vm_shared_region.h>
- 
+@@ -103,6 +103,43 @@
  void native_gop_text(unsigned line, const char *text);
  void native_diag_note_exec(int pid, const char *name);
  void native_diag_note_exit(int pid, const char *name);
@@ -53,7 +46,7 @@ index 8cf7580..1f4ff55 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2390,9 +2430,13 @@ encapsulated_binary:
+@@ -2390,9 +2427,13 @@ encapsulated_binary:
  			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
  			char go_text[48];
  			native_gop_text(6, cm);
@@ -69,7 +62,7 @@ index 8cf7580..1f4ff55 100644
  		}
  	}
  bad:
-@@ -3615,7 +3659,50 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3615,7 +3656,50 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		spawn_path[sizeof(spawn_path) - 1] = 0;
  		if (spawn_path[0]) {
  			const char *slash = strrchr(spawn_path, '/');
@@ -121,7 +114,7 @@ index 8cf7580..1f4ff55 100644
  		}
  	}
  
-@@ -4934,7 +5021,7 @@ bad:
+@@ -4934,7 +5018,7 @@ bad:
  	}
  #endif
  
@@ -130,7 +123,7 @@ index 8cf7580..1f4ff55 100644
  		char spawn_text[48];
  		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5256,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5253,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -153,7 +146,7 @@ index 8cf7580..1f4ff55 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7181,12 +7284,143 @@ native_gop_text(unsigned line, const char *text)
+@@ -7181,12 +7281,14 @@ native_gop_text(unsigned line, const char *text)
  }
  
  /* Live pids of the services on the path to the first frame, so one photo answers whether the UI stack exists: sb SpringBoard,
@@ -166,11 +159,132 @@ index 8cf7580..1f4ff55 100644
  };
  static int native_diag_tracked_pid[8];
 +static unsigned char native_diag_tracked_seen[8];
+ 
+ static int
+ native_diag_tracked_slot(const char *name)
+@@ -7200,13 +7302,15 @@ native_diag_tracked_slot(const char *name)
+ 	return -1;
+ }
+ 
+-static void
++void
+ native_diag_process_summary(void)
+ {
+ 	char summary[48];
+-	snprintf(summary, sizeof(summary), "PS sb%d bb%d fb%d rb%d ls%d cm%d",
+-	    native_diag_tracked_pid[1], native_diag_tracked_pid[0], native_diag_tracked_pid[2],
+-	    native_diag_tracked_pid[3], native_diag_tracked_pid[4], native_diag_tracked_pid[5]);
++	snprintf(summary, sizeof(summary), "PS sb%d%c bb%d%c fb%d rb%d ls%d cm%d",
++	    native_diag_tracked_pid[1], native_diag_tracked_seen[1] ? '!' : ' ',
++	    native_diag_tracked_pid[0], native_diag_tracked_seen[0] ? '!' : ' ',
++	    native_diag_tracked_pid[2], native_diag_tracked_pid[3],
++	    native_diag_tracked_pid[4], native_diag_tracked_pid[5]);
+ 	native_gop_text(100, summary);
+ }
+ 
+@@ -7214,9 +7318,11 @@ void
+ native_diag_note_exec(int pid, const char *name)
+ {
+ 	int slot = native_diag_tracked_slot(name);
+-	if (slot >= 0)
++	if (slot >= 0) {
+ 		native_diag_tracked_pid[slot] = pid;
+-	native_diag_process_summary();
++		native_diag_tracked_seen[slot] = 1;
++	}
++	native_diag_focus_note(pid, name);
+ }
+ 
+ void
+@@ -7225,7 +7331,13 @@ native_diag_note_exit(int pid, const char *name)
+ 	int slot = native_diag_tracked_slot(name);
+ 	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
+ 		native_diag_tracked_pid[slot] = 0;
+-	native_diag_process_summary();
++	native_diag_focus_exit(pid);
++}
 +
-+/* The UI trace of the documented boot arguments: boot-ui-focus and boot-ui-focus2..4 name processes (launchd, SpringBoard,
-+ * backboardd, ...), boot-ui-chrono adds the boot time. Every 8 seconds one target is sampled: its first thread's saved state
-+ * (PC, LR, SP, the x16 syscall number) and two frame-chain returns, all in shared-cache coordinates, drawn on the free left
-+ * lines 21..25 so the event ring keeps the launch history instead of scrolling it away. */
++boolean_t
++native_diag_should_print_exit(const char *name)
++{
++	return native_diag_throttle(native_diag_exit_throttle, name);
+ }
+ volatile int native_owner_cache_stage = 0;
+ volatile int native_owner_cache_status = -1;
+diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
+index f0721cc..0e7c6f8 100644
+--- a/bsd/kern/kern_exit.c
++++ b/bsd/kern/kern_exit.c
+@@ -1628,6 +1628,8 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+ 	if (p->p_pid > 1) {
+ 		extern void native_gop_text(unsigned line, const char *text);
+ 		extern void native_diag_note_exit(int pid, const char *name);
++		extern boolean_t native_diag_should_print_exit(const char *name);
++		extern void native_diag_process_summary(void);
+ 		const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
+ 		char ex_text[48];
+ 		if (exit_reason != OS_REASON_NULL) {
+@@ -1639,8 +1641,11 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+ 			snprintf(ex_text, sizeof(ex_text), "EX %d %.16s %x",
+ 			    p->p_pid, nm, rv);
+ 		}
+-		native_gop_text(100, ex_text);
+ 		native_diag_note_exit(p->p_pid, nm);
++		if (native_diag_should_print_exit(nm)) {
++			native_gop_text(100, ex_text);
++			native_diag_process_summary();
++		}
+ 	}
+ 
+ 	proc_prepareexit(p, rv, perf_notify);
+diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
+index f4d58f0..e0f3045 100644
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -62,6 +62,10 @@
+ #include <vm/vm_fault.h>
+ #include <vm/vm_kern.h>
+ #include <vm/vm_shared_region.h>
++#include <kern/clock.h>
++#include <kern/thread_call.h>
++#include <pexpert/pexpert.h>
++#include <mach/arm/thread_status.h>
+ 
+ #include <sys/errno.h>
+ #include <sys/kdebug.h>
+@@ -2419,3 +2423,176 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
+ SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
+ 
+ #endif
++
++/* ---------------------------------------------------------------------------------------------------------
++ * The UI trace of the documented boot arguments (boot-ui-focus, -focus2..4, boot-ui-chrono). It lives here, next
++ * to the exception code, because osfmk is where struct task and struct thread are complete and the saved state of
++ * another thread can be read: bsd only sees them as opaque types.
++ *
++ * Every 8 seconds one named process is sampled: the saved state of its first thread (PC, LR, SP and the x16
++ * syscall number) and two frame-chain returns. Addresses that live in the dyld shared cache are printed in
++ * cache coordinates (slide removed) so they can be matched against the cache's image list; the fields go on the
++ * free left lines 21..25, so the event ring keeps the launch history instead of scrolling it away.
++ * --------------------------------------------------------------------------------------------------------- */
++extern proc_t proc_find(int pid);
++extern task_t proc_task(proc_t p);
++extern void proc_rele(proc_t p);
++extern void native_gop_text(unsigned line, const char *text);
++
++
++static boolean_t
++native_diag_focus_same(const char *a, const char *b)
++{
++	if (!a || !b)
++		return FALSE;
++	while (*a && *a == *b) {
++		a++;
++		b++;
++	}
++	return *a == *b;
++}
++
 +static char native_diag_focus[4][17];
 +static int native_diag_focus_pid[4];
 +static unsigned int native_diag_focus_slot;
@@ -187,7 +301,7 @@ index 8cf7580..1f4ff55 100644
 +		native_diag_focus[i][0] = 0;
 +		if (!PE_parse_boot_arg_str(keys[i], native_diag_focus[i], sizeof(native_diag_focus[i])))
 +			native_diag_focus[i][0] = 0;
-+		if (strcmp(native_diag_focus[i], "launchd") == 0)
++		if (native_diag_focus_same(native_diag_focus[i], "launchd"))
 +			native_diag_focus_pid[i] = 1;
 +	}
 +	native_diag_focus_chrono = PE_parse_boot_argn("boot-ui-chrono", &chrono, sizeof(chrono)) && chrono != 0;
@@ -200,7 +314,7 @@ index 8cf7580..1f4ff55 100644
 +	unsigned int slot = native_diag_focus_slot++ & 3;
 +	const char *name = native_diag_focus[slot];
 +	int pid = native_diag_focus_pid[slot];
-+	proc_t p = PROC_NULL;
++	proc_t p = NULL;
 +	task_t task;
 +	vm_map_t map;
 +	thread_t thread = THREAD_NULL;
@@ -226,7 +340,7 @@ index 8cf7580..1f4ff55 100644
 +	if (!name[0] || pid <= 0)
 +		goto reschedule;
 +	p = proc_find(pid);
-+	if (p == PROC_NULL) {
++	if (p == NULL) {
 +		native_diag_focus_pid[slot] = 0;
 +		goto reschedule;
 +	}
@@ -271,11 +385,11 @@ index 8cf7580..1f4ff55 100644
 +release_proc:
 +	proc_rele(p);
 +reschedule:
-+	clock_interval_to_deadline(8, kSecondScale, &deadline);
++	clock_interval_to_deadline(8, (uint32_t)NSEC_PER_SEC, &deadline);
 +	thread_call_enter_delayed(native_diag_focus_call, deadline);
 +}
 +
-+static void
++void
 +native_diag_focus_start(void)
 +{
 +	unsigned int i;
@@ -291,94 +405,27 @@ index 8cf7580..1f4ff55 100644
 +	native_diag_focus_call = thread_call_allocate(native_diag_focus_sample, NULL);
 +	if (native_diag_focus_call) {
 +		uint64_t deadline = 0;
-+		clock_interval_to_deadline(8, kSecondScale, &deadline);
++		clock_interval_to_deadline(8, (uint32_t)NSEC_PER_SEC, &deadline);
 +		thread_call_enter_delayed(native_diag_focus_call, deadline);
 +	}
 +}
- 
- static int
- native_diag_tracked_slot(const char *name)
-@@ -7200,13 +7434,15 @@ native_diag_tracked_slot(const char *name)
- 	return -1;
- }
- 
--static void
++
 +void
- native_diag_process_summary(void)
- {
- 	char summary[48];
--	snprintf(summary, sizeof(summary), "PS sb%d bb%d fb%d rb%d ls%d cm%d",
--	    native_diag_tracked_pid[1], native_diag_tracked_pid[0], native_diag_tracked_pid[2],
--	    native_diag_tracked_pid[3], native_diag_tracked_pid[4], native_diag_tracked_pid[5]);
-+	snprintf(summary, sizeof(summary), "PS sb%d%c bb%d%c fb%d rb%d ls%d cm%d",
-+	    native_diag_tracked_pid[1], native_diag_tracked_seen[1] ? '!' : ' ',
-+	    native_diag_tracked_pid[0], native_diag_tracked_seen[0] ? '!' : ' ',
-+	    native_diag_tracked_pid[2], native_diag_tracked_pid[3],
-+	    native_diag_tracked_pid[4], native_diag_tracked_pid[5]);
- 	native_gop_text(100, summary);
- }
- 
-@@ -7214,18 +7450,34 @@ void
- native_diag_note_exec(int pid, const char *name)
- {
- 	int slot = native_diag_tracked_slot(name);
--	if (slot >= 0)
++native_diag_focus_note(int pid, const char *name)
++{
 +	unsigned int i;
-+	if (slot >= 0) {
- 		native_diag_tracked_pid[slot] = pid;
--	native_diag_process_summary();
-+		native_diag_tracked_seen[slot] = 1;
-+	}
 +	if (!native_diag_focus_configured)
 +		native_diag_focus_configure();
 +	for (i = 0; i < 4; i++)
-+		if (native_diag_focus[i][0] && strcmp(native_diag_focus[i], name) == 0)
++		if (native_diag_focus[i][0] && native_diag_focus_same(native_diag_focus[i], name))
 +			native_diag_focus_pid[i] = pid;
- }
- 
- void
- native_diag_note_exit(int pid, const char *name)
- {
- 	int slot = native_diag_tracked_slot(name);
++}
++
++void
++native_diag_focus_exit(int pid)
++{
 +	unsigned int i;
- 	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
- 		native_diag_tracked_pid[slot] = 0;
--	native_diag_process_summary();
 +	for (i = 0; i < 4; i++)
 +		if (native_diag_focus_pid[i] == pid)
 +			native_diag_focus_pid[i] = 0;
 +}
-+
-+boolean_t
-+native_diag_should_print_exit(const char *name)
-+{
-+	return native_diag_throttle(native_diag_exit_throttle, name);
- }
- volatile int native_owner_cache_stage = 0;
- volatile int native_owner_cache_status = -1;
-diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index f0721cc..0e7c6f8 100644
---- a/bsd/kern/kern_exit.c
-+++ b/bsd/kern/kern_exit.c
-@@ -1628,6 +1628,8 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
- 	if (p->p_pid > 1) {
- 		extern void native_gop_text(unsigned line, const char *text);
- 		extern void native_diag_note_exit(int pid, const char *name);
-+		extern boolean_t native_diag_should_print_exit(const char *name);
-+		extern void native_diag_process_summary(void);
- 		const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
- 		char ex_text[48];
- 		if (exit_reason != OS_REASON_NULL) {
-@@ -1639,8 +1641,11 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
- 			snprintf(ex_text, sizeof(ex_text), "EX %d %.16s %x",
- 			    p->p_pid, nm, rv);
- 		}
--		native_gop_text(100, ex_text);
- 		native_diag_note_exit(p->p_pid, nm);
-+		if (native_diag_should_print_exit(nm)) {
-+			native_gop_text(100, ex_text);
-+			native_diag_process_summary();
-+		}
- 	}
- 
- 	proc_prepareexit(p, rv, perf_notify);
