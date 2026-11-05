@@ -416,7 +416,8 @@
       "0644",
       "plist",
       {
-        "com.apple.watchdogd": true
+        "com.apple.watchdogd": true,
+        "com.apple.bluetoothd": true
       }
     ]
   ],
