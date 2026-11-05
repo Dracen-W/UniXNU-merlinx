@@ -112,7 +112,7 @@ title = "UniXNU"
 dram_size = "0x100000000"
 panic_screen = true
 timeout = 3
-kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=2", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=120", "sheng-vsync-fixed=1", "merlinx-gop-test=1"]
+kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=2", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=120", "sheng-vsync-fixed=1", "merlinx-gop-test=1", "boot-ui-focus=launchd", "boot-ui-focus2=SpringBoard", "boot-ui-focus3=backboardd", "boot-ui-chrono=1"]
 
 [payload.adt]
 tool = "scripts/make-merlinx-adt.py"
