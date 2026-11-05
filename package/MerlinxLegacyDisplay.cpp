@@ -577,11 +577,6 @@ void native_legacy_display_late_probe(void) {
         OSArray *ranges=OSArray::withCapacity(1);
         if(nub && memory && ranges && parent && nub->init()) {
             ranges->setObject(memory);nub->setDeviceMemory(ranges);nub->setName("NativeGOPFramebuffer");
-            static const uint8_t timingInfo[32]={0x00,0x04,0x00,0x00,0x32,0x00,0x00,0x00,
-                0x33,0x00,0x00,0x00,0x32,0x00,0x00,0x00,0x58,0x02,0x00,0x00,
-                0xda,0x00,0x00,0x00,0x06,0x00,0x00,0x00,0x32,0x00,0x00,0x00};
-            OSData *timing=OSData::withBytes(timingInfo,sizeof(timingInfo));
-            if(timing){nub->setProperty("display-timing-info",timing);timing->release();}
             nubAttached=nub->attach(parent);if(nubAttached)nubStarted=nub->start(parent);dline(25,"DISP NUB A%d S%d",nubAttached,nubStarted);
             if(nubStarted) {
                 unsigned phase=0;PE_parse_boot_argn("offline-legacy-phase",&phase,sizeof(phase));

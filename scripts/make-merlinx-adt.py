@@ -200,6 +200,17 @@ def main():
                                                 GIC_DIST - ARMIO_BASE, GIC_DIST_SIZE,
                                                 GIC_REDIST - ARMIO_BASE, GIC_REDIST_SIZE)),
                             ('redistributor-stride', struct.pack('<Q', 0x40000))]),
+              # The original backboardd counts display pipes/instances under
+              # /arm-io and refuses to publish a main display when they are
+              # absent. Keep these nodes property-only: the actual scanout is
+              # the GOP provider created by NativeLegacyDisplay.
+              node('disp0', [('device_type', b'display-subsystem\0'),
+                             ('display-timing-info', bytes.fromhex(
+                                 '0004000032000000330000003200000058020000da0000000600000032000000')),
+                             ('display-carveout-inhibitcache', struct.pack('<I', 1)),
+                             ('display-default-color', struct.pack('<I', 0))]),
+              node('displayport0', [('device_type', b'displayport\0'),
+                                    ('primary_display', struct.pack('<I', 0))]),
               ]),
         # Root-level node: the GPU window is absolute, not inside arm-io's range.
         node('mali', [('compatible', b'mediatek,mali\0arm,mali-valhall\0'),
