@@ -74,6 +74,24 @@ extern "C" bool native_gop_gpu_offer(IOService *,void *display,IOMemoryDescripto
 extern "C" void native_gop_presenter_set_source(IOService *presenter,IOService *nub);
 volatile uint32_t native_legacy_gpu_fallbacks,native_legacy_gpu_last_status;
 static IOService *activeLegacyDisplay;
+static IOService *activeKeyStore;
+extern "C" IOService *native_keyevents_allocate(void);
+volatile uint32_t native_keyevents_refused_opens,native_aks_opens,native_aks_calls;
+extern "C" void native_keyevents_open_refused(void) {__atomic_fetch_add(&native_keyevents_refused_opens,1,__ATOMIC_RELAXED);}
+extern "C" bool native_aks_state_enabled(void) {
+    unsigned v=0;return PE_parse_boot_argn("sheng-aks",&v,sizeof(v)) && v==1;
+}
+extern "C" uint32_t native_aks_lock_state(void) {
+    unsigned v=0;return PE_parse_boot_argn("sheng-aks-lock",&v,sizeof(v))?v:0;
+}
+extern "C" void native_aks_opened(void) {
+    unsigned n=__atomic_fetch_add(&native_aks_opens,1,__ATOMIC_RELAXED)+1;
+    if(n<=4)dline(100,"AKS OPEN #%u",n);
+}
+extern "C" void native_aks_call(uint32_t selector,int32_t rc) {
+    unsigned n=__atomic_fetch_add(&native_aks_calls,1,__ATOMIC_RELAXED)+1;
+    if(n==1 || (rc!=0 && n<=6))dline(100,"AKS S%u %x",selector,(unsigned)rc);
+}
 // Keep one diagnostic mapping alive until reboot, even after backend stop.
 // The pulse is permanently closed before any system-frame copy.
 static IOMemoryMap *diagnosticAnchorMapping;
@@ -574,6 +592,14 @@ void native_legacy_display_late_probe(void) {
         native_legacy_nub=(uintptr_t)nub;bool nubAttached=false,nubStarted=false,attached=false,started=false;
         IORegistryEntry *displayTreeParent=nullptr;bool dtAttached=false;
         IOService *parent=IOService::getResourceService();
+        if(!activeKeyStore && parent) {
+            IOService *aks=native_keyevents_allocate();
+            if(aks && aks->init() && aks->attach(parent) && aks->start(parent)) {
+                activeKeyStore=aks;dline(100,"AKS UP");
+            } else if(aks) {
+                aks->release();
+            }
+        }
         IODeviceMemory *memory=IODeviceMemory::withRange(video.v_baseAddr,video.v_rowBytes*video.v_height);
         OSArray *ranges=OSArray::withCapacity(1);
         if(nub && memory && ranges && parent && nub->init()) {

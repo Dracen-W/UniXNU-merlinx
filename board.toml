@@ -11,7 +11,7 @@ kit = "merlinx"
 os_profile = "ipados-17.7.11-21H461"
 
 [components]
-include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52", "GopFramebuffer"]
+include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "AppleKeyStoreState", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52", "GopFramebuffer"]
 
 # The target is the unchanged iPad7,1 iPadOS 17.7.11 restore image for the
 # first kernel bring-up. The final phone target can switch to iOS later.
@@ -41,6 +41,7 @@ archives = [
   "build-arm-driver.py ArmDTPlatform",
   "build-arm-driver.py ArmCpu",
   "build-arm-driver.py NativeAES",
+  "build-arm-driver.py AppleKeyStoreState",
   "build-arm-driver.py NativeEmmc",
   "build-native-emmc-bindings.py",
   "build-arm-driver.py RamBlock",
@@ -111,7 +112,7 @@ title = "UniXNU"
 dram_size = "0x100000000"
 panic_screen = true
 timeout = 3
-kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "sheng-pmgr=2", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=2", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=120", "sheng-vsync-fixed=1", "merlinx-gop-test=1"]
+kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=2", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=120", "sheng-vsync-fixed=1", "merlinx-gop-test=1"]
 
 [payload.adt]
 tool = "scripts/make-merlinx-adt.py"

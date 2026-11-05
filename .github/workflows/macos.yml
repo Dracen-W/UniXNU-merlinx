@@ -106,7 +106,7 @@ jobs:
           token: ${{ secrets.UNIXNU_DEVICE_TOKEN || github.token }}
 
       - name: Check out the device submodules
-        run: git -C device submodule update --init --depth 1 drivers/NativeEmmc
+        run: git -C device submodule update --init --depth 1 drivers/NativeEmmc drivers/AppleKeyStoreState
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

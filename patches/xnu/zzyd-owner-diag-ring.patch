@@ -105,9 +105,9 @@ index 450b923..de1fd9f 100644
 +		native_gop_draw_span(mid + 4, vinfo.v_width, 320 + next * 30, 2, 0xffffff00u, "---");
 +		return;
  	}
-+	if (line >= 10 && line <= 18) {
++	if (line >= 11 && line <= 18) {
 +		static unsigned int hot_line_hits[9];
-+		unsigned int hits = __atomic_fetch_add(&hot_line_hits[line - 10], 1, __ATOMIC_RELAXED);
++		unsigned int hits = __atomic_fetch_add(&hot_line_hits[line - 11], 1, __ATOMIC_RELAXED);
 +		if (hits != 0 && (hits & 1023U) != 0)
 +			return;
 +	}
