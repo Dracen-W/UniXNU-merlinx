@@ -105,7 +105,7 @@ boot_partition_bytes = 67108864
 
 [payload]
 volume = "MERLINX"
-size_mib = 56
+size_mib = 60
 loader = "firmware"
 title = "UniXNU"
 dram_size = "0x100000000"
