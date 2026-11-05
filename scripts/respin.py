@@ -17,6 +17,7 @@ from pathlib import Path
 
 CONFIG = '::/EFI/UniXNU/unixnu.toml'
 SEED = '::/EFI/UniXNU/Payloads/scratch-data.img'
+ADT = '::/EFI/UniXNU/Payloads/kernel.macho.adt'
 
 
 def layout(data):
@@ -64,6 +65,7 @@ def main():
     parser.add_argument('--add-arg', action='append', default=[], metavar='NAME[=VALUE]', help='add or replace a kernel argument')
     parser.add_argument('--del-arg', action='append', default=[], metavar='NAME[=VALUE]', help='remove an argument by name (any value)')
     parser.add_argument('--seed', metavar='FILE', help='replace the packed Data seed')
+    parser.add_argument('--adt', metavar='FILE', help='replace the Apple device tree (kernel.macho.adt)')
     parser.add_argument('--show', action='store_true', help='print the kernel arguments and the seed hash, write nothing')
     options = parser.parse_args()
     if not shutil.which('mcopy'):
@@ -92,6 +94,8 @@ def main():
         mtools(volume, 'mcopy', '-o', str(text), CONFIG)
         if options.seed:
             mtools(volume, 'mcopy', '-o', options.seed, SEED)
+        if options.adt:
+            mtools(volume, 'mcopy', '-o', options.adt, ADT)
         patched = volume.read_bytes()
         if len(patched) != size:
             sys.exit('the payload volume changed size')
