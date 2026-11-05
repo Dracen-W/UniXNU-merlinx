@@ -362,7 +362,7 @@ void native_legacy_client_enter(task_t task,uint32_t type) {
     native_legacy_client_type=type;native_legacy_client_pid=task?proc_pid((proc_t)get_bsdtask_info(task)):0;
     native_legacy_client_name[0]=0;
     if(native_legacy_client_pid)proc_name(native_legacy_client_pid,native_legacy_client_name,sizeof(native_legacy_client_name));
-    dline(19,"DISP CLIENT %d %s T%u",native_legacy_client_pid,native_legacy_client_name,type);
+    dline(28,"DISP CLIENT %d %s T%u",native_legacy_client_pid,native_legacy_client_name,type);
 }
 // Every framebuffer user client seen (object, pid), with what it does: the original client's vtable is copied and two entries (externalMethod, slot 168,
 // and registerNotificationPort(port,type,refCon), slot 175) are pointed at wrappers that count and forward to the original function. The original code
@@ -464,7 +464,7 @@ void native_legacy_client_observed(IOReturn status,IOUserClient *client) {
     if(client && !status)interpose(client,native_legacy_client_pid);
     native_legacy_client_status=status;native_legacy_client_object=(uintptr_t)client;
     if(client)strlcpy(native_legacy_client_class,client->getMetaClass()->getClassName(),sizeof(native_legacy_client_class));
-    dline(19,"DISP CLIENT %d %s %x",native_legacy_client_pid,native_legacy_client_name,(unsigned)status);
+    dline(28,"DISP CLIENT %d %s %x",native_legacy_client_pid,native_legacy_client_name,(unsigned)status);
     native_legacy_client_checkpoint();
 }
 __attribute__((noinline)) bool native_legacy_gop_mapping_observed(IOService *object,IOMemoryMap *mapping,uint32_t width,uint32_t height) {
