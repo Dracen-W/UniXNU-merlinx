@@ -26,7 +26,19 @@ def layout(data):
     if version != 2:
         sys.exit(f'unsupported boot header version {version}')
     start = page + (kernel + page - 1) // page * page
-    return start, ramdisk
+    dtb_size = struct.unpack_from('<I', data, 1648)[0]
+    dtb_start = start + (ramdisk + page - 1) // page * page
+    return page, kernel, start, ramdisk, dtb_start, dtb_size
+
+
+def update_boot_id(data):
+    page, kernel, start, ramdisk, dtb_start, dtb_size = layout(data)
+    sha = hashlib.sha1()
+    for blob in (data[page:page + kernel], data[start:start + ramdisk], b'', b'', data[dtb_start:dtb_start + dtb_size]):
+        if blob:
+            sha.update(blob)
+        sha.update(struct.pack('<I', len(blob)))
+    data[576:608] = struct.pack('32s', sha.digest())
 
 
 def mtools(volume, *args, capture=False):
@@ -57,7 +69,7 @@ def main():
     if not shutil.which('mcopy'):
         sys.exit('mtools is required (mcopy)')
     data = bytearray(Path(options.base).read_bytes())
-    start, size = layout(data)
+    _, _, start, size, _, _ = layout(data)
     with tempfile.TemporaryDirectory() as work:
         volume = Path(work, 'payload.img')
         volume.write_bytes(data[start:start + size])
@@ -84,6 +96,7 @@ def main():
         if len(patched) != size:
             sys.exit('the payload volume changed size')
         data[start:start + size] = patched
+        update_boot_id(data)
     Path(options.output).write_bytes(data)
     print(options.output)
     print('args', line)
