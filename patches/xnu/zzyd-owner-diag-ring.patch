@@ -1,0 +1,189 @@
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+index 450b923..de1fd9f 100644
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -2384,8 +2384,22 @@ encapsulated_binary:
+ 			    KAUTH_FILEOP_EXEC,
+ 			    (uintptr_t)ndp->ni_vp, 0);
+ 		}
+-		if (p->p_pid > 1)
+-			native_gop_text(6, p->p_comm[0] ? p->p_comm : "CHILD");
++		if (p->p_pid > 1) {
++			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
++			native_gop_text(6, cm);
++			if (strncmp(cm, "backboard", 9) == 0 ||
++			    strncmp(cm, "SpringBoard", 11) == 0 ||
++			    strncmp(cm, "IOMFB", 5) == 0 ||
++			    strncmp(cm, "mobilegestalt", 13) == 0 ||
++			    strncmp(cm, "runningboard", 12) == 0 ||
++			    strncmp(cm, "assertiond", 10) == 0 ||
++			    strncmp(cm, "sysstatus", 9) == 0 ||
++			    strncmp(cm, "RenderServer", 12) == 0) {
++				char go_text[48];
++				snprintf(go_text, sizeof(go_text), "GO %d %s", p->p_pid, cm);
++				native_gop_text(100, go_text);
++			}
++		}
+ 	}
+ bad:
+ 	proc_transend(p, 0);
+@@ -7083,38 +7097,68 @@ static const unsigned long long native_gop_font[] = {
+ 	0x22F000000210BE31, 0x23E0000021087A31, 0x26D0000000008421, 0x22E0000000074506, 0x04F1080000064842, 0x23100000000B6631, 0x2310000000022951, 0x23100000000556B5,
+ 	0x151000000008A884, 0x231000001D185B31, 0x11F00000000F8444, 0x0642109801821084, 0x0842108000021084, 0x3042108300321084, 0x0004D64000000000, 0x0000000000000000
+ };
+-void
+-native_gop_text(unsigned line, const char *text)
++#include <kern/clock.h>
++static volatile unsigned int native_diag_seq = 0;
++char native_diag_ring[64][48];
++
++static void
++native_gop_draw_span(uint32_t x0, uint32_t x1, uint32_t y, unsigned scale, uint32_t fg, const char *text)
+ {
+ 	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600)
+ 		return;
++	if (x1 > vinfo.v_width)
++		x1 = vinfo.v_width;
+ 	volatile uint32_t *fb = (volatile uint32_t *)(uintptr_t)vinfo.v_baseaddr;
+ 	uint32_t stride = vinfo.v_rowbytes / 4;
+-	uint32_t x = 32, y = 320 + line * 60;
+-	for (uint32_t py = y; py < y + 36 && py < vinfo.v_height; py++)
+-		for (uint32_t px = 0; px < vinfo.v_width; px++)
++	uint32_t h = 12 * scale;
++	for (uint32_t py = y; py < y + h && py < vinfo.v_height; py++)
++		for (uint32_t px = x0; px < x1; px++)
+ 			fb[(uint64_t)py * stride + px] = 0;
+-	for (; *text; text++) {
++	uint32_t x = x0;
++	uint32_t step = 6 * scale;
++	for (; *text && x + step <= x1; text++) {
+ 		unsigned char ch = (unsigned char)*text;
+-		if (ch < 32 || ch > 126) { x += 18; continue; }
++		if (ch < 32 || ch > 126) { x += step; continue; }
+ 		unsigned long long glyph = native_gop_font[ch - 32];
+ 		uint32_t top = (uint32_t)(glyph >> 32), bottom = (uint32_t)glyph;
+ 		for (unsigned row = 0; row < 12; row++) {
+ 			uint32_t data = row < 6 ? top >> (row * 5) : bottom >> ((row - 6) * 5);
+ 			for (unsigned col = 0; col < 5; col++) {
+ 				if ((data >> col) & 1) {
+-					for (unsigned dy = 0; dy < 3; dy++) {
+-						for (unsigned dx = 0; dx < 3; dx++) {
+-							uint32_t px = x + col * 3 + dx, py = y + row * 3 + dy;
+-							if (px < vinfo.v_width && py < vinfo.v_height)
+-								fb[(uint64_t)py * stride + px] = 0xffffffffu;
++					for (unsigned dy = 0; dy < scale; dy++) {
++						for (unsigned dx = 0; dx < scale; dx++) {
++							uint32_t px = x + col * scale + dx, py = y + row * scale + dy;
++							if (px < x1 && py < vinfo.v_height)
++								fb[(uint64_t)py * stride + px] = fg;
+ 						}
+ 					}
+ 				}
+ 			}
+ 		}
+-		x += 18;
++		x += step;
++	}
++}
++
++void
++native_gop_text(unsigned line, const char *text)
++{
++	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600 || !text)
++		return;
++	uint32_t mid = vinfo.v_width / 2;
++	if (line >= 100) {
++		unsigned int seq = __atomic_fetch_add(&native_diag_seq, 1, __ATOMIC_RELAXED);
++		unsigned int slot = seq & 63;
++		uint64_t ns = 0;
++		absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
++		unsigned int cs = (unsigned int)(ns / 10000000ULL);
++		snprintf(native_diag_ring[slot], sizeof(native_diag_ring[slot]),
++		    "%02u %u.%02u %s", seq % 100, cs / 100, cs % 100, text);
++		native_gop_draw_span(mid + 4, vinfo.v_width, 320 + slot * 30, 2, 0xff80ff80u, native_diag_ring[slot]);
++		unsigned int next = (seq + 1) & 63;
++		native_gop_draw_span(mid + 4, vinfo.v_width, 320 + next * 30, 2, 0xffffff00u, "---");
++		return;
+ 	}
++	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
+ }
+ volatile int native_owner_cache_stage = 0;
+ volatile int native_owner_cache_status = -1;
+@@ -9024,6 +9068,14 @@ done:
+ 			    "'%s' with cdhash %s\n", p->p_name, cdhash_string);
+ 		}
+ 	} else {
++		if (signature_failure_reason != OS_REASON_NULL) {
++			char cs_text[48];
++			snprintf(cs_text, sizeof(cs_text), "CS! %d %.14s R%u:%llx",
++			    p->p_pid, p->p_name[0] ? p->p_name : p->p_comm,
++			    signature_failure_reason->osr_namespace,
++			    (unsigned long long)signature_failure_reason->osr_code);
++			native_gop_text(100, cs_text);
++		}
+ 		if (!unexpected_failure) {
+ 			proc_csflags_set(p, CS_KILLED);
+ 		}
+diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
+index db37bf3..202da6a 100644
+--- a/bsd/kern/kern_exit.c
++++ b/bsd/kern/kern_exit.c
+@@ -1625,6 +1625,22 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+ 	proc_transend(p, 1);
+ 	proc_unlock(p);
+ 
++	if (p->p_pid > 1) {
++		extern void native_gop_text(unsigned line, const char *text);
++		const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++		char ex_text[48];
++		if (exit_reason != OS_REASON_NULL) {
++			snprintf(ex_text, sizeof(ex_text), "EX %d %.12s %x R%u:%llx",
++			    p->p_pid, nm, rv, exit_reason->osr_namespace,
++			    (unsigned long long)exit_reason->osr_code);
++			native_gop_text(20, ex_text);
++		} else {
++			snprintf(ex_text, sizeof(ex_text), "EX %d %.16s %x",
++			    p->p_pid, nm, rv);
++		}
++		native_gop_text(100, ex_text);
++	}
++
+ 	proc_prepareexit(p, rv, perf_notify);
+ 
+ 	/* Last thread to terminate will call proc_exit() */
+diff --git a/security/mac_process.c b/security/mac_process.c
+index c548aa1..05b1c3d 100644
+--- a/security/mac_process.c
++++ b/security/mac_process.c
+@@ -902,7 +902,7 @@ int
+ mac_proc_check_launch_constraints(proc_t curp, struct image_params *imgp, os_reason_t *reasonp)
+ {
+ 	uint32_t skip = 0;
+-	if (PE_parse_boot_argn("sheng-no-lc", &skip, sizeof(skip)) && skip != 0) {
++	if (PE_parse_boot_argn("sheng-no-lc", &skip, sizeof(skip)) && skip == 1) {
+ 		return 0;
+ 	}
+ 	char *fatal_failure_desc = NULL;
+@@ -1005,6 +1005,22 @@ policy_fail:
+ 		}
+ 	}
+ 
++	if (error != 0) {
++		extern void native_gop_text(unsigned line, const char *text);
++		const char *nm = curp && curp->p_name[0] ? curp->p_name : (curp ? curp->p_comm : "?");
++		char lc_text[48];
++		snprintf(lc_text, sizeof(lc_text), "%s %d %.16s e%d",
++		    skip == 2 ? "LC+" : "LC!", curp ? curp->p_pid : 0, nm, error);
++		native_gop_text(100, lc_text);
++		if (skip == 2) {
++			if (fatal_failure_desc_len && *reasonp != OS_REASON_NULL) {
++				os_reason_free(*reasonp);
++				*reasonp = OS_REASON_NULL;
++			}
++			error = 0;
++		}
++	}
++
+ 	if (vn_path) {
+ 		zfree(ZV_NAMEI, vn_path);
+ 	}

@@ -465,6 +465,7 @@ void native_legacy_client_observed(IOReturn status,IOUserClient *client) {
     native_legacy_client_status=status;native_legacy_client_object=(uintptr_t)client;
     if(client)strlcpy(native_legacy_client_class,client->getMetaClass()->getClassName(),sizeof(native_legacy_client_class));
     dline(28,"DISP CLIENT %d %s %x",native_legacy_client_pid,native_legacy_client_name,(unsigned)status);
+    dline(100,"CL %d %.16s %x",native_legacy_client_pid,native_legacy_client_name,(unsigned)status);
     native_legacy_client_checkpoint();
 }
 __attribute__((noinline)) bool native_legacy_gop_mapping_observed(IOService *object,IOMemoryMap *mapping,uint32_t width,uint32_t height) {

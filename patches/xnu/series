@@ -73,4 +73,5 @@ zzy-native-gpu-addon-mount.patch
 zzy-staged-system-apps.patch
 zzyb-native-cryptex-os-view.patch
 zzyc-owner-skip-launch-constraints.patch
+zzyd-owner-diag-ring.patch
 zzz-boot-progress.patch
