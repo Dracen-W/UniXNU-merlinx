@@ -124,6 +124,34 @@ def main():
         run('hdiutil', 'detach', disk)
 
     packed.unlink(missing_ok=True)
+    # Pin the APFS volume UUID in all APSB blocks to CONFIG_XNU_OWNER_DATA_VOLUME_UUID when specified in spec.
+    pin_uuid = spec.get('volume_uuid', '8C87541D-CA80-4176-B6B4-A11FD2984A32')
+    if pin_uuid:
+        import struct, uuid as _uuid
+        target_uuid = _uuid.UUID(pin_uuid).bytes
+        mod = (1 << 32) - 1
+        with open(raw, 'r+b') as rf:
+            pos = 0
+            while True:
+                buf = rf.read(1 << 20)
+                if not buf:
+                    break
+                for off in range(0, len(buf), 4096):
+                    blk = bytearray(buf[off:off + 4096])
+                    if len(blk) == 4096 and blk[32:36] == b'APSB':
+                        blk[240:256] = target_uuid
+                        s1 = s2 = 0
+                        for word, in struct.iter_unpack('<I', blk[8:]):
+                            s1 = (s1 + word) % mod
+                            s2 = (s2 + s1) % mod
+                        c1 = mod - ((s1 + s2) % mod)
+                        c2 = mod - ((s1 + c1) % mod)
+                        struct.pack_into('<Q', blk, 0, (c2 << 32) | c1)
+                        rf.seek(pos + off)
+                        rf.write(blk)
+                pos += len(buf)
+                rf.seek(pos)
+        info['VolumeUUID'] = pin_uuid
     packer.pack(raw, packed)
     result = {
         'logical_bytes': raw.stat().st_size,

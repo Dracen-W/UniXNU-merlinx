@@ -48,6 +48,12 @@
       "0755"
     ],
     [
+      "containers/Bundle",
+      0,
+      0,
+      "0755"
+    ],
+    [
       "containers/Data",
       0,
       0,
@@ -73,6 +79,12 @@
     ],
     [
       "containers/Shared/SystemGroup",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Temp",
       0,
       0,
       "0755"
@@ -300,6 +312,18 @@
       "0750"
     ],
     [
+      "root/Library",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "root/Library/Preferences",
+      0,
+      0,
+      "0755"
+    ],
+    [
       "run",
       0,
       0,
@@ -372,6 +396,10 @@
         "DMLastMigrationResults": {
           "success": true,
           "buildVersion": "21H461"
+        },
+        "DMUserDataDisposition": {
+          "SyntheticDidUpgrade": false,
+          "buildVersion": "21H461"
         }
       }
     ],
@@ -383,9 +411,37 @@
       "plist",
       {
         "SetupDone": true,
+        "SetupFinishedAllSteps": true,
         "SetupVersion": 11,
         "SetupState": "SetupUsingAssistant",
-        "ForceNoBuddy": true
+        "ForceNoBuddy": true,
+        "daemonizeNeedsToRun": false
+      }
+    ],
+    [
+      "mobile/Library/Preferences/com.apple.purplebuddy.notbackedup.plist",
+      501,
+      501,
+      "0600",
+      "plist",
+      {
+        "ShouldRunDiagnosticsMiniBuddy": false,
+        "ShouldRunHSA2MiniBuddy": false,
+        "ShouldRunKeychainSyncMiniBuddy": false,
+        "ShouldRunMesaMiniBuddy": false,
+        "ShouldRunPaymentMiniBuddy": false,
+        "ShouldRunStandardMiniBuddy": false,
+        "SilentICDPUpgrade": false
+      }
+    ],
+    [
+      "mobile/Library/Preferences/com.apple.managedconfiguration.notbackedup.plist",
+      501,
+      501,
+      "0600",
+      "plist",
+      {
+        "LockdownActivationIndicatesCloudConfigurationAvailable": false
       }
     ],
     [
@@ -396,7 +452,14 @@
       "plist",
       {
         "FBLaunchWatchdogScale": 20.0,
-        "BKNoWatchdogs": true
+        "BKNoWatchdogs": true,
+        "FBLaunchWatchdogExceptions": {
+          "com.apple.purplebuddy": 100.0
+        },
+        "MCForceShowCloudConfigurationUI": false,
+        "SBDisableAutoDim": true,
+        "SBDontDimOrLockOnAC": true,
+        "SBDisableIdleSleep": true
       }
     ],
     [
@@ -410,6 +473,54 @@
       }
     ],
     [
+      "mobile/Library/Preferences/backboardd.plist",
+      501,
+      501,
+      "0644",
+      "plist",
+      {
+        "CAEnableDeepFramebuffer": false,
+        "CAEnableFramebufferCompression": false,
+        "CAEnableIOSurfaceCompression": false
+      }
+    ],
+    [
+      "mobile/Library/Preferences/.GlobalPreferences.plist",
+      501,
+      501,
+      "0644",
+      "plist",
+      {
+        "CAEnableDeepFramebuffer": false,
+        "CAEnableFramebufferCompression": false,
+        "CAEnableIOSurfaceCompression": false
+      }
+    ],
+    [
+      "root/Library/Preferences/backboardd.plist",
+      0,
+      0,
+      "0644",
+      "plist",
+      {
+        "CAEnableDeepFramebuffer": false,
+        "CAEnableFramebufferCompression": false,
+        "CAEnableIOSurfaceCompression": false
+      }
+    ],
+    [
+      "root/Library/Preferences/.GlobalPreferences.plist",
+      0,
+      0,
+      "0644",
+      "plist",
+      {
+        "CAEnableDeepFramebuffer": false,
+        "CAEnableFramebufferCompression": false,
+        "CAEnableIOSurfaceCompression": false
+      }
+    ],
+    [
       "db/com.apple.xpc.launchd/disabled.plist",
       0,
       0,
@@ -417,7 +528,10 @@
       "plist",
       {
         "com.apple.watchdogd": true,
-        "com.apple.bluetoothd": true
+        "com.apple.bluetoothd": true,
+        "com.apple.cryptexd": true,
+        "com.apple.PerfPowerServices": true,
+        "com.apple.liveactivitiesd": true
       }
     ]
   ],
