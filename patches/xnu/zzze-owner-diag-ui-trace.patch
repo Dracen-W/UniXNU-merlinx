@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8cf7580..ffe1782 100644
+index 8cf7580..57f47b3 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -103,6 +103,45 @@
+@@ -103,6 +103,70 @@
  void native_gop_text(unsigned line, const char *text);
  void native_diag_note_exec(int pid, const char *name);
  void native_diag_note_exit(int pid, const char *name);
@@ -45,10 +45,35 @@ index 8cf7580..ffe1782 100644
 +	table[free_slot].count = 1;
 +	return TRUE;
 +}
++
++/* Every demanded XPC service once, so the ring keeps the launch history instead of repeating the same demand. */
++static struct native_diag_throttle native_diag_service_throttle[NATIVE_DIAG_THROTTLE_SLOTS];
++
++static boolean_t
++native_diag_first(struct native_diag_throttle *table, const char *name)
++{
++	unsigned int i, free_slot = NATIVE_DIAG_THROTTLE_SLOTS;
++	if (!name || !name[0])
++		return FALSE;
++	for (i = 0; i < NATIVE_DIAG_THROTTLE_SLOTS; i++) {
++		if (!table[i].name[0]) {
++			if (free_slot == NATIVE_DIAG_THROTTLE_SLOTS)
++				free_slot = i;
++			continue;
++		}
++		if (strncmp(table[i].name, name, sizeof(table[i].name) - 1) == 0)
++			return FALSE;
++	}
++	if (free_slot == NATIVE_DIAG_THROTTLE_SLOTS)
++		free_slot = 0;
++	strlcpy(table[free_slot].name, name, sizeof(table[free_slot].name));
++	table[free_slot].count = 1;
++	return TRUE;
++}
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2390,9 +2429,13 @@ encapsulated_binary:
+@@ -2390,9 +2454,13 @@ encapsulated_binary:
  			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
  			char go_text[48];
  			native_gop_text(6, cm);
@@ -64,15 +89,17 @@ index 8cf7580..ffe1782 100644
  		}
  	}
  bad:
-@@ -3615,7 +3658,50 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3615,7 +3683,52 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		spawn_path[sizeof(spawn_path) - 1] = 0;
  		if (spawn_path[0]) {
  			const char *slash = strrchr(spawn_path, '/');
 -			strlcpy(spawn_base, slash ? slash + 1 : spawn_path, sizeof(spawn_base));
 +			const char *base = slash ? slash + 1 : spawn_path;
 +			strlcpy(spawn_base, base, sizeof(spawn_base));
-+			/* X marks a program reached through /System/Cryptexes, which only some processes can see. */
-+			if (native_diag_throttle(native_diag_spawn_throttle, spawn_base)) {
++			/* X marks a program reached through /System/Cryptexes, which only some processes can see. The xpcproxy
++			 * trampoline is reported by its service name below instead, so it does not drown the real programs. */
++			if (strcmp(spawn_base, "xpcproxy") != 0 &&
++			    native_diag_throttle(native_diag_spawn_throttle, spawn_base)) {
 +				char spawn_text[48];
 +				boolean_t cryptex = strncmp(spawn_path, "/System/Cryptexes/", 18) == 0 ||
 +				    strncmp(spawn_path, "/private/preboot/Cryptexes/", 28) == 0;
@@ -107,7 +134,7 @@ index 8cf7580..ffe1782 100644
 +						service[sizeof(service) - 1] = 0;
 +					}
 +				}
-+				if (service[0] && native_diag_throttle(native_diag_spawn_throttle, service)) {
++				if (service[0] && native_diag_first(native_diag_service_throttle, service)) {
 +					char service_text[48];
 +					snprintf(service_text, sizeof(service_text), "SV %.24s", service);
 +					native_gop_text(100, service_text);
@@ -116,7 +143,7 @@ index 8cf7580..ffe1782 100644
  		}
  	}
  
-@@ -4934,7 +5020,7 @@ bad:
+@@ -4934,7 +5047,7 @@ bad:
  	}
  #endif
  
@@ -125,7 +152,7 @@ index 8cf7580..ffe1782 100644
  		char spawn_text[48];
  		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5255,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5282,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -148,7 +175,7 @@ index 8cf7580..ffe1782 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7181,12 +7283,14 @@ native_gop_text(unsigned line, const char *text)
+@@ -7181,12 +7310,14 @@ native_gop_text(unsigned line, const char *text)
  }
  
  /* Live pids of the services on the path to the first frame, so one photo answers whether the UI stack exists: sb SpringBoard,
@@ -164,7 +191,7 @@ index 8cf7580..ffe1782 100644
  
  static int
  native_diag_tracked_slot(const char *name)
-@@ -7200,13 +7304,15 @@ native_diag_tracked_slot(const char *name)
+@@ -7200,13 +7331,15 @@ native_diag_tracked_slot(const char *name)
  	return -1;
  }
  
@@ -184,7 +211,7 @@ index 8cf7580..ffe1782 100644
  	native_gop_text(100, summary);
  }
  
-@@ -7214,9 +7320,11 @@ void
+@@ -7214,9 +7347,11 @@ void
  native_diag_note_exec(int pid, const char *name)
  {
  	int slot = native_diag_tracked_slot(name);
@@ -198,7 +225,7 @@ index 8cf7580..ffe1782 100644
  }
  
  void
-@@ -7225,7 +7333,13 @@ native_diag_note_exit(int pid, const char *name)
+@@ -7225,7 +7360,59 @@ native_diag_note_exit(int pid, const char *name)
  	int slot = native_diag_tracked_slot(name);
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
@@ -210,9 +237,63 @@ index 8cf7580..ffe1782 100644
 +native_diag_should_print_exit(const char *name)
 +{
 +	return native_diag_throttle(native_diag_exit_throttle, name);
++}
++
++/* One photo answers whether launchd's own root view holds the jobs on the path to the first frame: the five plists and the
++ * five programs, resolved by the kernel after the root union and the Data mount are in place. J and P are in the order
++ * backboardd, SpringBoard, lsd, containermanagerd, runningboardd; 1 = present, 0 = not visible. */
++static void
++native_diag_jobs_probe(void)
++{
++	static const char *const jobs[5] = {
++		"/System/Library/LaunchDaemons/com.apple.backboardd.plist",
++		"/System/Library/LaunchDaemons/com.apple.SpringBoard.plist",
++		"/System/Library/LaunchDaemons/com.apple.lsd.plist",
++		"/System/Library/LaunchDaemons/com.apple.containermanagerd.plist",
++		"/System/Library/LaunchDaemons/com.apple.runningboardd.plist",
++	};
++	static const char *const programs[5] = {
++		"/usr/libexec/backboardd",
++		"/System/Library/CoreServices/SpringBoard.app/SpringBoard",
++		"/usr/libexec/lsd",
++		"/usr/libexec/containermanagerd",
++		"/usr/libexec/runningboardd",
++	};
++	vfs_context_t context = vfs_context_current();
++	char line[8];
++	unsigned int i;
++	line[0] = 'J';
++	line[1] = ' ';
++	for (i = 0; i < 5; i++) {
++		vnode_t node = NULLVP;
++		int error = vnode_lookup(jobs[i], 0, &node, context);
++		line[2 + i] = error ? '0' : '1';
++		if (!error)
++			vnode_put(node);
++	}
++	line[7] = 0;
++	native_gop_text(9, line);
++	line[0] = 'P';
++	for (i = 0; i < 5; i++) {
++		vnode_t node = NULLVP;
++		int error = vnode_lookup(programs[i], 0, &node, context);
++		line[2 + i] = error ? '0' : '1';
++		if (!error)
++			vnode_put(node);
++	}
++	line[7] = 0;
++	native_gop_text(28, line);
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
+@@ -8435,6 +8622,7 @@ load_init_program(proc_t p)
+ 	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
+ 	boot_progress_stage("Data mount returned");
+ 	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
++	native_diag_jobs_probe();
+ #if defined(XNU_BOOT_PROGRESS) && XNU_BOOT_PROGRESS
+ 	extern int sheng_boot_watchdog_policy(void *, uint64_t);
+ 	boot_progress_stage("temporary watchdog launch policy enter");
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
 index f0721cc..0e7c6f8 100644
 --- a/bsd/kern/kern_exit.c
