@@ -190,6 +190,7 @@ def main():
                              ('artwork-scale-factor', struct.pack('<I', 2)),
                              ('artwork-display-gamut', b'P3\0'),
                              ('compatible-device-fallback', b'iPad6,7\0'),
+                             ('product-id', bytes.fromhex('e9fefef6e6f9d12a5ba1a2551866cbbd749f0ec3')),
                              ('thin-bezel', struct.pack('<I', 1))] if args.ipad_identity else [] )]),
         node('arm-io', [('device_type', b'arm-io\0'),
                         ('#address-cells', struct.pack('<I', 2)),
