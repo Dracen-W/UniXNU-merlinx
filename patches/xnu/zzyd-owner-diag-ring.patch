@@ -27,7 +27,7 @@ index 450b923..de1fd9f 100644
  	}
  bad:
  	proc_transend(p, 0);
-@@ -7083,38 +7097,68 @@ static const unsigned long long native_gop_font[] = {
+@@ -7083,38 +7097,74 @@ static const unsigned long long native_gop_font[] = {
  	0x22F000000210BE31, 0x23E0000021087A31, 0x26D0000000008421, 0x22E0000000074506, 0x04F1080000064842, 0x23100000000B6631, 0x2310000000022951, 0x23100000000556B5,
  	0x151000000008A884, 0x231000001D185B31, 0x11F00000000F8444, 0x0642109801821084, 0x0842108000021084, 0x3042108300321084, 0x0004D64000000000, 0x0000000000000000
  };
@@ -105,6 +105,12 @@ index 450b923..de1fd9f 100644
 +		native_gop_draw_span(mid + 4, vinfo.v_width, 320 + next * 30, 2, 0xffffff00u, "---");
 +		return;
  	}
++	if (line >= 10 && line <= 18) {
++		static unsigned int hot_line_hits[9];
++		unsigned int hits = __atomic_fetch_add(&hot_line_hits[line - 10], 1, __ATOMIC_RELAXED);
++		if (hits != 0 && (hits & 1023U) != 0)
++			return;
++	}
 +	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  volatile int native_owner_cache_stage = 0;
