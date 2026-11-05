@@ -531,8 +531,17 @@
         "com.apple.bluetoothd": true,
         "com.apple.cryptexd": true,
         "com.apple.PerfPowerServices": true,
-        "com.apple.liveactivitiesd": true,
-        "com.apple.screentimeagent": true
+        "com.apple.liveactivitiesd": true
+      }
+    ],
+    [
+      "db/com.apple.xpc.launchd/disabled.501.plist",
+      0,
+      0,
+      "0644",
+      "plist",
+      {
+        "com.apple.ScreenTimeAgent": true
       }
     ]
   ],

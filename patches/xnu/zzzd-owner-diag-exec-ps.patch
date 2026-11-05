@@ -1,0 +1,198 @@
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+index e104898..8cf7580 100644
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -101,6 +101,8 @@
+ #include <sys/acct.h>
+ 
+ void native_gop_text(unsigned line, const char *text);
++void native_diag_note_exec(int pid, const char *name);
++void native_diag_note_exit(int pid, const char *name);
+ #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
+ static int native_owner_data_writable(proc_t p);
+ #endif
+@@ -2386,19 +2388,11 @@ encapsulated_binary:
+ 		}
+ 		if (p->p_pid > 1) {
+ 			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
++			char go_text[48];
+ 			native_gop_text(6, cm);
+-			if (strncmp(cm, "backboard", 9) == 0 ||
+-			    strncmp(cm, "SpringBoard", 11) == 0 ||
+-			    strncmp(cm, "IOMFB", 5) == 0 ||
+-			    strncmp(cm, "mobilegestalt", 13) == 0 ||
+-			    strncmp(cm, "runningboard", 12) == 0 ||
+-			    strncmp(cm, "assertiond", 10) == 0 ||
+-			    strncmp(cm, "sysstatus", 9) == 0 ||
+-			    strncmp(cm, "RenderServer", 12) == 0) {
+-				char go_text[48];
+-				snprintf(go_text, sizeof(go_text), "GO %d %s", p->p_pid, cm);
+-				native_gop_text(100, go_text);
+-			}
++			snprintf(go_text, sizeof(go_text), "GO %d %.16s", p->p_pid, cm);
++			native_gop_text(100, go_text);
++			native_diag_note_exec(p->p_pid, cm);
+ 		}
+ 	}
+ bad:
+@@ -3569,6 +3563,7 @@ int
+ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+ {
+ 	proc_t p = ap;
++	char spawn_base[32] = "";
+ 	native_gop_text(8, "SPAWN");
+ 	user_addr_t pid = uap->pid;
+ 	int ival[2];            /* dummy retval for setpgid() */
+@@ -3612,6 +3607,18 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+ 		struct vnode_attr origva;
+ 	} *__spawn_data;
+ 
++	if (current_proc()->p_pid == 1 && uap->path != USER_ADDR_NULL) {
++		char spawn_path[128];
++		size_t spawn_len = 0;
++		spawn_path[0] = 0;
++		(void)copyinstr(uap->path, spawn_path, sizeof(spawn_path), &spawn_len);
++		spawn_path[sizeof(spawn_path) - 1] = 0;
++		if (spawn_path[0]) {
++			const char *slash = strrchr(spawn_path, '/');
++			strlcpy(spawn_base, slash ? slash + 1 : spawn_path, sizeof(spawn_base));
++		}
++	}
++
+ 	/*
+ 	 * Allocate a big chunk for locals instead of using stack since these
+ 	 * structures are pretty big.
+@@ -4927,6 +4934,12 @@ bad:
+ 	}
+ #endif
+ 
++	if (error != 0 && spawn_base[0]) {
++		char spawn_text[48];
++		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
++		native_gop_text(100, spawn_text);
++	}
++
+ 	assert(spawn_no_exec || exec_failure_reason == NULL);
+ 	return error;
+ }
+@@ -7166,6 +7179,54 @@ native_gop_text(unsigned line, const char *text)
+ 	}
+ 	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
+ }
++
++/* Live pids of the services on the path to the first frame, so one photo answers whether the UI stack exists: sb SpringBoard,
++ * bb backboardd, fb frontboardd, rb runningboardd, ls lsd, cm containermanagerd. Entries clear on exit. */
++static const char *const native_diag_tracked[] = {
++	"backboardd", "SpringBoard", "frontboardd", "runningboardd",
++	"lsd", "containermanager", "cfprefsd", "distnoted",
++};
++static int native_diag_tracked_pid[8];
++
++static int
++native_diag_tracked_slot(const char *name)
++{
++	unsigned int i;
++	if (!name)
++		return -1;
++	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
++		if (strcmp(name, native_diag_tracked[i]) == 0)
++			return (int)i;
++	return -1;
++}
++
++static void
++native_diag_process_summary(void)
++{
++	char summary[48];
++	snprintf(summary, sizeof(summary), "PS sb%d bb%d fb%d rb%d ls%d cm%d",
++	    native_diag_tracked_pid[1], native_diag_tracked_pid[0], native_diag_tracked_pid[2],
++	    native_diag_tracked_pid[3], native_diag_tracked_pid[4], native_diag_tracked_pid[5]);
++	native_gop_text(100, summary);
++}
++
++void
++native_diag_note_exec(int pid, const char *name)
++{
++	int slot = native_diag_tracked_slot(name);
++	if (slot >= 0)
++		native_diag_tracked_pid[slot] = pid;
++	native_diag_process_summary();
++}
++
++void
++native_diag_note_exit(int pid, const char *name)
++{
++	int slot = native_diag_tracked_slot(name);
++	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
++		native_diag_tracked_pid[slot] = 0;
++	native_diag_process_summary();
++}
+ volatile int native_owner_cache_stage = 0;
+ volatile int native_owner_cache_status = -1;
+ volatile int native_owner_cache_mount_status = -1;
+diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
+index 202da6a..f0721cc 100644
+--- a/bsd/kern/kern_exit.c
++++ b/bsd/kern/kern_exit.c
+@@ -1627,6 +1627,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+ 
+ 	if (p->p_pid > 1) {
+ 		extern void native_gop_text(unsigned line, const char *text);
++		extern void native_diag_note_exit(int pid, const char *name);
+ 		const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
+ 		char ex_text[48];
+ 		if (exit_reason != OS_REASON_NULL) {
+@@ -1639,6 +1640,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+ 			    p->p_pid, nm, rv);
+ 		}
+ 		native_gop_text(100, ex_text);
++		native_diag_note_exit(p->p_pid, nm);
+ 	}
+ 
+ 	proc_prepareexit(p, rv, perf_notify);
+diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
+index ae94c7e..f4d58f0 100644
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -61,6 +61,7 @@
+ #include <vm/pmap.h>
+ #include <vm/vm_fault.h>
+ #include <vm/vm_kern.h>
++#include <vm/vm_shared_region.h>
+ 
+ #include <sys/errno.h>
+ #include <sys/kdebug.h>
+@@ -1532,6 +1533,25 @@ handle_sw_step_debug(arm_saved_state_t *state)
+ 	__builtin_unreachable();
+ }
+ 
++/* An unresolved user fault is about to become a signal. Record the pid, the PC and LR in shared-cache coordinates and the fault
++ * address, so a crash loop (lsd, SpringBoard) can be placed in a library from a photo without a serial console. */
++static void
++native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr)
++{
++	extern int proc_getpid(proc_t);
++	extern void native_gop_text(unsigned line, const char *text);
++	task_t task = current_task();
++	uint64_t slide = task->shared_region ? task->shared_region->sr_slide : 0;
++	char line[48];
++	snprintf(line, sizeof(line), "UG %d %llx %llx", proc_getpid(current_proc()),
++	    (unsigned long long)(get_saved_state_pc(state) - slide),
++	    (unsigned long long)(get_saved_state_lr(state) - slide));
++	native_gop_text(100, line);
++	snprintf(line, sizeof(line), "UF %llx %llx", (unsigned long long)fault_addr,
++	    (unsigned long long)slide);
++	native_gop_text(100, line);
++}
++
+ static void
+ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,
+     fault_status_t fault_code, vm_prot_t fault_type, expected_fault_handler_t expected_fault_handler)
+@@ -1675,6 +1695,7 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+ #endif /* __has_feature(ptrauth_calls) */
+ 
+ 	boot_progress_user_abort(state, esr, fault_addr);
++	native_diag_user_fault(state, fault_addr);
+ 	if (user_fault_in_self_restrict_mode(thread) &&
+ 	    task_is_jit_exception_fatal(get_threadtask(thread))) {
+ 		extern int exit_with_jit_exception(proc_t p);
