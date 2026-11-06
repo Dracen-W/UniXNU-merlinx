@@ -77,49 +77,6 @@ build = []
 outputs = []
 
 [[component]]
-id = "Adreno740"
-repository_id = 1426848889
-kind = "driver"
-function = "A740 kernel GPU driver"
-scope = "gpu"
-repository = "https://github.com/UniXNU/Adreno740.git"
-revision = "4e0314df8ad29d52f6fa3f9383a540adcd618b87"
-path = "drivers/Adreno740"
-hardware = ["Adreno 740", "SM8550"]
-os_abi = ["ipados-17.7.11-21H461"]
-board_dependencies = ["ZAP firmware", "GPU power policy", "reserved memory"]
-verified_devices = ["sheng"]
-dependencies = ["Sm8550Platform", "AdrenoPM4", "AdrenoFirmware", "ArmSmmu4K"]
-source_files = ["NativeAdrenoService.cpp"]
-runtime_identifiers = ["NativeAdreno", "NativeAdrenoService.cpp", "org.blu-sharky.NativeAdreno", "NativeAdrenoGpuService", "NativeAdrenoSmmuService", "NativeAdrenoGmuService"]
-build_stage = "kernel"
-build = ["build-arm-driver.py", "Adreno740"]
-outputs = ["build/adreno740/libAdreno740.a"]
-legacy_name = "NativeAdreno"
-legacy_outputs = { "build/native-adreno/libNativeAdreno.a" = "build/adreno740/libAdreno740.a" }
-
-[[component]]
-id = "AdrenoMetal"
-repository_id = 1426849428
-kind = "driver"
-function = "Metal frontend through metal2vulkan and Turnip"
-scope = "graphics"
-repository = "https://github.com/UniXNU/AdrenoMetal.git"
-revision = "454ff2ce83766ce7b3e0f355e83f1d72907708b3"
-path = "drivers/AdrenoMetal"
-hardware = ["Turnip Darwin backend", "kernel GPU user-client ABI"]
-os_abi = ["ipados-17.7.11-21H461"]
-board_dependencies = ["display integration", "shader cache"]
-verified_devices = ["sheng"]
-dependencies = ["Adreno740", "AdrenoPM4"]
-source_files = ["NativeAdrenoMetalPlugin.mm", "NativeBridgeMetalFrontend.mm", "bridge/NativeMetalBridge.rs"]
-runtime_identifiers = ["NativeMetal", "NativeAdrenoMetalPlugin.mm", "NativeBridgeMetalFrontend.mm", "bridge/NativeMetalBridge.rs", "NativeAdrenoMetal.bundle", "NativeAdrenoMetal", "org.blu-sharky.NativeAdrenoMetal", "libvulkan_freedreno.dylib"]
-build_stage = "payload"
-build = ["build-adreno-metal-plugin.py"]
-outputs = ["build/adreno-metal-plugin/NativeAdrenoMetal.bundle"]
-legacy_name = "NativeMetal"
-
-[[component]]
 id = "ShengUfs"
 repository_id = 1426850705
 kind = "driver"
@@ -175,34 +132,13 @@ hardware = ["Novatek NT36532/NT36532E"]
 os_abi = ["ipados-17.7.11-21H461"]
 board_dependencies = ["sheng sensor matrix and coordinates"]
 verified_devices = ["sheng"]
-dependencies = ["QcomGeniSpi"]
+dependencies = []
 source_files = ["NvtTouchCore.c"]
 runtime_identifiers = ["NativeNovatekTouch", "NvtTouchCore.c"]
 build_stage = "embedded"
 build = []
 outputs = []
 legacy_name = "NativeNovatekTouch"
-
-[[component]]
-id = "QcomGeniSpi"
-repository_id = 1426849026
-kind = "driver"
-function = "Qualcomm GENI SPI controller operations"
-scope = "controller"
-repository = "https://github.com/UniXNU/QcomGeniSpi.git"
-revision = "eac47baefe6a5d2368a70351e6ad1b6361bedbe2"
-path = "drivers/QcomGeniSpi"
-hardware = ["Qualcomm GENI SPI"]
-os_abi = ["ipados-17.7.11-21H461"]
-board_dependencies = ["MMIO and DMA callbacks", "clocks and pins"]
-verified_devices = []
-dependencies = []
-source_files = ["GeniSpi.c"]
-runtime_identifiers = ["NativeGeniSpi", "GeniSpi.c"]
-build_stage = "embedded"
-build = []
-outputs = []
-legacy_name = "NativeGeniSpi"
 
 [[component]]
 id = "GopFramebuffer"

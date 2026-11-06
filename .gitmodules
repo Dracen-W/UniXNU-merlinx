@@ -13,18 +13,9 @@
 [submodule "drivers/SoftwareAES"]
 	path = drivers/SoftwareAES
 	url = https://github.com/UniXNU/SoftwareAES.git
-[submodule "drivers/Adreno740"]
-	path = drivers/Adreno740
-	url = https://github.com/UniXNU/Adreno740.git
-[submodule "drivers/QcomGeniSpi"]
-	path = drivers/QcomGeniSpi
-	url = https://github.com/UniXNU/QcomGeniSpi.git
 [submodule "drivers/AppleKeyStoreState"]
 	path = drivers/AppleKeyStoreState
 	url = https://github.com/UniXNU/AppleKeyStoreState.git
-[submodule "drivers/AdrenoMetal"]
-	path = drivers/AdrenoMetal
-	url = https://github.com/UniXNU/AdrenoMetal.git
 [submodule "drivers/GopFramebuffer"]
 	path = drivers/GopFramebuffer
 	url = https://github.com/UniXNU/GopFramebuffer.git
