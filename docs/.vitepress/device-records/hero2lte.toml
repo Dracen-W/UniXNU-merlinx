@@ -139,7 +139,7 @@ limits = [
   "Only one CPU is enabled.",
 ]
 next_action = [
-  "Build and boot the XNU image with the GICv2 ArmCpu path, then extend GICv2 secondary-core startup.",
+  "Boot the built XNU image on the device and observe GICv2 timer and IPI delivery, then extend GICv2 secondary-core startup.",
 ]
 
 [[area.evidence]]
@@ -154,8 +154,22 @@ result = "UEFI GICv2 and timer interrupt handling observed on hardware; ArmCpu's
 
 [[area.evidence]]
 kind = "source"
-reference = "https://github.com/DokuroMitsukai/ArmCpu/commit/fba847bd4488e8b7bb715a91ba87e59d8fffbb66"
-result = "Four-range GICv2 device tree and identity arm-io ranges, distributor, banked CPU interface, PPI 27 timer, GICD_SGIR IPI, firmware-owned interrupt group and QEMU GIC-400 test"
+reference = "https://github.com/DokuroMitsukai/ArmCpu/commit/c9c4bd87cabc1fe6736e171cd2540313ac4b7883"
+result = "Four-range GICv2 device tree, 24-byte arm-io range translation, distributor, banked CPU interface, PPI 27 timer, GICD_SGIR IPI, firmware-owned interrupt group and QEMU GIC-400 test"
+
+[[area.evidence]]
+kind = "host"
+reference = "https://github.com/DokuroMitsukai/UniXNU/actions/runs/40278142422"
+command = "./unixnu build kernel (workflow_dispatch, steps=kernel, pre_build empty)"
+revision = "14529f5d63bfd1f53ba3c8648fd354609c434762"
+result = "clean macOS clone: submodule update fetched ArmCpu c9c4bd8 without an override, component-ArmCpu passed the -Werror object audit and kernel.macho sha256 d30e2c9f0cc5f6fd8853b107ee428c720e10103deec966797706fce5a75578c1"
+
+[[area.evidence]]
+kind = "host"
+reference = "https://github.com/DokuroMitsukai/UniXNU/commit/7098f082321552babbec7fb1e1e09b740b90668f"
+command = "UNIXNU_TOOLCHAIN=<prefix> ./unixnu build kernel -D ../UniXNU-hero2lte"
+revision = "7098f082321552babbec7fb1e1e09b740b90668f"
+result = "local Linux host build with upstream clang: kernel.macho 51073024 bytes, Mach-O arm64 NOUNDEFS, sha256 680afe58f1c0fc53d387a61d1717827cb510ad59909892822deaba331bb7e58e"
 
 [[area]]
 id = "memory"
@@ -430,7 +444,7 @@ next_action = [
 evidence = []
 [[area]]
 id = "packaging"
-status = "planned"
+status = "host-verified"
 components = ["XnuPrelink"]
 paths = ["patches/**", "configs/**", "unixnu.lock"]
 inputs = [
@@ -448,19 +462,27 @@ procedure = [
 findings = [
   "The standalone Mu-Silicium boot image uses the v0 layout and passes the BootShim host tests.",
   "A 40 MiB standalone image was written to BOOT, read back byte-for-byte and accepted by S-Boot, reaching UEFI.",
-  "No XNU kernel, payload or UniXNU boot image has been built for this board.",
+  "Kernel prelink succeeds against the IPSW kernelcache on both macOS CI and a Linux host, and links the GICv2 ArmCpu.",
+  "payload.img is 201326592 bytes but BOOT holds 41943040 bytes, so the payload cannot be delivered as an Android ramdisk at the configured size_mib.",
 ]
 completion = [
   "Kernel and prelink succeed, the payload contains all declared inputs, and the boot image matches the bootloader format and size limit.",
 ]
 limits = [
-  "No kernelcache, trust cache or data ramdisk is available.",
-  "The UEFI container is validated, but no XNU payload image exists.",
+  "No trust cache or data ramdisk is available.",
+  "The payload volume (192 MiB) is larger than the BOOT partition (40 MiB); delivery needs a smaller [payload] size_mib or a partition with room for it.",
+  "The UniXNU-integrated firmware with the payload has not been built or validated.",
 ]
 next_action = [
-  "Build the kernel now that ArmCpu GICv2 support exists, then supply the kernelcache, trust cache and data ramdisk for the first XNU hardware checkpoint.",
+  "Decide the payload delivery (shrink size_mib to the BOOT partition or use a larger partition), then build the UniXNU firmware and boot image for the first XNU hardware checkpoint.",
 ]
-evidence = []
+
+[[area.evidence]]
+kind = "host"
+reference = "https://github.com/DokuroMitsukai/UniXNU/commit/7098f082321552babbec7fb1e1e09b740b90668f"
+command = "./unixnu build kernel -D ../UniXNU-hero2lte; ./unixnu build payload --unique-chip-id <seed> -D ../UniXNU-hero2lte"
+revision = "7098f082321552babbec7fb1e1e09b740b90668f"
+result = "kernel.macho sha256 680afe58f1c0fc53d387a61d1717827cb510ad59909892822deaba331bb7e58e; payload.img 201326592 bytes, payload sha256 2d9cb7e449c9353a84d55e0547d2a7eb12840035f96890854a01c7b4488162aa, kernel and ADT embedded"
 [[area]]
 id = "diagnostics"
 status = "planned"

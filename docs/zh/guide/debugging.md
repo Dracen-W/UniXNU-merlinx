@@ -68,7 +68,7 @@ python -m unittest discover -s tests/terminal -v
 | 来源 | 通道 | 用途 |
 | --- | --- | --- |
 | [固件日志导出](/zh/porting/log-capture#qr-logs) | OneSend 二维码 | 当前 UEFI Advanced Logger 缓冲 |
-| [持久化日志](/zh/porting/log-capture#persistent-logs) | 预留存储区域和 Linux 读取器 | 内核消息与诊断快照 |
+| [持久化日志](/zh/porting/log-capture#persistent-logs) | 预留存储区域、Linux 读取器或 recovery 读取器 | 内核消息与诊断快照 |
 | UEFI 串口 | UART | 固件、UniXNU、DarwinBoot |
 | 内核串口 | 由 `serial=` 选择的 UART | XNU 控制台和 panic 输出 |
 | 诊断页 | framebuffer | 控制台停止后的实时状态 |
@@ -387,4 +387,6 @@ jq . out/<device>/<os_profile>/<config>/boot/boot.json
 - [启动参数](/zh/xnu/boot-arguments)
 - [故障排查](/zh/reference/troubleshooting)
 - [QEMU 测试](/zh/reference/qemu)
-- [sheng 设备页](/zh/devices/sheng)
+- [参考设备记录](/zh/devices/sheng)
+
+panic 显示器在本轮内核清零的 BSS 中记录首次 panic。热重启可以保留显存内容，旧画面不影响新一轮显示和导出 panic。2,048 字节 panic 文本缓冲区的最后一个字节用于记录该状态。

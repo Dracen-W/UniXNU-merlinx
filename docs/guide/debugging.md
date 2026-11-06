@@ -69,7 +69,7 @@ The optional C-sender interoperability test needs `GIULIA_SCREEN_FIXTURE` pointi
 | Source | Transport | Use |
 | --- | --- | --- |
 | [Firmware log export](/porting/log-capture#qr-logs) | OneSend QR frames | Current UEFI Advanced Logger buffer |
-| [Persistent logs](/porting/log-capture#persistent-logs) | Reserved storage and Linux reader | Kernel messages and diagnostic snapshots |
+| [Persistent logs](/porting/log-capture#persistent-logs) | Reserved storage, Linux reader or recovery reader | Kernel messages and diagnostic snapshots |
 | UEFI serial | UART | Firmware, UniXNU and DarwinBoot |
 | Kernel serial | UART selected by `serial=` | XNU console and panic output |
 | Diagnostic page | Framebuffer | Live state after the console stops |
@@ -388,4 +388,6 @@ jq . out/<device>/<os_profile>/<config>/boot/boot.json
 - [Boot arguments](/xnu/boot-arguments)
 - [Troubleshooting](/reference/troubleshooting)
 - [QEMU testing](/reference/qemu)
-- [sheng device page](/devices/sheng)
+- [Reference device record](/devices/sheng)
+
+The panic renderer keeps its first-panic claim in the current kernel’s zeroed BSS. A warm reboot can retain framebuffer pixels; those pixels do not determine whether the new boot may display and export its panic. The final byte of the 2,048-byte panic text buffer is reserved for the claim.

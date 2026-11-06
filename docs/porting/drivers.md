@@ -20,7 +20,7 @@ map below. For each selected implementation, write down:
 Use the target DTS, firmware and driver sources for hardware values. Record their
 file and revision beside the configuration. Keep SoC operations in shared support,
 board wiring/policy in the device repository and OS ABI bindings in the selected
-OS integration. The sheng sources linked in these guides are implementation examples.
+OS integration. The device sources linked in these guides are implementation examples.
 
 From the main checkout, resolve the target:
 
@@ -42,6 +42,8 @@ Use the reported target tree for low-level build commands. Components are under
 | 4 | Touch and physical buttons | [Input](/porting/input) | QcomGeniSpi, ShengNovatekTouch, ShengHidInput, ButtonProbe |
 | 5 | GPU and Metal | [GPU](/porting/gpu) | Adreno740, AdrenoMetal, Sm8550Platform, AdrenoFirmware, AdrenoPM4, AirNir |
 | 6 | Wi-Fi | [Network](/porting/network) | Ath12kWifi, WifiProbe, WifiNet, MhiBoot |
+| 6 | Bluetooth | [QcaBluetooth](/drivers/qca-bluetooth) | Linux initialization, GENI DMA, UART.SK, BlueTool |
+| 6a | Baseband and cellular, when fitted | [Baseband](/porting/baseband) | QcomBaseband, modem boot, QRTR, IPA/GSI |
 | 7 | DSP, audio, battery, CPU frequency, platform power | [DSP and power](/porting/power) | AdspProbe, AudioProbe, ShengBattery, CpuFreqProbe, ShengPlatformPower |
 | 8 | OS services and packaging | [OS integration](/porting/platform#block-and-os-services) and [firmware](/porting/uefi-firmware) | SoftwareAES, AppleKeyStoreState, XnuPrelink, DarwinBoot, ShengPreflight |
 

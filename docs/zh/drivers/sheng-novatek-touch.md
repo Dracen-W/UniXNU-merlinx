@@ -51,7 +51,9 @@ struct nvt_bus {
 7. 计算每个 blob 的加权质心。
 8. 应用边缘补偿。
 9. 用半径和 down/up 阈值跨帧跟踪触点。
-10. 从槽位第二帧开始报告触点。
+10. 在第二次扫描确认按下，首次上报使用第一次扫描的位置，供 HID 识别边缘起手。
+
+多指并拢时，已跟踪手指各自对应的峰保持独立。整帧信号消失时立即松指。局部信号短暂中断时，最多保留三帧，触点在预测位置附近重新出现可沿用原 ID。
 
 核心不分配内存。临时数组位于 `struct nvt_touch_core`，探针只分配一次。注释记录原因：内核线程栈为 16 KiB，而临时数据更大。
 
@@ -129,6 +131,11 @@ volatile int native_touch_ids[NVT_SLOTS];
 
 写入方在更新前后递增序列号，读取方据此检测撕裂快照。`ShengHidInput` 读取快照并发出 digitizer 报告。
 
+在 sheng 上同时开启诊断导出和 `sheng-tlog=1`，可获取 `kernel.touchpath.bin`。
+在设备仓库运行 `python3 scripts/decode-sheng-touchpath.py kernel.touchpath.bin --jsonl paths.jsonl` 解码。
+每条记录给出一根手指相对首次观测质心的原始及滤波位移，单位为 0.1 个面板像素，并记录短暂丢点、抬指、边缘标记及 HID 提交结果。
+三个时间戳分别对应读帧前最近一次触控中断、SPI 读帧完成、发布触点集合返回，均可与 `kernel.rings.txt` 的翻帧时间对齐。
+
 ## 适配这个示例
 
 1. 把纯处理层与总线分开。
@@ -142,4 +149,4 @@ volatile int native_touch_ids[NVT_SLOTS];
 
 - [XNU 驱动](/zh/drivers/xnu-drivers)
 - [设备树匹配](/zh/drivers/device-tree-matching)
-- [sheng 设备页](/zh/devices/sheng)
+- [参考设备记录](/zh/devices/sheng)

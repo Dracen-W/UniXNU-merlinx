@@ -6,7 +6,7 @@
 
 Samsung Galaxy S7 Edge \(SM-G935F\) on Exynos 8890. Phase 1 is a Mu-Silicium UEFI firmware with display and keypad input. XNU uses ArmCpu's GICv2 path and still requires native storage, display, input and power drivers, plus verified EFS/CPEFS backups before any wipe.
 
-Source record: [porting.toml](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/porting.toml), `4086db3a4029a18ea089e7ce6355c089c58a2b09`.
+Source record: [porting.toml](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/porting.toml), `33ca6933fc94aeced28610b9e1fe5743e7f172dd`.
 
 This page is generated from the device record.
 
@@ -23,7 +23,7 @@ This page is generated from the device record.
 | [Network](#network) | `planned` |
 | [Audio](#audio) | `planned` |
 | [Power](#power) | `planned` |
-| [Image assembly](#packaging) | `planned` |
+| [Image assembly](#packaging) | `host-verified` |
 | [Diagnostics](#diagnostics) | `planned` |
 
 ## Configuration {#configuration}
@@ -66,8 +66,8 @@ This page is generated from the device record.
 
 ### Evidence
 
-- `source`: [Board identity, component selection, firmware paths and boot image parameters](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/board.toml)
-- `host`: [schema\_version 2 resolved the arch, exynos8890, iPadOS and device profiles with the selected components and patch series](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/unixnu.lock)
+- `source`: [Board identity, component selection, firmware paths and boot image parameters](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/board.toml)
+- `host`: [schema\_version 2 resolved the arch, exynos8890, iPadOS and device profiles with the selected components and patch series](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/unixnu.lock)
   Command: <code>./unixnu status --json -D ../UniXNU-hero2lte</code>. Revision: `e9fb02f99c4cc2e6c882b1c2b6443fd342bc85e0`.
 
 ## Firmware and boot {#firmware}
@@ -117,9 +117,9 @@ Components: `DarwinBoot`.
 ### Evidence
 
 - `source`: [hero2lte firmware package, keypad library, host tests and optional UniXNU payload integration](https://github.com/DokuroMitsukai/Mu-Silicium/commit/5790015a98714044d72d5037cea300b40f66a2e0)
-- `host`: [2 MiB SILICIUM\_UEFI.fd contains UniXNU, UniXNUDxe, UniXNURamDiskDxe and DarwinBoot; FVMAIN used 0x235000 and FVMAIN\_COMPACT kept 0x194998 free](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/board.toml)
+- `host`: [2 MiB SILICIUM\_UEFI.fd contains UniXNU, UniXNUDxe, UniXNURamDiskDxe and DarwinBoot; FVMAIN used 0x235000 and FVMAIN\_COMPACT kept 0x194998 free](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/board.toml)
   Command: <code>./unixnu build firmware --uefi ../Mu-Silicium --target RELEASE -D ../UniXNU-hero2lte</code>. Revision: `5790015a98714044d72d5037cea300b40f66a2e0`.
-- `device`: [readback matched 011d3abf...; timer block toggled magenta/cyan, volume/home/power keys were accepted, counter advanced, manual reboot to TWRP](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/evidence/uefi-bringup-20261026.txt)
+- `device`: [readback matched 011d3abf...; timer block toggled magenta/cyan, volume/home/power keys were accepted, counter advanced, manual reboot to TWRP](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/evidence/uefi-bringup-20261026.txt)
   Command: <code>adb push out/boot-uefi-samsung-bringup.img /tmp/boot-bringup.img; adb shell 'dd if=/tmp/boot-bringup.img of=/dev/block/sda5 bs=1M; sync; sha256sum /dev/block/sda5'; adb reboot</code>. Revision: `9f984f86636492269fff9297163d98b89c3cea65`.
 
 ## CPU and interrupts {#cpu}
@@ -162,13 +162,17 @@ Components: `ArmCpu`, `ArmDTPlatform`, `SoftwareAES`.
 
 ### Next action
 
-- Build and boot the XNU image with the GICv2 ArmCpu path, then extend GICv2 secondary-core startup.
+- Boot the built XNU image on the device and observe GICv2 timer and IPI delivery, then extend GICv2 secondary-core startup.
 
 ### Evidence
 
-- `source`: [Board CPU selection on top of the shared exynos8890.dtsi](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/dts/hero2lte.dts)
-- `source`: [UEFI GICv2 and timer interrupt handling observed on hardware; ArmCpu's own GIC path was not used](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/evidence/uefi-bringup-20261026.txt)
-- `source`: [Four-range GICv2 device tree and identity arm-io ranges, distributor, banked CPU interface, PPI 27 timer, GICD\_SGIR IPI, firmware-owned interrupt group and QEMU GIC-400 test](https://github.com/DokuroMitsukai/ArmCpu/commit/fba847bd4488e8b7bb715a91ba87e59d8fffbb66)
+- `source`: [Board CPU selection on top of the shared exynos8890.dtsi](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/dts/hero2lte.dts)
+- `source`: [UEFI GICv2 and timer interrupt handling observed on hardware; ArmCpu's own GIC path was not used](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/evidence/uefi-bringup-20261026.txt)
+- `source`: [Four-range GICv2 device tree, 24-byte arm-io range translation, distributor, banked CPU interface, PPI 27 timer, GICD\_SGIR IPI, firmware-owned interrupt group and QEMU GIC-400 test](https://github.com/DokuroMitsukai/ArmCpu/commit/c9c4bd87cabc1fe6736e171cd2540313ac4b7883)
+- `host`: [clean macOS clone: submodule update fetched ArmCpu c9c4bd8 without an override, component-ArmCpu passed the -Werror object audit and kernel.macho sha256 d30e2c9f0cc5f6fd8853b107ee428c720e10103deec966797706fce5a75578c1](https://github.com/DokuroMitsukai/UniXNU/actions/runs/40278142422)
+  Command: <code>./unixnu build kernel (workflow_dispatch, steps=kernel, pre_build empty)</code>. Revision: `14529f5d63bfd1f53ba3c8648fd354609c434762`.
+- `host`: [local Linux host build with upstream clang: kernel.macho 51073024 bytes, Mach-O arm64 NOUNDEFS, sha256 680afe58f1c0fc53d387a61d1717827cb510ad59909892822deaba331bb7e58e](https://github.com/DokuroMitsukai/UniXNU/commit/7098f082321552babbec7fb1e1e09b740b90668f)
+  Command: <code>UNIXNU_TOOLCHAIN=&lt;prefix&gt; ./unixnu build kernel -D ../UniXNU-hero2lte</code>. Revision: `7098f082321552babbec7fb1e1e09b740b90668f`.
 
 ## Memory and DMA {#memory}
 
@@ -209,8 +213,8 @@ Components: `ArmCpu`, `ArmDTPlatform`, `SoftwareAES`.
 
 ### Evidence
 
-- `source`: [Memory range and framebuffer reservation](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/dts/hero2lte.dts)
-- `device`: [the 0xB1200000-0xBFF40000 UEFI layout reached the logo and missing-OS screen](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/evidence/uefi-bringup-20261026.txt)
+- `source`: [Memory range and framebuffer reservation](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/dts/hero2lte.dts)
+- `device`: [the 0xB1200000-0xBFF40000 UEFI layout reached the logo and missing-OS screen](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/evidence/uefi-bringup-20261026.txt)
   Command: <code>adb shell 'sha256sum /dev/block/sda5'; observe UEFI after booting out/boot-uefi-samsung-safemem.img</code>. Revision: `9f984f86636492269fff9297163d98b89c3cea65`.
 
 ## Storage and root {#storage}
@@ -252,7 +256,7 @@ Components: `ArmCpu`, `ArmDTPlatform`, `SoftwareAES`.
 
 ### Evidence
 
-- `source`: [EFS and CPEFS captured from TWRP, hash-verified and checked with e2fsck](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/evidence/efs-cpefs-backup-20261026.txt)
+- `source`: [EFS and CPEFS captured from TWRP, hash-verified and checked with e2fsck](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/evidence/efs-cpefs-backup-20261026.txt)
 
 ## Display {#display}
 
@@ -292,7 +296,7 @@ Components: `ArmCpu`, `ArmDTPlatform`, `SoftwareAES`.
 
 ### Evidence
 
-- `device`: [logo, missing-OS screen and the diagnostic timer/key/counter graphics appeared on the panel](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/evidence/uefi-bringup-20261026.txt)
+- `device`: [logo, missing-OS screen and the diagnostic timer/key/counter graphics appeared on the panel](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/evidence/uefi-bringup-20261026.txt)
   Command: <code>boot out/boot-uefi-samsung-bringup.img and observe the panel</code>. Revision: `9f984f86636492269fff9297163d98b89c3cea65`.
 
 ## Input {#input}
@@ -334,7 +338,7 @@ Components: `ArmCpu`, `ArmDTPlatform`, `SoftwareAES`.
 
 ### Evidence
 
-- `device`: [red, green, blue and white bars appeared and the accepted-event counter advanced](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/4086db3a4029a18ea089e7ce6355c089c58a2b09/evidence/uefi-bringup-20261026.txt)
+- `device`: [red, green, blue and white bars appeared and the accepted-event counter advanced](https://github.com/DokuroMitsukai/UniXNU-hero2lte/blob/33ca6933fc94aeced28610b9e1fe5743e7f172dd/evidence/uefi-bringup-20261026.txt)
   Command: <code>press Volume Up, Volume Down, Home and Power while BringupTestDxe runs</code>. Revision: `9f984f86636492269fff9297163d98b89c3cea65`.
 
 ## GPU {#gpu}
@@ -488,7 +492,7 @@ Collect evidence using the next action.
 
 ## Image assembly {#packaging}
 
-`planned`
+`host-verified`
 
 Components: `XnuPrelink`.
 
@@ -511,7 +515,8 @@ Components: `XnuPrelink`.
 
 - The standalone Mu-Silicium boot image uses the v0 layout and passes the BootShim host tests.
 - A 40 MiB standalone image was written to BOOT, read back byte-for-byte and accepted by S-Boot, reaching UEFI.
-- No XNU kernel, payload or UniXNU boot image has been built for this board.
+- Kernel prelink succeeds against the IPSW kernelcache on both macOS CI and a Linux host, and links the GICv2 ArmCpu.
+- payload.img is 201326592 bytes but BOOT holds 41943040 bytes, so the payload cannot be delivered as an Android ramdisk at the configured size\_mib.
 
 ### Completion criteria
 
@@ -519,16 +524,18 @@ Components: `XnuPrelink`.
 
 ### Current limits
 
-- No kernelcache, trust cache or data ramdisk is available.
-- The UEFI container is validated, but no XNU payload image exists.
+- No trust cache or data ramdisk is available.
+- The payload volume \(192 MiB\) is larger than the BOOT partition \(40 MiB\); delivery needs a smaller \[payload\] size\_mib or a partition with room for it.
+- The UniXNU-integrated firmware with the payload has not been built or validated.
 
 ### Next action
 
-- Build the kernel now that ArmCpu GICv2 support exists, then supply the kernelcache, trust cache and data ramdisk for the first XNU hardware checkpoint.
+- Decide the payload delivery \(shrink size\_mib to the BOOT partition or use a larger partition\), then build the UniXNU firmware and boot image for the first XNU hardware checkpoint.
 
 ### Evidence
 
-Collect evidence using the next action.
+- `host`: [kernel.macho sha256 680afe58f1c0fc53d387a61d1717827cb510ad59909892822deaba331bb7e58e; payload.img 201326592 bytes, payload sha256 2d9cb7e449c9353a84d55e0547d2a7eb12840035f96890854a01c7b4488162aa, kernel and ADT embedded](https://github.com/DokuroMitsukai/UniXNU/commit/7098f082321552babbec7fb1e1e09b740b90668f)
+  Command: <code>./unixnu build kernel -D ../UniXNU-hero2lte; ./unixnu build payload --unique-chip-id &lt;seed&gt; -D ../UniXNU-hero2lte</code>. Revision: `7098f082321552babbec7fb1e1e09b740b90668f`.
 
 ## Diagnostics {#diagnostics}
 

@@ -8,7 +8,6 @@ function deviceSidebar(zh: boolean) {
     text: zh ? '设备' : 'Devices',
     items: [
       { text: zh ? '设备列表' : 'Device list', link: `${prefix}/devices/` },
-      { text: zh ? 'sheng 日志抓取示例' : 'sheng log capture example', link: `${prefix}/devices/sheng-unattended-test` },
       ...deviceCatalog.map(device => ({
         text: zh ? device.title_zh : device.title,
         link: `${prefix}/devices/${device.name}`,
@@ -52,6 +51,7 @@ function taskSidebars(prefix: string, zh: boolean) {
       item('Device repository', '设备仓库', 'porting/device-repository'),
       item('Component selection', '选择组件', 'reference/components'),
       item('Select and add SoC support', '选择与添加 SoC 支持', 'porting/soc-support'),
+      item('arm64e OS profiles', 'arm64e OS 配置', 'porting/arm64e'),
     ]),
     group('2. Describe hardware', '2. 描述硬件', [
       item('Device tree', '设备树', 'porting/device-tree'),
@@ -66,12 +66,15 @@ function taskSidebars(prefix: string, zh: boolean) {
       item('Touch and buttons', '触控与按键', 'porting/input'),
       item('GPU and Metal', 'GPU 与 Metal', 'porting/gpu'),
       item('Wi-Fi', 'Wi-Fi', 'porting/network'),
+      item('Bluetooth', '蓝牙', 'drivers/qca-bluetooth'),
+      item('Baseband and cellular', '基带与移动网络', 'porting/baseband'),
       item('DSP, audio and power', 'DSP、音频与电源', 'porting/power'),
       item('Develop a driver', '开发驱动', 'drivers/overview'),
       item('Change XNU', '修改 XNU', 'xnu/source-and-patches'),
     ]),
     group('4. Verify and publish', '4. 验证与发布', [
       item('Build and boot', '构建与启动', 'building'),
+      item('Device packaging script', '设备打包脚本', 'porting/packaging'),
       item('Bring-up sequence', '启动验证顺序', 'porting/bring-up'),
       item('Log capture and boot tests', '日志抓取与启动测试', 'porting/log-capture'),
       item('Porting record', '适配记录', 'porting/records'),

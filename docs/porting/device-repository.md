@@ -15,6 +15,7 @@ UniXNU-<device>/
   board.toml
   porting.toml
   .github/workflows/porting-record.yml
+  .github/workflows/package.yml
   feeds.toml
   configs/<device>_defconfig
   dts/<device>.dts
@@ -53,6 +54,7 @@ and update existing files in place. Review these groups:
 | `package/`, board code and build recipes | Selected components and board services have build recipes, startup integration and required OS ABI inputs |
 | `proprietary-files.txt`, firmware configuration | Required firmware sources and hashes, DSC/FDF integration, partition geometry and image inputs |
 | `porting.toml`, `.github/workflows/porting-record.yml` | Every selected component and dependency covered by an area; actual source, host and device results; record check enabled |
+| `.github/workflows/package.yml` | The packaging action of [the packaging script](/porting/packaging) |
 | `README.md`, `AGENTS.md` | Board scope, prerequisites, build commands and links to the common guides and device record |
 | `.gitignore`, `local.toml.example` | Local override file and generated output directories ignored; example paths documented |
 
@@ -83,6 +85,8 @@ areas checked. Resolve each reported error before publication.
 
 Compile the [board DTS](/porting/device-tree), then follow
 [Building](/building) for kernel, package, firmware, payload and boot image.
+The repository also carries the [device packaging script](/porting/packaging)
+that produces the same two artifacts from a clean checkout with no edit.
 Record each command, revision, output and result. Record hardware checkpoints
 separately using [bring-up](/porting/bring-up) and [log capture](/porting/log-capture).
 Assign each area its supported [completion level](/porting/records#completion-levels).
@@ -129,17 +133,17 @@ commands, a checked porting record, CI, common-guide links and the `unixnu` topi
 schema_version = 2
 
 [board]
-name = "sheng"
+name = "myboard"
 soc = "SM8550"
 soc_source = "sm8550"
 os_profile = "ipados-17.7.11-21H461"
-kit = "sheng"
+kit = "myboard"
 
 [components]
 include = ["ArmDTPlatform", "ArmCpu", "Adreno740", "AdrenoMetal", "ShengUfs", "ShengHidInput", "ShengNovatekTouch", "GopFramebuffer"]
 
 [device_tree]
-source = "device:dts/sheng.dts"
+source = "device:dts/myboard.dts"
 include_dirs = ["soc:dts"]
 ```
 
@@ -212,13 +216,11 @@ fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustC
 first_lba = 0x0
 last_lba = 0x0
 lba_bytes = 4096
-windows = [
-  { name = "OS", component = "OS" },
-  { name = "SystemOS", component = "Cryptex1,SystemOS" },
-]
 ```
 
-`first_lba` and `last_lba` come from the GPT entry named `userdata`. `lba_bytes` is the logical block size. Each window names a disk image component from the IPSW.
+`first_lba` and `last_lba` come from the GPT entry named `userdata`. `lba_bytes` is the logical block size.
+
+The OS profile lists the IPSW disk images in `[userdata] windows`. A window with `optional = true` is skipped when the IPSW does not have it.
 
 ### Kernel
 
@@ -261,7 +263,7 @@ extra_args = []
 
 ```toml
 [kernel]
-defconfig = "sheng_defconfig"
+defconfig = "myboard_defconfig"
 config_fragments = ["arch:configs/common.config", "soc:configs/sm8550.config"]
 patch_series = ["arch:patches/xnu/series", "soc:patches/xnu/series", "os:patches/xnu/series", "device:patches/xnu/series"]
 ```
@@ -388,7 +390,7 @@ CONFIG_XNU_OWNER_CACHE_VOLUME_UUID="00000000-0000-0000-0000-000000000000"
 
 Values can be `y`, `n`, a number or a quoted string. Each `CONFIG_XNU_<NAME>` becomes `XNU_<NAME>` in the kernel build. `{tree}` in a string becomes the build tree path.
 
-`CONFIG_XNU_OWNER_CACHE_VOLUME_UUID` names the SystemOS cryptex volume that the owner chain mounts as the cache carrier: the APFS volume UUID inside the image the signed SystemOS policy covers. Without it the kernel uses the sheng image's volume.
+`CONFIG_XNU_OWNER_CACHE_VOLUME_UUID` names the SystemOS cryptex volume that the owner chain mounts as the cache carrier: the APFS volume UUID inside the image the signed SystemOS policy covers. Without it the kernel uses the built-in volume UUID.
 
 The file name is selected by `[kernel] defconfig`.
 
@@ -499,5 +501,5 @@ board configuration and catalog dependencies. Device CI checks findings or
 evidence updates for changed code paths. See the [record guide](/porting/records)
 for fields, status levels and publication.
 
-Board driver submodules belong to the device repository. sheng pins ShengUfs,
-ShengHidInput, ShengNovatekTouch and ShengPreflight there.
+Board driver submodules belong to the device repository. Pin each selected
+component there and record its board inputs and build recipe.

@@ -83,13 +83,13 @@ BUILD, VERSION = '21H461', '17.7.11'
 
 ## 任务
 
-Setup 依赖的服务在这个平台上不运行。板级文件用启动参数停掉它们：
+在 sheng 的 iPadOS 27.0.1（24A446）上，`sheng-lite=1` 允许 launchd 按需启动 `iconservicesagent`。IconRendering 使用 Metal。该服务设置 `FORCE_SOFTWARE_RENDERER=0` 和 `CI_ENABLE_METAL_GPU=0`。J820 原厂配置的非活跃硬上限为 15 MiB，活跃软上限为 1,224 MiB。
+
+`sheng-lite=2` 停用图标服务。主屏幕和 Dock 只显示图标底板，「设置」仍可打开。也可用 `sheng-disable-jobs` 单独指定服务，多个 launchd 标签用逗号分隔。
 
 ```
-sheng-disable-jobs=com.apple.identityservicesd,com.apple.locationd,com.apple.CommCenter,com.apple.iconservices.iconservicesagent
+sheng-disable-jobs=com.apple.identityservicesd,com.apple.locationd
 ```
-
-`com.apple.CommCenter` 是蜂窝服务。列表是板级配置。保留用户态需要的服务，移除阻塞首次启动的服务。
 
 ## 输出
 
@@ -118,7 +118,7 @@ out/<device>/<os_profile>/<config>/payload/payload.json
 3. 运行 `./unixnu bootimg`，再启动新生成的镜像。
 4. 日志到达 SpringBoard，不再停留在 Setup 页面。
 
-参考实现是本仓库的 `scripts/seed-data-skip-setup.py`。sheng 移植记录了使用这些改动的首次硬件启动。
+参考实现是本仓库的 `scripts/seed-data-skip-setup.py`。
 
 ## 下一步
 

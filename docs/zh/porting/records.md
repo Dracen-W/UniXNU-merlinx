@@ -26,6 +26,7 @@
 | 输入 | 总线、传感器协议、引脚、中断、固件、触点 ID 和坐标映射 |
 | GPU | GPU/GMU 型号、固件、电源请求、SMMU、提交、fence、前端 ABI 和呈现 |
 | 网络 | 总线、固件、中断、DMA、OS 接口、连接和数据包传输 |
+| 蜂窝网络 | modem 固件与 EFS/NV、QRTR/QMI、SIM 身份、网络注册、IPA/QMAP、数据会话和复位；没有基带的设备填 `not-applicable` |
 | 音频 | DSP、codec、时钟、固件服务、路由和播放/录音 |
 | 电源 | 稳压器、时钟、电池单位、固件所有权和支持的状态转换 |
 | 镜像组装 | XNU/IPSW 版本、ABI 输入、补丁顺序、ADT、payload 和启动镜像格式 |
@@ -84,8 +85,8 @@
 7. 发布设备改动，由目录工作流更新源码版本和生成页面。
 
 ```sh
-python3 scripts/porting-record.py check --device ../UniXNU-sheng
-python3 scripts/porting-record.py check --device ../UniXNU-sheng --base origin/main
+python3 scripts/porting-record.py check --device /path/to/device
+python3 scripts/porting-record.py check --device /path/to/device --base origin/main
 ```
 
 第二条命令在待提交的设备分支上运行，比较已提交改动与基准版本。每个代码路径
@@ -132,7 +133,7 @@ npm --prefix docs run build
 本地预览：
 
 ```sh
-python3 scripts/porting-record.py site --local sheng=../UniXNU-sheng
+python3 scripts/porting-record.py site --local myboard=/path/to/device
 cd docs
 npx vitepress build
 ```

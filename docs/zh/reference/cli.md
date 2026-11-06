@@ -96,6 +96,7 @@ unixnu release [--os VERSION] [--no-deps] [--check]
 | 选项 | 含义 |
 | --- | --- |
 | `-D DIR`、`--device DIR` | 设备仓库 |
+| `--os VERSION` | 本次运行的 OS profile：`17`、`27` 或 `profiles/os` 目录名，输出目录随之变化 |
 | `--out DIR` | 输出根 |
 | `-j N`、`--jobs N` | 并行任务 |
 | `--local DIR` | 与本仓库布局相同的本地树 |
@@ -123,6 +124,9 @@ unixnu release [--os VERSION] [--no-deps] [--check]
 | `--dtb FILE` | bootimg 的编译设备树 |
 | `--ramdisk FILE\|none` | bootimg 的 ramdisk |
 | `-o FILE`、`--output FILE` | 启动镜像输出 |
+| `--stock FILE` | vendor_boot 使用的原厂镜像 |
+| `--ramdisk-addr ADDR` | vendor_boot 的 ramdisk 装载地址 |
+| `--verify-against` | 用原厂 ramdisk 重新打包并要求逐字节一致 |
 
 ## 环境变量
 

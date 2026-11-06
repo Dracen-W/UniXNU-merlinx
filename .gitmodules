@@ -19,6 +19,9 @@
 [submodule "drivers/GopFramebuffer"]
 	path = drivers/GopFramebuffer
 	url = https://github.com/UniXNU/GopFramebuffer.git
+[submodule "drivers/QcomBaseband"]
+	path = drivers/QcomBaseband
+	url = https://github.com/UniXNU/QcomBaseband.git
 [submodule "drivers/RamBlock"]
 	path = drivers/RamBlock
 	url = https://github.com/UniXNU/RamBlock.git
