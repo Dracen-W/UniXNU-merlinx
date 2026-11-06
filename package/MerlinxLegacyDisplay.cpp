@@ -9,6 +9,8 @@
 #include <libkern/c++/OSSerialize.h>
 #include <libkern/c++/OSData.h>
 #include <kern/task.h>
+#include <kern/clock.h>
+#include <kern/thread_call.h>
 #include <sys/proc.h>
 #include <pexpert/pexpert.h>
 #include <mach/kmod.h>
@@ -287,12 +289,36 @@ extern "C" unsigned native_legacy_swap_timeline(char *out,unsigned cap) {
 }
 // The display refresh tick (NativeLegacyDisplay, sheng-vsync): vsync messages sent, arms, idle stops, late ticks, starts, refresh
 // properties reported at that rate, and the rate.
+//
+// Whether a stopped tick is stuck inside the original sender or simply has no client left cannot be told from the counters alone:
+// both leave "sent" frozen. native_legacy_vsync_notify below is the original function under the alias the build script binds, with a
+// flag held for exactly the time it runs, and a thread call of its own prints line 34 every two seconds. That thread is independent
+// of the family work loop, so it still reports when the work loop is the thing that stopped.
+extern "C" void native_legacy_vsync_notify_original(void *display,uint64_t timestamp,uint64_t continuousTime,uint64_t interval);
+static volatile uint32_t vsyncInNotify;
+extern "C" void native_legacy_vsync_notify(void *display,uint64_t timestamp,uint64_t continuousTime,uint64_t interval) {
+    vsyncInNotify=1;
+    native_legacy_vsync_notify_original(display,timestamp,continuousTime,interval);
+    vsyncInNotify=0;
+}
 static volatile uint64_t vsyncEvents[6];
 static volatile unsigned vsyncHz;
+static thread_call_t vsyncWatch;
+static void vsyncWatchFn(thread_call_param_t,thread_call_param_t) {
+    dline(34,"VS s%llu a%llu i%llu l%llu n%u",
+        (unsigned long long)vsyncEvents[1],(unsigned long long)vsyncEvents[0],
+        (unsigned long long)vsyncEvents[2],(unsigned long long)vsyncEvents[3],(unsigned)vsyncInNotify);
+    uint64_t deadline;clock_interval_to_deadline(2000,kMillisecondScale,&deadline);
+    thread_call_enter_delayed(vsyncWatch,deadline);
+}
 void native_legacy_vsync_observed(unsigned event,unsigned hz) {
     if(event<6)vsyncEvents[event]=vsyncEvents[event]+1;
     vsyncHz=hz;
     dline(31,"DISP VSYNC %u %u",event,hz);
+    if(event==4 && !vsyncWatch) {
+        vsyncWatch=thread_call_allocate(vsyncWatchFn,nullptr);
+        if(vsyncWatch)vsyncWatchFn(nullptr,nullptr);
+    }
 }
 extern "C" unsigned native_legacy_prepare_report(char *out,unsigned cap) {
     return snprintf(out,cap,"prepare calls=%u failures=%u retried=%u max_attempts=%u waited_ms=%llu vsync hz=%u sent=%llu arms=%llu idle=%llu late=%llu start=%llu refresh=%llu",

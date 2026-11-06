@@ -160,7 +160,7 @@ bindings = {
     '_native_legacy_surface_allocation': 0xfffffff004b9ebfc,
     '_native_legacy_surface_format': 0xfffffff004b9ebac,
     '_native_legacy_surface_planes': 0xfffffff004b9ebf4,
-    '_native_legacy_vsync_notify': 0xfffffff005796720,
+    '_native_legacy_vsync_notify_original': 0xfffffff005796720,
     '_native_legacy_set_refresh_properties': 0xfffffff00579ebb8,
 }
 for i, name in enumerate(compiled):
