@@ -305,7 +305,7 @@ static volatile uint64_t vsyncEvents[6];
 static volatile unsigned vsyncHz;
 static thread_call_t vsyncWatch;
 static void vsyncWatchFn(thread_call_param_t,thread_call_param_t) {
-    dline(34,"VS s%llu a%llu i%llu l%llu n%u",
+    dline(32,"VS s%llu a%llu i%llu l%llu n%u",
         (unsigned long long)vsyncEvents[1],(unsigned long long)vsyncEvents[0],
         (unsigned long long)vsyncEvents[2],(unsigned long long)vsyncEvents[3],(unsigned)vsyncInNotify);
     uint64_t deadline;clock_interval_to_deadline(2000,kMillisecondScale,&deadline);
