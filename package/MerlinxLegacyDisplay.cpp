@@ -18,6 +18,8 @@
 #include <stdarg.h>
 
 extern "C" void native_gop_text(unsigned line, const char *text) __attribute__((weak));
+extern "C" void native_gop_redraw_ring(void) __attribute__((weak));
+extern "C" void native_diag_process_summary(void) __attribute__((weak));
 static void dline(unsigned line, const char *format, ...) {
     char text[96];
     va_list list;
@@ -148,9 +150,11 @@ volatile uint64_t native_legacy_retired_current,native_legacy_retired_pending;
 char native_legacy_properties[4096];
 volatile uint32_t native_legacy_client_calls,native_legacy_client_type;
 volatile int native_legacy_client_pid,native_legacy_client_status=-1;
+volatile int native_legacy_swap_pid;
 volatile uint64_t native_legacy_client_task,native_legacy_client_object;
 char native_legacy_client_class[64];
 static char native_legacy_client_name[32];
+static char native_legacy_swap_name[32];
 extern kern_return_t OSKextLoadKextWithIdentifier(const char *);
 int boot_progress_prepare_scanout(void) { return 1; }
 void boot_progress_cancel_scanout(void) {}
@@ -327,8 +331,17 @@ extern "C" unsigned native_legacy_prepare_report(char *out,unsigned cap) {
         (unsigned long long)vsyncEvents[2],(unsigned long long)vsyncEvents[3],(unsigned long long)vsyncEvents[4],(unsigned long long)vsyncEvents[5]);
 }
 void native_legacy_swap_validation_observed(bool accepted,unsigned reason,const void *request,const void *surface) {
-    if(accepted)native_legacy_swap_stage(0);
-    if(accepted)native_legacy_swap_accepted_count=native_legacy_swap_accepted_count+1;
+    if(accepted) {
+        native_legacy_swap_stage(0);
+        native_legacy_swap_accepted_count=native_legacy_swap_accepted_count+1;
+        task_t stask=current_task();
+        int spid=stask?proc_pid((proc_t)get_bsdtask_info(stask)):0;
+        if(spid>0) {
+            native_legacy_swap_pid=spid;
+            native_legacy_swap_name[0]=0;
+            proc_name(spid,native_legacy_swap_name,sizeof(native_legacy_swap_name));
+        }
+    }
     else {native_legacy_swap_rejected_count=native_legacy_swap_rejected_count+1;recordRejectedSwap(reason,request,surface);}
     native_legacy_swap_validation_calls=native_legacy_swap_validation_calls+1;
     native_legacy_swap_validation_result=accepted;native_legacy_swap_validation_reason=reason;
@@ -373,7 +386,11 @@ __attribute__((noinline)) void native_legacy_retirement_observed(IOService *disp
     native_legacy_retired_current=current;native_legacy_retired_pending=pending;
     native_legacy_retired_generation=completed;native_legacy_presented_generation=presented;native_legacy_retired_frames=frames;
     native_legacy_retirement_calls=native_legacy_retirement_calls+1;
-    dline(30,"DISP RET %u/%u F%u C%d:%.8s",completed,presented,frames,native_legacy_client_pid,native_legacy_client_name[0]?native_legacy_client_name:"-");
+    dline(30,"DISP RET %u/%u F%u S%d:%.6s C%u/%d:%.6s",completed,presented,frames,
+        native_legacy_swap_pid,native_legacy_swap_name[0]?native_legacy_swap_name:"-",
+        native_legacy_client_calls,native_legacy_client_pid,native_legacy_client_name[0]?native_legacy_client_name:"-");
+    if(native_diag_process_summary)native_diag_process_summary();
+    if(native_gop_redraw_ring)native_gop_redraw_ring();
 }
 // The display object's properties as they are now (the registration copy above predates setDisplayRefreshProperties and the rest): for the
 // UFS log. Returns the bytes written (NUL-terminated).
@@ -407,6 +424,8 @@ void native_legacy_client_enter(task_t task,uint32_t type) {
     native_legacy_client_name[0]=0;
     if(native_legacy_client_pid)proc_name(native_legacy_client_pid,native_legacy_client_name,sizeof(native_legacy_client_name));
     dline(28,"DISP CLIENT %d %s T%u",native_legacy_client_pid,native_legacy_client_name,type);
+    dline(100,"CL#%u %d %.12s T%u",native_legacy_client_calls,native_legacy_client_pid,
+        native_legacy_client_name[0]?native_legacy_client_name:"-",type);
 }
 // Every framebuffer user client seen (object, pid), with what it does: the original client's vtable is copied and two entries (externalMethod, slot 168,
 // and registerNotificationPort(port,type,refCon), slot 175) are pointed at wrappers that count and forward to the original function. The original code
