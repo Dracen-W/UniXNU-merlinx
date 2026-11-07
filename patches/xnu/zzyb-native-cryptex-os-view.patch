@@ -164,9 +164,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
  }
  static void
  native_gpu_addon_prepare(proc_t p, user_addr_t scratch)
-@@ -7489,6 +7644,9 @@
- static void
- native_gpu_addon_prepare(proc_t p, user_addr_t scratch)
+@@ -7596,4 +7751,7 @@
  {
 +	native_cryptex_os_view(p, scratch);
 +	native_gestalt_cache_drop(p, scratch);
