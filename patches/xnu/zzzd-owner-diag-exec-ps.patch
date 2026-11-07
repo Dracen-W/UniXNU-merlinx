@@ -172,11 +172,11 @@ index ae94c7e..f4d58f0 100644
 +native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr)
 +{
 +	extern int proc_getpid(proc_t);
-+	extern const char *proc_best_name(proc_t);
++	extern char *proc_best_name(proc_t);
 +	extern boolean_t native_diag_should_print_fault(const char *name);
 +	extern void native_gop_text(unsigned line, const char *text);
 +	proc_t p = current_proc();
-+	const char *nm = p ? proc_best_name(p) : "?";
++	char *nm = p ? proc_best_name(p) : "?";
 +	if (!native_diag_should_print_fault(nm))
 +		return;
 +	task_t task = current_task();
