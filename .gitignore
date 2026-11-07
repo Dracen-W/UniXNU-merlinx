@@ -50,3 +50,6 @@ __pycache__/
 .env
 local.toml
 unixnu.local.toml
+
+# Local bring-up notes, device dumps and build inputs; never part of the repository.
+workfile/
