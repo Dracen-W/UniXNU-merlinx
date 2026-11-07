@@ -1,8 +1,10 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8cf7580..57f47b3 100644
+index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -103,6 +103,88 @@
+@@ -101,8 +101,90 @@
+ #include <sys/acct.h>
+ 
  void native_gop_text(unsigned line, const char *text);
 +void native_gop_redraw_ring(void);
  void native_diag_note_exec(int pid, const char *name);
@@ -91,8 +93,14 @@ index 8cf7580..57f47b3 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2390,9 +2472,16 @@ encapsulated_binary:
- 			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
+@@ -2387,12 +2469,21 @@ encapsulated_binary:
+ 			    (uintptr_t)ndp->ni_vp, 0);
+ 		}
+ 		if (p->p_pid > 1) {
+-			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
++			proc_t np = vfs_context_proc(imgp->ip_vfs_context);
++			const char *cm = (np && np->p_name[0]) ? np->p_name :
++			    ((np && np->p_comm[0]) ? np->p_comm : (p->p_comm[0] ? p->p_comm : "CHILD"));
  			char go_text[48];
 +			unsigned int go_count = 1;
  			native_gop_text(6, cm);
@@ -110,7 +118,7 @@ index 8cf7580..57f47b3 100644
  		}
  	}
  bad:
-@@ -3615,7 +3704,8 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3615,7 +3706,8 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		spawn_path[sizeof(spawn_path) - 1] = 0;
  		if (spawn_path[0]) {
  			const char *slash = strrchr(spawn_path, '/');
@@ -120,7 +128,7 @@ index 8cf7580..57f47b3 100644
  		}
  	}
  
-@@ -4934,7 +5024,7 @@ bad:
+@@ -4934,7 +5026,7 @@ bad:
  	}
  #endif
  
@@ -129,7 +137,7 @@ index 8cf7580..57f47b3 100644
  		char spawn_text[48];
  		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5259,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5261,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -152,7 +160,8 @@ index 8cf7580..57f47b3 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7181,51 +7287,141 @@ native_gop_text(unsigned line, const char *text)
+@@ -7180,13 +7288,35 @@ native_gop_text(unsigned line, const char *text)
+ 	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  
 +void
@@ -188,8 +197,7 @@ index 8cf7580..57f47b3 100644
  
  static int
  native_diag_tracked_slot(const char *name)
- {
- 	unsigned int i;
+@@ -7195,28 +7325,35 @@ native_diag_tracked_slot(const char *name)
  	if (!name)
  		return -1;
  	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
@@ -232,14 +240,12 @@ index 8cf7580..57f47b3 100644
  }
  
  void
- native_diag_note_exit(int pid, const char *name)
- {
- 	int slot = native_diag_tracked_slot(name);
+@@ -7226,6 +7363,68 @@ native_diag_note_exit(int pid, const char *name)
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
  	native_diag_process_summary();
 +	native_diag_focus_exit(pid);
- }
++}
 +
 +boolean_t
 +native_diag_should_print_exit(const char *name, boolean_t has_reason, int rv)
@@ -252,7 +258,8 @@ index 8cf7580..57f47b3 100644
 +boolean_t
 +native_diag_should_print_fault(const char *name)
 +{
-+	return native_diag_throttle(native_diag_fault_throttle, name);
++	unsigned int count = native_diag_bump_count(native_diag_fault_throttle, name);
++	return count <= 2 || (count & 63U) == 0;
 +}
 +
 +/* One photo answers whether launchd's own root view holds the jobs on the path to the first frame: the five plists and the
@@ -299,10 +306,10 @@ index 8cf7580..57f47b3 100644
 +	}
 +	line[7] = 0;
 +	native_gop_text(28, line);
-+}
+ }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -8435,6 +8631,7 @@ load_init_program(proc_t p)
+@@ -8437,6 +8636,7 @@ load_init_program(proc_t p)
  	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
  	boot_progress_stage("Data mount returned");
  	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
@@ -311,7 +318,7 @@ index 8cf7580..57f47b3 100644
  	extern int sheng_boot_watchdog_policy(void *, uint64_t);
  	boot_progress_stage("temporary watchdog launch policy enter");
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index f0721cc..0e7c6f8 100644
+index f0721cc..5ec2380 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
 @@ -1628,6 +1628,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
@@ -334,7 +341,7 @@ index f0721cc..0e7c6f8 100644
  
  	proc_prepareexit(p, rv, perf_notify);
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
-index f4d58f0..e0f3045 100644
+index 31bad41..d0e815e 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
 @@ -62,6 +62,10 @@
@@ -348,7 +355,7 @@ index f4d58f0..e0f3045 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2425,3 +2429,194 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
+@@ -2464,3 +2468,209 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
  SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
  
  #endif
@@ -413,7 +420,7 @@ index f4d58f0..e0f3045 100644
 +	thread_t thread = THREAD_NULL;
 +	arm_thread_state64_t state = {};
 +	mach_msg_type_number_t count = ARM_THREAD_STATE64_COUNT;
-+	uint64_t slide = 0, frames[8] = {0, 0, 0, 0, 0, 0, 0, 0}, deadline = 0;
++	uint64_t slide = 0, frames[12] = {0}, deadline = 0;
 +	char line[48];
 +	char seconds[16] = "";
 +	char role = 'X';
@@ -466,32 +473,47 @@ index f4d58f0..e0f3045 100644
 +	if (map && state.fp) {
 +		uint64_t fp = state.fp;
 +		unsigned int d;
-+		for (d = 0; d < 8 && fp > state.sp && (fp & 7ULL) == 0; d++) {
++		for (d = 0; d < 12 && fp > state.sp && (fp & 7ULL) == 0; d++) {
 +			uint64_t pair[2] = {0, 0};
 +			if (vm_map_read_user(map, fp, pair, sizeof(pair)) != KERN_SUCCESS)
 +				break;
-+			frames[d] = pair[1] >= slide ? pair[1] - slide : pair[1];
++			frames[d] = (pair[1] >= 0x180000000ULL && pair[1] >= slide) ? pair[1] - slide : pair[1];
 +			if (pair[0] <= fp || pair[0] - fp > 0x100000ULL)
 +				break;
 +			fp = pair[0];
 +		}
 +	}
 +	snprintf(line, sizeof(line), "%c%d %spc:%llx lr:%llx", role, pid, seconds,
-+	    (unsigned long long)(state.pc >= slide ? state.pc - slide : state.pc),
-+	    (unsigned long long)(state.lr >= slide ? state.lr - slide : state.lr));
++	    (unsigned long long)((state.pc >= 0x180000000ULL && state.pc >= slide) ? state.pc - slide : state.pc),
++	    (unsigned long long)((state.lr >= 0x180000000ULL && state.lr >= slide) ? state.lr - slide : state.lr));
 +	native_gop_text(21, line);
-+	snprintf(line, sizeof(line), "%c%d x16:%lld f1:%llx f2:%llx", role, pid,
-+	    (long long)state.x[16], (unsigned long long)frames[0], (unsigned long long)frames[1]);
-+	native_gop_text(22, line);
-+	snprintf(line, sizeof(line), "%c%d f3:%llx f4:%llx", role, pid,
-+	    (unsigned long long)frames[2], (unsigned long long)frames[3]);
-+	native_gop_text(23, line);
-+	snprintf(line, sizeof(line), "%c%d f5:%llx f6:%llx", role, pid,
-+	    (unsigned long long)frames[4], (unsigned long long)frames[5]);
-+	native_gop_text(24, line);
-+	snprintf(line, sizeof(line), "%c%d f7:%llx f8:%llx", role, pid,
-+	    (unsigned long long)frames[6], (unsigned long long)frames[7]);
-+	native_gop_text(25, line);
++	if (frames[6] != 0) {
++		snprintf(line, sizeof(line), "%c%d x16:%lld f5:%llx f6:%llx", role, pid,
++		    (long long)state.x[16], (unsigned long long)frames[4], (unsigned long long)frames[5]);
++		native_gop_text(22, line);
++		snprintf(line, sizeof(line), "%c%d f7:%llx f8:%llx", role, pid,
++		    (unsigned long long)frames[6], (unsigned long long)frames[7]);
++		native_gop_text(23, line);
++		snprintf(line, sizeof(line), "%c%d f9:%llx f10:%llx", role, pid,
++		    (unsigned long long)frames[8], (unsigned long long)frames[9]);
++		native_gop_text(24, line);
++		snprintf(line, sizeof(line), "%c%d f11:%llx f12:%llx", role, pid,
++		    (unsigned long long)frames[10], (unsigned long long)frames[11]);
++		native_gop_text(25, line);
++	} else {
++		snprintf(line, sizeof(line), "%c%d x16:%lld f1:%llx f2:%llx", role, pid,
++		    (long long)state.x[16], (unsigned long long)frames[0], (unsigned long long)frames[1]);
++		native_gop_text(22, line);
++		snprintf(line, sizeof(line), "%c%d f3:%llx f4:%llx", role, pid,
++		    (unsigned long long)frames[2], (unsigned long long)frames[3]);
++		native_gop_text(23, line);
++		snprintf(line, sizeof(line), "%c%d f5:%llx f6:%llx", role, pid,
++		    (unsigned long long)frames[4], (unsigned long long)frames[5]);
++		native_gop_text(24, line);
++		snprintf(line, sizeof(line), "%c%d f7:%llx f8:%llx", role, pid,
++		    (unsigned long long)frames[6], (unsigned long long)frames[7]);
++		native_gop_text(25, line);
++	}
 +release_thread:
 +	thread_deallocate(thread);
 +release_proc:

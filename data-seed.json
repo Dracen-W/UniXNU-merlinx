@@ -382,6 +382,132 @@
       0,
       0,
       "0755"
+    ],
+    [
+      "db/lsd",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "dmd",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Bundle/Application",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Data/SystemGroup",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Data/InternalDaemon",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Data/PluginKitPlugin",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Data/Temp",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Shared/SystemGroup/systemgroup.com.apple.lsd.iconscache",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Shared/SystemGroup/systemgroup.com.apple.lsd.iconscache/Library",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Shared/SystemGroup/systemgroup.com.apple.lsd.iconscache/Library/Caches",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches",
+      0,
+      0,
+      "0755"
+    ],
+    [
+      "mobile/Containers/Data",
+      501,
+      501,
+      "0755"
+    ],
+    [
+      "mobile/Containers/Data/Application",
+      501,
+      501,
+      "0755"
+    ],
+    [
+      "mobile/Containers/Data/InternalDaemon",
+      501,
+      501,
+      "0755"
+    ],
+    [
+      "mobile/Containers/Data/PluginKitPlugin",
+      501,
+      501,
+      "0755"
+    ],
+    [
+      "mobile/Containers/Shared",
+      501,
+      501,
+      "0755"
+    ],
+    [
+      "mobile/Containers/Shared/AppGroup",
+      501,
+      501,
+      "0755"
+    ],
+    [
+      "mobile/Library/Caches/com.apple.LaunchServices",
+      501,
+      501,
+      "0755"
+    ],
+    [
+      "mobile/Library/Caches/com.apple.IconsCache",
+      501,
+      501,
+      "0755"
     ]
   ],
   "files": [
@@ -531,7 +657,10 @@
         "com.apple.bluetoothd": true,
         "com.apple.cryptexd": true,
         "com.apple.PerfPowerServices": true,
-        "com.apple.liveactivitiesd": true
+        "com.apple.liveactivitiesd": true,
+        "com.apple.ScreenTimeAgent": true,
+        "com.apple.dmd": true,
+        "com.apple.UsageTrackingAgent": true
       }
     ],
     [
@@ -541,7 +670,10 @@
       "0644",
       "plist",
       {
-        "com.apple.ScreenTimeAgent": true
+        "com.apple.ScreenTimeAgent": true,
+        "com.apple.dmd": true,
+        "com.apple.UsageTrackingAgent": true,
+        "com.apple.cryptexd": true
       }
     ]
   ],
