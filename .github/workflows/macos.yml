@@ -48,6 +48,10 @@ on:
         description: Data seed URL (optional; masked in the logs)
         required: false
         default: ""
+      gpu_addon_url:
+        description: GPU addon URL (optional; mali-gpu.addon from MaliMetal CI, masked in the logs)
+        required: false
+        default: ""
       grow_gib:
         description: Grow the Data seed to this many GiB (optional)
         required: false
@@ -124,8 +128,10 @@ jobs:
           # event payload, never from step environments, and mask them before any later step prints its env.
           trust_cache_url=$(jq -r '.inputs.trust_cache_url // ""' "$GITHUB_EVENT_PATH")
           data_seed_url=$(jq -r '.inputs.data_seed_url // ""' "$GITHUB_EVENT_PATH")
+          gpu_addon_url=$(jq -r '.inputs.gpu_addon_url // ""' "$GITHUB_EVENT_PATH")
           if [ -n "$trust_cache_url" ]; then echo "::add-mask::$trust_cache_url"; fi
           if [ -n "$data_seed_url" ]; then echo "::add-mask::$data_seed_url"; fi
+          if [ -n "$gpu_addon_url" ]; then echo "::add-mask::$gpu_addon_url"; fi
           fail() { echo "::error::$1"; exit 1; }
           [ -f device/board.toml ] || fail "the device repository has no board.toml"
           [ -f "device/configs/$DEFCONFIG" ] || fail "device/configs/$DEFCONFIG not found: $(cd device/configs 2>/dev/null && printf '%s ' *_defconfig)"
@@ -193,8 +199,12 @@ jobs:
         run: |
           trust_cache_url=$(jq -r '.inputs.trust_cache_url // ""' "$GITHUB_EVENT_PATH")
           data_seed_url=$(jq -r '.inputs.data_seed_url // ""' "$GITHUB_EVENT_PATH")
+          gpu_addon_url=$(jq -r '.inputs.gpu_addon_url // ""' "$GITHUB_EVENT_PATH")
           if [ -n "$trust_cache_url" ]; then
             curl -fsSL --retry 3 "$trust_cache_url" -o "$RUNNER_TEMP/trustcache"
+          fi
+          if [ -n "$gpu_addon_url" ]; then
+            curl -fsSL --retry 3 "$gpu_addon_url" -o "$RUNNER_TEMP/gpu.addon"
           fi
           if [ -n "$data_seed_url" ]; then
             curl -fsSL --retry 3 "$data_seed_url" -o "$RUNNER_TEMP/data.dbr"
@@ -247,6 +257,7 @@ jobs:
             fi
           fi
           if [ -f "$RUNNER_TEMP/data.dbr" ]; then args+=(--data-ramdisk "$RUNNER_TEMP/data.dbr"); fi
+          if [ -f "$RUNNER_TEMP/gpu.addon" ]; then args+=(--gpu-addon "$RUNNER_TEMP/gpu.addon"); fi
           if [ "$SKIP_SETUP" = true ]; then args+=(--skip-setup); fi
           ./unixnu build payload "${args[@]}"
 

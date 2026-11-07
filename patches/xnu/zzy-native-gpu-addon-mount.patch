@@ -306,11 +306,11 @@ index a5ff474..4704203 100644
 +	static const char daemons_source[] = "/private/var/ngpu/daemons", daemons_point[] = "/System/Library/LaunchDaemons";
 +	native_gpu_addon_mount(p, scratch, 0x400, extensions_source, sizeof(extensions_source), extensions_point,
 +	    sizeof(extensions_point), "/System/Library/Extensions/AGXMetalA10.bundle",
-+	    "/System/Library/Extensions/NativeAdrenoMetal.bundle/Info.plist", &native_gpu_addon_stage,
++	    "/System/Library/Extensions/NativeMaliMetal.bundle/Info.plist", &native_gpu_addon_stage,
 +	    &native_gpu_addon_status);
 +	native_gpu_addon_mount(p, scratch, 0x600, daemons_source, sizeof(daemons_source), daemons_point, sizeof(daemons_point),
 +	    "/System/Library/LaunchDaemons/com.apple.backboardd.plist",
-+	    "/System/Library/LaunchDaemons/org.blu-sharky.adrenoprobed.plist", &native_gpu_addon2_stage, &native_gpu_addon2_status);
++	    "/System/Library/LaunchDaemons/com.apple.iomfb_fdr_loader.plist", &native_gpu_addon2_stage, &native_gpu_addon2_status);
 +	/* The default iPadOS 17 wallpaper's layered animation with PNG images in place of its HEIC ones (no hardware HEVC decoder here).
 +	 * The overlay carries the animation's documents and the PNG images; the sealed assets directory stays visible below it. */
 +	static const char wallpaper_source[] = "/private/var/ngpu/wallpaper",

@@ -162,33 +162,39 @@ index ae94c7e..f4d58f0 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -1532,6 +1533,25 @@ handle_sw_step_debug(arm_saved_state_t *state)
+@@ -1532,6 +1533,31 @@ handle_sw_step_debug(arm_saved_state_t *state)
  	__builtin_unreachable();
  }
  
 +/* An unresolved user fault is about to become a signal. Record the pid, the PC and LR in shared-cache coordinates and the fault
-+ * address, so a crash loop (lsd, SpringBoard) can be placed in a library from a photo without a serial console. */
++ * address + x0/x1 registers, throttled per process so a crash loop (lsd) does not evict earlier boot events from the ring. */
 +static void
 +native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr)
 +{
 +	extern int proc_getpid(proc_t);
++	extern const char *proc_best_name(proc_t);
++	extern boolean_t native_diag_should_print_fault(const char *name);
 +	extern void native_gop_text(unsigned line, const char *text);
++	proc_t p = current_proc();
++	const char *nm = p ? proc_best_name(p) : "?";
++	if (!native_diag_should_print_fault(nm))
++		return;
 +	task_t task = current_task();
 +	uint64_t slide = task->shared_region ? task->shared_region->sr_slide : 0;
 +	char line[48];
-+	snprintf(line, sizeof(line), "UG %d %llx %llx", proc_getpid(current_proc()),
++	snprintf(line, sizeof(line), "UG %d %.8s %llx %llx", proc_getpid(p), nm,
 +	    (unsigned long long)(get_saved_state_pc(state) - slide),
 +	    (unsigned long long)(get_saved_state_lr(state) - slide));
 +	native_gop_text(100, line);
-+	snprintf(line, sizeof(line), "UF %llx %llx", (unsigned long long)fault_addr,
-+	    (unsigned long long)slide);
++	snprintf(line, sizeof(line), "UF %llx x0:%llx x1:%llx", (unsigned long long)fault_addr,
++	    (unsigned long long)saved_state64(state)->x[0], (unsigned long long)saved_state64(state)->x[1]);
 +	native_gop_text(100, line);
 +}
 +
  static void
  handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,
      fault_status_t fault_code, vm_prot_t fault_type, expected_fault_handler_t expected_fault_handler)
-@@ -1675,6 +1695,7 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+@@ -1675,6 +1701,7 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
  #endif /* __has_feature(ptrauth_calls) */
  
  	boot_progress_user_abort(state, esr, fault_addr);

@@ -373,7 +373,7 @@ __attribute__((noinline)) void native_legacy_retirement_observed(IOService *disp
     native_legacy_retired_current=current;native_legacy_retired_pending=pending;
     native_legacy_retired_generation=completed;native_legacy_presented_generation=presented;native_legacy_retired_frames=frames;
     native_legacy_retirement_calls=native_legacy_retirement_calls+1;
-    dline(30,"DISP RET %u/%u F%u",completed,presented,frames);
+    dline(30,"DISP RET %u/%u F%u C%d:%.8s",completed,presented,frames,native_legacy_client_pid,native_legacy_client_name[0]?native_legacy_client_name:"-");
 }
 // The display object's properties as they are now (the registration copy above predates setDisplayRefreshProperties and the rest): for the
 // UFS log. Returns the bytes written (NUL-terminated).
