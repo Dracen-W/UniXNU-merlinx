@@ -2,7 +2,7 @@ diff --git a/bsd/kern/ubc_subr.c b/bsd/kern/ubc_subr.c
 index 22c5bf1..05c6504 100644
 --- a/bsd/kern/ubc_subr.c
 +++ b/bsd/kern/ubc_subr.c
-@@ -6043,6 +6043,172 @@ cs_validate_hash(
+@@ -6043,6 +6043,179 @@ cs_validate_hash(
  	return validated;
  }
  
@@ -160,7 +160,14 @@ index 22c5bf1..05c6504 100644
 +			continue;
 +		}
 +		uint8_t *at = (uint8_t *)kva + (f->offset - page_offset);
-+		if (memcmp(at, f->original, f->length) != 0) {
++		bool wildcard_bl = (f->length == 4 &&
++		    f->original[0] == 0 && f->original[1] == 0 &&
++		    f->original[2] == 0 && f->original[3] == 0);
++		if (wildcard_bl) {
++			if ((*(const uint32_t *)at & 0xfc000000U) != 0x94000000U) {
++				continue;
++			}
++		} else if (memcmp(at, f->original, f->length) != 0) {
 +			continue;
 +		}
 +		memcpy(at, f->replacement, f->length);

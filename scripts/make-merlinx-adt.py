@@ -18,6 +18,7 @@ claimed and no property is invented beyond these pinned sources.
 """
 from pathlib import Path
 import argparse
+import hashlib
 import os
 import struct
 import zlib
@@ -122,7 +123,7 @@ def main():
         ('model', b'iPad7,1\0' if args.ipad_identity else b'merlinx-first-boot\0'),
         *([('target-type', b'J120\0')] if args.ipad_identity else []),
         # Root compatible strings of the compiled board DT (xiaomi,sheng / qcom,sm8550).
-        ('compatible', b'xiaomi,merlinx\0mediatek,mt6768\0'),
+        ('compatible', b'J120AP\0xiaomi,merlinx\0mediatek,mt6768\0' if args.ipad_identity else b'xiaomi,merlinx\0mediatek,mt6768\0'),
         ('display-scale', struct.pack('<I', 2)),
         ('display-rotation', struct.pack('<I', 0)),
         ('#address-cells', struct.pack('<I', 2)),
@@ -153,6 +154,7 @@ def main():
                         # Image4 hash algorithm. The target iPad's DT specifies sha2-384 in /chosen; this
                         # selects the algorithm only and asserts nothing about Apple silicon or fuses.
                         ('crypto-hash-method', b'sha2-384\0'),
+                        ('boot-manifest-hash', hashlib.sha384(b'UkeBringup.BootSet.v1\0').digest()),
                         *( [('root-matching', ('<dict><key>IOProviderClass</key><string>IOMedia</string>'
                                                '<key>IOPropertyMatch</key><dict><key>UUID</key><string>' +
                                                args.root_match_volume_uuid.upper() + '</string></dict></dict>\0').encode())]
@@ -188,7 +190,7 @@ def main():
                              ('artwork-device-idiom', b'pad\0'),
                              ('artwork-device-subtype', struct.pack('<I', 2732)),
                              ('artwork-scale-factor', struct.pack('<I', 2)),
-                             ('artwork-display-gamut', b'P3\0'),
+                             ('artwork-display-gamut', b'sRGB\0'),
                              ('compatible-device-fallback', b'iPad6,7\0'),
                              ('product-id', bytes.fromhex('e9fefef6e6f9d12a5ba1a2551866cbbd749f0ec3')),
                              ('thin-bezel', struct.pack('<I', 1))] if args.ipad_identity else [] )]),

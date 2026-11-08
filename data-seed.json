@@ -512,6 +512,24 @@
   ],
   "files": [
     [
+      "mobile/Library/Preferences/com.apple.DataMigration.plist",
+      501,
+      501,
+      "0600",
+      "plist",
+      {
+        "LastSystemVersion": "21H461",
+        "DMLastMigrationResults": {
+          "success": true,
+          "buildVersion": "21H461"
+        },
+        "DMUserDataDisposition": {
+          "SyntheticDidUpgrade": false,
+          "buildVersion": "21H461"
+        }
+      }
+    ],
+    [
       "mobile/Library/Preferences/com.apple.migration.plist",
       501,
       501,

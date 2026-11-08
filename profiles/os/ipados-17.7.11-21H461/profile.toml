@@ -38,7 +38,7 @@
 
 
 ["payload"]
-"text_fixups" = ["dyld_shared_cache_arm64.15,421e8bc,28ad1bb0008544f9,c0035fd6008544f9", "dyld_shared_cache_arm64.13,1b05bec,44008052,24008052", "dyld_shared_cache_arm64.13,1b05b08,44008052,24008052", "dyld_shared_cache_arm64.17,4b7925c,49e08994,1f2003d5", "BTAudioHALPlugin,38bec,ffc300d1f44f01a9,000080d2c0035fd6"]
+"text_fixups" = ["dyld_shared_cache_arm64.15,421e8bc,28ad1bb0008544f9,c0035fd6008544f9", "dyld_shared_cache_arm64.13,1b05bec,44008052,24008052", "dyld_shared_cache_arm64.13,1b05b08,44008052,24008052", "dyld_shared_cache_arm64.17,4b7925c,49e08994,1f2003d5", "dyld_shared_cache_arm64.11,34f3b84,00000000,e0031faa", "BTAudioHALPlugin,38bec,ffc300d1f44f01a9,000080d2c0035fd6"]
 "trust_cache_sha256" = ["7416ca4f8377146626bb284e2133c76bee6cb4e3ee0af5d648b186235a7323a7", "8900d6a93d7a59ce1a872a5c081e559f4240a218f97e12d44d22dda46644d68f"]
 
 
@@ -76,7 +76,7 @@
 "product-name" = "iPad Pro (12.9-inch) (2nd generation)"
 "product-description" = "iPad Pro (12.9-inch) (2nd generation)"
 "artwork-device-idiom" = "pad"
-"artwork-display-gamut" = "P3"
+"artwork-display-gamut" = "sRGB"
 "compatible-device-fallback" = "iPad6,7"
 
 

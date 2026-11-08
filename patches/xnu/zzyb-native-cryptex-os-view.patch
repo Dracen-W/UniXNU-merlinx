@@ -1,7 +1,7 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7483,7 +7483,162 @@
+@@ -7483,7 +7483,213 @@
  			native_gpu_addon_written++;
  		}
  		at += (packed + 7) & ~7ULL;
@@ -161,14 +161,66 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
  	}
 +	(void)native_gpu_addon_write(marker, (const uint8_t *)"1\n", 2, 0644, ctx);
 +	native_ls_store_status = removed;
++}
++/* iOS 17 DataMigrator reads /private/var/mobile/Library/Preferences/com.apple.DataMigration.plist (in addition to the legacy
++ * com.apple.migration.plist) and /private/var/db/com.apple.xpc.launchd/disabled.migrated. Write them before launchd starts so
++ * DataMigrator does not block SpringBoard at the Apple logo even on an existing DBRDISK1 image. Also honor merlinx-allow-setup=1
++ * to optionally unlink com.apple.purplebuddy.plist when testing Setup.app. */
++volatile int native_data_migration_status = -1;
++static void
++native_data_migration_seed(proc_t p, user_addr_t scratch)
++{
++	static const char dm_xml[] =
++	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
++	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
++	    "<plist version=\"1.0\"><dict>"
++	    "<key>LastSystemVersion</key><string>21H461</string>"
++	    "<key>DMLastMigrationResults</key><dict><key>buildVersion</key><string>21H461</string><key>success</key><true/></dict>"
++	    "<key>DMUserDataDisposition</key><dict><key>SyntheticDidUpgrade</key><false/><key>buildVersion</key><string>21H461</string></dict>"
++	    "</dict></plist>\n";
++	static const char dm_path1[] = "/private/var/mobile/Library/Preferences/com.apple.DataMigration.plist";
++	static const char dm_path2[] = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";
++	static const char migrated_path[] = "/private/var/db/com.apple.xpc.launchd/disabled.migrated";
++	vfs_context_t ctx = vfs_context_current();
++	int err1 = native_gpu_addon_write(dm_path1, (const uint8_t *)dm_xml, sizeof(dm_xml) - 1, 0600, ctx);
++	int err2 = native_gpu_addon_write(dm_path2, (const uint8_t *)dm_xml, sizeof(dm_xml) - 1, 0600, ctx);
++	(void)native_gpu_addon_write(migrated_path, (const uint8_t *)"1\n", 2, 0644, ctx);
++	const char *chown_paths[2] = {dm_path1, dm_path2};
++	for (unsigned i = 0; i < 2; ++i) {
++		vnode_t vp = NULLVP;
++		if (!vnode_lookup(chown_paths[i], 0, &vp, ctx)) {
++			struct vnode_attr va;
++			VATTR_INIT(&va);
++			VATTR_SET(&va, va_uid, 501);
++			VATTR_SET(&va, va_gid, 501);
++			VATTR_SET(&va, va_mode, 0600);
++			(void)vnode_setattr(vp, &va, ctx);
++			vnode_put(vp);
++		}
++	}
++	uint32_t allow_setup = 0;
++	if (PE_parse_boot_argn("merlinx-allow-setup", &allow_setup, sizeof(allow_setup)) && allow_setup == 1) {
++		static const char buddy1[] = "/private/var/mobile/Library/Preferences/com.apple.purplebuddy.plist";
++		static const char buddy2[] = "/private/var/mobile/Library/Preferences/com.apple.purplebuddy.notbackedup.plist";
++		struct unlink_args ureq = {.path = scratch + 0xc00};
++		int32_t ures = 0;
++		if (!copyout(buddy1, ureq.path, sizeof(buddy1))) {
++			(void)unlink(p, &ureq, &ures);
++		}
++		if (!copyout(buddy2, ureq.path, sizeof(buddy2))) {
++			(void)unlink(p, &ureq, &ures);
++		}
++	}
++	native_data_migration_status = err1 ? err1 : err2;
  }
  static void
  native_gpu_addon_prepare(proc_t p, user_addr_t scratch)
-@@ -7596,4 +7751,7 @@
+@@ -7596,4 +7810,8 @@
  {
 +	native_cryptex_os_view(p, scratch);
 +	native_gestalt_cache_drop(p, scratch);
 +	native_ls_store_drop(p, scratch);
++	native_data_migration_seed(p, scratch);
  	uint32_t enabled = 0;
  	if (!PE_parse_boot_argn("sheng-gpu-addon", &enabled, sizeof(enabled)) || enabled != 1) {
  		return;

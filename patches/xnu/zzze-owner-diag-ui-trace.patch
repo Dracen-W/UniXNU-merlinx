@@ -2,7 +2,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,90 @@
+@@ -101,8 +101,122 @@
  #include <sys/acct.h>
  
  void native_gop_text(unsigned line, const char *text);
@@ -24,6 +24,37 @@ index d015dab..f43099c 100644
 +void native_diag_focus_start(void);
 +void native_diag_focus_note(int pid, const char *name);
 +void native_diag_focus_exit(int pid);
++void native_diag_xp_note(int pid, const char *tag);
++const char *native_diag_xp_lookup(int pid);
++
++struct native_diag_xp_entry {
++	int pid;
++	char tag[28];
++};
++static struct native_diag_xp_entry native_diag_xp_table[64];
++
++void
++native_diag_xp_note(int pid, const char *tag)
++{
++	if (pid <= 1 || !tag || !tag[0])
++		return;
++	if (strncmp(tag, "com.apple.", 10) == 0)
++		tag += 10;
++	unsigned int slot = (unsigned int)pid & 63U;
++	native_diag_xp_table[slot].pid = pid;
++	strlcpy(native_diag_xp_table[slot].tag, tag, sizeof(native_diag_xp_table[slot].tag));
++}
++
++const char *
++native_diag_xp_lookup(int pid)
++{
++	if (pid <= 1)
++		return NULL;
++	unsigned int slot = (unsigned int)pid & 63U;
++	if (native_diag_xp_table[slot].pid == pid && native_diag_xp_table[slot].tag[0])
++		return native_diag_xp_table[slot].tag;
++	return NULL;
++}
 +
 +static unsigned int
 +native_diag_bump_count(struct native_diag_throttle *table, const char *name)
@@ -67,7 +98,8 @@ index d015dab..f43099c 100644
 +		"fairplayd", "cryptexd", "amfid", "trustd",
 +		"securityd", "UserEventAgent", "notifyd", "logd",
 +		"dasd", "hangtracerd", "ReportCrash", "MTLCompiler",
-+		"ScreenTime", "frontboardd",
++		"ScreenTime", "frontboardd", "iconservices", "datamigrator",
++		"migrationplugin", "Setup",
 +	};
 +	unsigned int i;
 +	if (!name || !name[0])
@@ -93,51 +125,82 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2387,12 +2469,21 @@ encapsulated_binary:
+@@ -2387,12 +2500,24 @@ encapsulated_binary:
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
- 		if (p->p_pid > 1) {
+-		if (p->p_pid > 1) {
 -			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
-+			proc_t np = vfs_context_proc(imgp->ip_vfs_context);
-+			const char *cm = (np && np->p_name[0]) ? np->p_name :
-+			    ((np && np->p_comm[0]) ? np->p_comm : (p->p_comm[0] ? p->p_comm : "CHILD"));
- 			char go_text[48];
-+			unsigned int go_count = 1;
- 			native_gop_text(6, cm);
+-			char go_text[48];
+-			native_gop_text(6, cm);
 -			snprintf(go_text, sizeof(go_text), "GO %d %.16s", p->p_pid, cm);
 -			native_gop_text(100, go_text);
- 			native_diag_note_exec(p->p_pid, cm);
-+			if (native_diag_should_log_exec(cm, &go_count)) {
-+				if (go_count > 1)
-+					snprintf(go_text, sizeof(go_text), "GO#%u %d %.14s", go_count, p->p_pid, cm);
-+				else
-+					snprintf(go_text, sizeof(go_text), "GO %d %.16s", p->p_pid, cm);
-+				native_gop_text(100, go_text);
+-			native_diag_note_exec(p->p_pid, cm);
++		{
++			proc_t np = vfs_context_proc(imgp->ip_vfs_context);
++			int epid = (np && np->p_pid > 1) ? np->p_pid : p->p_pid;
++			if (epid > 1) {
++				const char *cm = (np && np->p_name[0]) ? np->p_name :
++				    ((np && np->p_comm[0]) ? np->p_comm : (p->p_comm[0] ? p->p_comm : "CHILD"));
++				char go_text[48];
++				unsigned int go_count = 1;
++				native_gop_text(6, cm);
++				native_diag_note_exec(epid, cm);
++				if (native_diag_should_log_exec(cm, &go_count)) {
++					if (go_count > 1)
++						snprintf(go_text, sizeof(go_text), "GO#%u %d %.14s", go_count, epid, cm);
++					else
++						snprintf(go_text, sizeof(go_text), "GO %d %.16s", epid, cm);
++					native_gop_text(100, go_text);
++				}
++				native_diag_focus_start();
 +			}
-+			native_diag_focus_start();
  		}
  	}
  bad:
-@@ -3615,7 +3706,8 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3608,15 +3733,27 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+ 		struct vnode_attr origva;
+ 	} *__spawn_data;
+ 
+-	if (current_proc()->p_pid == 1 && uap->path != USER_ADDR_NULL) {
++	char spawn_arg1[40] = "";
++	if (uap->path != USER_ADDR_NULL) {
+ 		char spawn_path[128];
+ 		size_t spawn_len = 0;
+ 		spawn_path[0] = 0;
+ 		(void)copyinstr(uap->path, spawn_path, sizeof(spawn_path), &spawn_len);
  		spawn_path[sizeof(spawn_path) - 1] = 0;
  		if (spawn_path[0]) {
  			const char *slash = strrchr(spawn_path, '/');
 -			strlcpy(spawn_base, slash ? slash + 1 : spawn_path, sizeof(spawn_base));
 +			const char *base = slash ? slash + 1 : spawn_path;
 +			strlcpy(spawn_base, base, sizeof(spawn_base));
++			if ((strcmp(spawn_base, "xpcproxy") == 0 || strncmp(spawn_base, "mount", 5) == 0) &&
++			    is_64 && uap->argv != USER_ADDR_NULL) {
++				user_addr_t arg1_ptr = 0;
++				size_t arg1_len = 0;
++				if (copyin(uap->argv + sizeof(user_addr_t), &arg1_ptr, sizeof(arg1_ptr)) == 0 &&
++				    arg1_ptr != 0) {
++					(void)copyinstr(arg1_ptr, spawn_arg1, sizeof(spawn_arg1), &arg1_len);
++					spawn_arg1[sizeof(spawn_arg1) - 1] = 0;
++				}
++			}
  		}
  	}
  
-@@ -4934,7 +5026,7 @@ bad:
+@@ -4934,7 +5071,10 @@ bad:
  	}
  #endif
  
 -	if (error != 0 && spawn_base[0]) {
++	if (error == 0 && spawn_arg1[0] && retval && *retval > 1) {
++		native_diag_xp_note(*retval, spawn_arg1);
++	}
 +	if (error != 0 && spawn_base[0] && native_diag_throttle(native_diag_spawn_throttle, spawn_base)) {
  		char spawn_text[48];
- 		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
+-		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
++		snprintf(spawn_text, sizeof(spawn_text), "SPF %d e%d %.20s", ap ? ap->p_pid : 0, error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5261,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5309,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -160,7 +223,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7180,13 +7288,35 @@ native_gop_text(unsigned line, const char *text)
+@@ -7180,13 +7336,35 @@ native_gop_text(unsigned line, const char *text)
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  
@@ -197,7 +260,7 @@ index d015dab..f43099c 100644
  
  static int
  native_diag_tracked_slot(const char *name)
-@@ -7195,28 +7325,35 @@ native_diag_tracked_slot(const char *name)
+@@ -7195,28 +7373,35 @@ native_diag_tracked_slot(const char *name)
  	if (!name)
  		return -1;
  	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
@@ -240,7 +303,7 @@ index d015dab..f43099c 100644
  }
  
  void
-@@ -7226,6 +7363,68 @@ native_diag_note_exit(int pid, const char *name)
+@@ -7226,6 +7411,68 @@ native_diag_note_exit(int pid, const char *name)
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
  	native_diag_process_summary();
@@ -309,7 +372,7 @@ index d015dab..f43099c 100644
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -8437,6 +8636,7 @@ load_init_program(proc_t p)
+@@ -8437,6 +8684,7 @@ load_init_program(proc_t p)
  	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
  	boot_progress_stage("Data mount returned");
  	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
@@ -321,15 +384,27 @@ diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
 index f0721cc..5ec2380 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1628,6 +1628,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+@@ -1628,19 +1628,29 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
  	if (p->p_pid > 1) {
  		extern void native_gop_text(unsigned line, const char *text);
  		extern void native_diag_note_exit(int pid, const char *name);
 +		extern boolean_t native_diag_should_print_exit(const char *name, boolean_t has_reason, int rv);
++		extern const char *native_diag_xp_lookup(int pid);
  		const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++		const char *xtag = native_diag_xp_lookup(p->p_pid);
++		char nm_buf[32];
++		if (xtag && (strcmp(nm, "xpcproxy") == 0 || strncmp(nm, "mount", 5) == 0)) {
++			snprintf(nm_buf, sizeof(nm_buf), "%s:%.20s",
++			    strcmp(nm, "xpcproxy") == 0 ? "xp" : nm, xtag);
++			nm = nm_buf;
++		}
  		char ex_text[48];
  		if (exit_reason != OS_REASON_NULL) {
-@@ -1639,8 +1640,9 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+ 			snprintf(ex_text, sizeof(ex_text), "EX %d %.12s %x R%u:%llx",
+ 			    p->p_pid, nm, rv, exit_reason->osr_namespace,
+ 			    (unsigned long long)exit_reason->osr_code);
+ 			native_gop_text(20, ex_text);
+ 		} else {
  			snprintf(ex_text, sizeof(ex_text), "EX %d %.16s %x",
  			    p->p_pid, nm, rv);
  		}
