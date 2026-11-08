@@ -77,3 +77,4 @@ zzyd-owner-diag-ring.patch
 zzz-boot-progress.patch
 zzzd-owner-diag-exec-ps.patch
 zzze-owner-diag-ui-trace.patch
+zzzf-workqueue-parallelism.patch

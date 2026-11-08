@@ -721,22 +721,3 @@ index 31bad41..d0e815e 100644
 +		if (native_diag_focus_pid[i] == pid)
 +			native_diag_focus_pid[i] = 0;
 +}
-\ndiff --git a/bsd/pthread/pthread_workqueue.c b/bsd/pthread/pthread_workqueue.c
---- a/bsd/pthread/pthread_workqueue.c
-+++ b/bsd/pthread/pthread_workqueue.c
-@@ -137,12 +137,12 @@
- static uint32_t wq_max_threads              = WORKQUEUE_MAXTHREADS;
- static uint32_t wq_max_constrained_threads  = WORKQUEUE_MAXTHREADS / 8;
- static uint32_t wq_init_constrained_limit   = 1;
- static uint16_t wq_death_max_load;
--static uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
-+uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
- 
- /*
-  * This is not a hard limit but the max size we want to aim to hit across the
-  * entire cooperative pool. We can oversubscribe the pool due to non-cooperative
-  * workers and the max we will oversubscribe the pool by, is a total of
-  * wq_max_cooperative_threads * WORKQ_NUM_QOS_BUCKETS.
-  */
--static uint32_t wq_max_cooperative_threads;
-+uint32_t wq_max_cooperative_threads;

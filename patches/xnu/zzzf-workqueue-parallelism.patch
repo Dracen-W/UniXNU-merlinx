@@ -1,0 +1,33 @@
+--- a/bsd/pthread/pthread_workqueue.c
++++ b/bsd/pthread/pthread_workqueue.c
+@@ -137,7 +137,7 @@
+ static uint32_t wq_max_constrained_threads  = WORKQUEUE_MAXTHREADS / 8;
+ static uint32_t wq_init_constrained_limit   = 1;
+ static uint16_t wq_death_max_load;
+-static uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
++uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
+ 
+ /*
+  * This is not a hard limit but the max size we want to aim to hit across the
+@@ -145,7 +145,7 @@
+  * workers and the max we will oversubscribe the pool by, is a total of
+  * wq_max_cooperative_threads * WORKQ_NUM_QOS_BUCKETS.
+  */
+-static uint32_t wq_max_cooperative_threads;
++uint32_t wq_max_cooperative_threads;
+ 
+ static inline uint32_t
+ wq_cooperative_queue_max_size(struct workqueue *wq)
+@@ -2074,6 +2074,12 @@
+ 		}
+ 
+ 		wq_max_cooperative_threads = num_cpus;
++		if (num_cpus < 8) {
++			for (thread_qos_t qos = WORKQ_THREAD_QOS_MIN; qos <= WORKQ_THREAD_QOS_MAX; qos++) {
++				wq_max_parallelism[_wq_bucket(qos)] = 8;
++			}
++			wq_max_cooperative_threads = 8;
++		}
+ 
+ 		wq_init_constrained_limit = 0;
+ 	}
