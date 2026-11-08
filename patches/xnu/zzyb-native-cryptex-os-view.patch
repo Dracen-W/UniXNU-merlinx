@@ -169,9 +169,9 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	static const char caches[] = "/private/var/mobile/Containers/Data/InternalDaemon/5C583048-0C53-456F-B110-BB12068B787F/Library/Caches";
 +	static const char prefix[] = "com.apple.LaunchServices-";
 +	vfs_context_t ctx = vfs_context_current();
-+	vnode_t vp = NULLVP;
-+	if (!vnode_lookup(marker, 0, &vp, ctx)) {
-+		vnode_put(vp);
++	vnode_t vp = NULLVP; uint32_t drop_ls = 0;
++	if (!PE_parse_boot_argn("merlinx-drop-ls-store", &drop_ls, sizeof(drop_ls)) || !drop_ls || !vnode_lookup(marker, 0, &vp, ctx)) {
++		if (vp) vnode_put(vp);
 +		native_ls_store_status = -2;
 +		return;
 +	}
@@ -291,7 +291,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.nfcd</key><true/>"
 +	    "<key>com.apple.nearbyd</key><true/>"
 +	    "<key>com.apple.OTATaskingAgent</key><true/>"
-+	    "<key>com.apple.fairplayd.A2</key><true/>"
++	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char dm_path1[] = "/private/var/mobile/Library/Preferences/com.apple.DataMigration.plist";
 +	static const char dm_path2[] = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";

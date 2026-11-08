@@ -2,7 +2,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,189 @@
+@@ -101,8 +101,194 @@
  #include <sys/acct.h>
  
 +#include <pexpert/pexpert.h>
@@ -32,7 +32,7 @@ index d015dab..f43099c 100644
 +	int pid;
 +	char tag[28];
 +};
-+static struct native_diag_xp_entry native_diag_xp_table[64];
++static struct native_diag_xp_entry native_diag_xp_table[256];
 +
 +static boolean_t
 +native_diag_has_substr(const char *hay, const char *needle)
@@ -80,10 +80,13 @@ index d015dab..f43099c 100644
 +	    strcmp(base, "itunescloudd") == 0 ||
 +	    strcmp(base, "nfcd") == 0 ||
 +	    strcmp(base, "nearbyd") == 0 ||
++	    strcmp(base, "iconservicesagent") == 0 ||
++	    strcmp(base, "iconservicesagen") == 0 ||
 +	    strcmp(base, "OTATaskingAgent") == 0))
 +		return TRUE;
 +	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "thermalmonitord") ||
 +	    native_diag_has_substr(arg1, "fairplayd") ||
++	    native_diag_has_substr(arg1, "iconservices") ||
 +	    native_diag_has_substr(arg1, "duetexpertd") ||
 +	    native_diag_has_substr(arg1, "webbookmarksd") ||
 +	    native_diag_has_substr(arg1, "cloudkeychainproxy") ||
@@ -107,7 +110,7 @@ index d015dab..f43099c 100644
 +		return;
 +	if (strncmp(tag, "com.apple.", 10) == 0)
 +		tag += 10;
-+	unsigned int slot = (unsigned int)pid & 63U;
++	unsigned int slot = (unsigned int)pid & 255U;
 +	native_diag_xp_table[slot].pid = pid;
 +	strlcpy(native_diag_xp_table[slot].tag, tag, sizeof(native_diag_xp_table[slot].tag));
 +}
@@ -117,7 +120,7 @@ index d015dab..f43099c 100644
 +{
 +	if (pid <= 1)
 +		return NULL;
-+	unsigned int slot = (unsigned int)pid & 63U;
++	unsigned int slot = (unsigned int)pid & 255U;
 +	if (native_diag_xp_table[slot].pid == pid && native_diag_xp_table[slot].tag[0])
 +		return native_diag_xp_table[slot].tag;
 +	return NULL;
@@ -167,6 +170,8 @@ index d015dab..f43099c 100644
 +		"dasd", "hangtracerd", "ReportCrash", "MTLCompiler",
 +		"ScreenTime", "frontboardd", "iconservices", "datamigrator",
 +		"migrationplugin", "Setup", "pkd", "duetexpertd", "thermalmonitor",
++		"installcoord", "installd", "misagent", "online-auth", "mobileactivat",
++		"appstored", "MobileStorage", "diskimages", "storagekitd", "purplebuddy",
 +	};
 +	unsigned int i;
 +	if (!name || !name[0])
@@ -192,7 +197,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2387,12 +2568,24 @@ encapsulated_binary:
+@@ -2387,12 +2573,24 @@ encapsulated_binary:
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
 -		if (p->p_pid > 1) {
@@ -224,7 +229,7 @@ index d015dab..f43099c 100644
  		}
  	}
  bad:
-@@ -3608,15 +3801,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3608,15 +3806,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		struct vnode_attr origva;
  	} *__spawn_data;
  
@@ -257,7 +262,7 @@ index d015dab..f43099c 100644
  		}
  	}
  
-@@ -4934,7 +5142,10 @@ bad:
+@@ -4934,7 +5147,10 @@ bad:
  	}
  #endif
  
@@ -270,7 +275,7 @@ index d015dab..f43099c 100644
 -		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
 +		snprintf(spawn_text, sizeof(spawn_text), "SPF %d e%d %.20s", ap ? ap->p_pid : 0, error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5380,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5385,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -293,7 +298,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7180,13 +7407,35 @@ native_gop_text(unsigned line, const char *text)
+@@ -7180,13 +7412,35 @@ native_gop_text(unsigned line, const char *text)
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  
@@ -330,7 +335,7 @@ index d015dab..f43099c 100644
  
  static int
  native_diag_tracked_slot(const char *name)
-@@ -7195,28 +7444,36 @@ native_diag_tracked_slot(const char *name)
+@@ -7195,28 +7449,36 @@ native_diag_tracked_slot(const char *name)
  	if (!name)
  		return -1;
  	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
@@ -374,7 +379,7 @@ index d015dab..f43099c 100644
  }
  
  void
-@@ -7226,6 +7483,68 @@ native_diag_note_exit(int pid, const char *name)
+@@ -7226,6 +7488,103 @@ native_diag_note_exit(int pid, const char *name)
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
  	native_diag_process_summary();
@@ -399,6 +404,7 @@ index d015dab..f43099c 100644
 +/* One photo answers whether launchd's own root view holds the jobs on the path to the first frame: the five plists and the
 + * five programs, resolved by the kernel after the root union and the Data mount are in place. J and P are in the order
 + * backboardd, SpringBoard, lsd, containermanagerd, runningboardd; 1 = present, 0 = not visible. */
++static int native_gpu_addon_write(const char *path, const uint8_t *data, uint64_t size, uint32_t mode, vfs_context_t ctx);
 +static void
 +native_diag_jobs_probe(void)
 +{
@@ -440,10 +446,44 @@ index d015dab..f43099c 100644
 +	}
 +	line[7] = 0;
 +	native_gop_text(28, line);
++	static const char fb_xml[] =
++	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
++	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
++	    "<plist version=\"1.0\"><dict><key>FBLaunchWatchdogScale</key><real>20.0</real></dict></plist>\n";
++	static const char bb_xml[] =
++	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
++	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
++	    "<plist version=\"1.0\"><dict>"
++	    "<key>CAEnableDeepFramebuffer</key><false/>"
++	    "<key>CAEnableFramebufferCompression</key><false/>"
++	    "<key>CAEnableIOSurfaceCompression</key><false/>"
++	    "</dict></plist>\n";
++	static const char fb_path[] = "/private/var/mobile/Library/Preferences/com.apple.frontboard.plist";
++	static const char bb_m_path[] = "/private/var/mobile/Library/Preferences/backboardd.plist";
++	static const char gp_m_path[] = "/private/var/mobile/Library/Preferences/.GlobalPreferences.plist";
++	static const char bb_r_path[] = "/private/var/root/Library/Preferences/backboardd.plist";
++	static const char gp_r_path[] = "/private/var/root/Library/Preferences/.GlobalPreferences.plist";
++	(void)native_gpu_addon_write(fb_path, (const uint8_t *)fb_xml, sizeof(fb_xml) - 1, 0600, context);
++	(void)native_gpu_addon_write(bb_m_path, (const uint8_t *)bb_xml, sizeof(bb_xml) - 1, 0644, context);
++	(void)native_gpu_addon_write(gp_m_path, (const uint8_t *)bb_xml, sizeof(bb_xml) - 1, 0644, context);
++	(void)native_gpu_addon_write(bb_r_path, (const uint8_t *)bb_xml, sizeof(bb_xml) - 1, 0644, context);
++	(void)native_gpu_addon_write(gp_r_path, (const uint8_t *)bb_xml, sizeof(bb_xml) - 1, 0644, context);
++	const char *extra_chown[3] = {fb_path, bb_m_path, gp_m_path};
++	for (i = 0; i < 3; i++) {
++		vnode_t vp = NULLVP;
++		if (!vnode_lookup(extra_chown[i], 0, &vp, context)) {
++			struct vnode_attr va;
++			VATTR_INIT(&va);
++			VATTR_SET(&va, va_uid, 501);
++			VATTR_SET(&va, va_gid, 501);
++			(void)vnode_setattr(vp, &va, context);
++			vnode_put(vp);
++		}
++	}
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -8437,6 +8756,8 @@ load_init_program(proc_t p)
+@@ -8437,6 +8796,8 @@ load_init_program(proc_t p)
  	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
  	boot_progress_stage("Data mount returned");
  	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
@@ -502,7 +542,7 @@ index 31bad41..d0e815e 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2464,3 +2468,238 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
+@@ -2464,3 +2468,258 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
  SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
  
  #endif
@@ -536,6 +576,7 @@ index 31bad41..d0e815e 100644
 +
 +static char native_diag_focus[4][17];
 +static int native_diag_focus_pid[4];
++static int native_diag_focus_pid2[4];
 +static unsigned int native_diag_focus_slot;
 +static boolean_t native_diag_focus_chrono;
 +static boolean_t native_diag_focus_configured;
@@ -576,9 +617,12 @@ index 31bad41..d0e815e 100644
 +
 +	for (tries = 0; tries < 4; tries++) {
 +		slot = native_diag_focus_slot++ & 3;
-+		if (native_diag_focus[slot][0] && native_diag_focus_pid[slot] > 0) {
++		if (native_diag_focus[slot][0] && (native_diag_focus_pid[slot] > 0 || native_diag_focus_pid2[slot] > 0)) {
 +			name = native_diag_focus[slot];
-+			pid = native_diag_focus_pid[slot];
++			if (native_diag_focus_pid[slot] > 0 && native_diag_focus_pid2[slot] > 0)
++				pid = ((native_diag_focus_slot >> 2) & 1) ? native_diag_focus_pid2[slot] : native_diag_focus_pid[slot];
++			else
++				pid = native_diag_focus_pid[slot] > 0 ? native_diag_focus_pid[slot] : native_diag_focus_pid2[slot];
 +			break;
 +		}
 +	}
@@ -592,6 +636,10 @@ index 31bad41..d0e815e 100644
 +		role = 'B';
 +	else if (name[0] == 'm' || name[0] == 'M')
 +		role = 'M';
++	else if (name[0] == 'c' || name[0] == 'C')
++		role = 'C';
++	else if (name[0] == 'i' || name[0] == 'I')
++		role = 'I';
 +	if (native_diag_focus_chrono) {
 +		uint64_t ns = 0;
 +		absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
@@ -602,7 +650,10 @@ index 31bad41..d0e815e 100644
 +		goto reschedule;
 +	p = proc_find(pid);
 +	if (p == NULL) {
-+		native_diag_focus_pid[slot] = 0;
++		if (native_diag_focus_pid[slot] == pid)
++			native_diag_focus_pid[slot] = 0;
++		if (native_diag_focus_pid2[slot] == pid)
++			native_diag_focus_pid2[slot] = 0;
 +		goto reschedule;
 +	}
 +	task = proc_task(p);
@@ -625,7 +676,9 @@ index 31bad41..d0e815e 100644
 +					mach_msg_type_number_t tmp_cnt = ARM_THREAD_STATE64_COUNT;
 +					if (machine_thread_get_state(iter_th, ARM_THREAD_STATE64, (thread_state_t)&tmp_st, &tmp_cnt) == KERN_SUCCESS) {
 +						long long sc = (long long)tmp_st.x[16];
-+						if ((sc != 368 && sc != -368) || step + 1 == nthreads) {
++						boolean_t idle_sc = (sc == 368 || sc == -368 || sc == 374 || sc == -374 ||
++						    sc == 375 || sc == -375 || sc == 410 || sc == -410);
++						if (!idle_sc || step + 1 == nthreads) {
 +							thread = iter_th;
 +							thread_reference(thread);
 +							state = tmp_st;
@@ -659,7 +712,7 @@ index 31bad41..d0e815e 100644
 +			fp = pair[0];
 +		}
 +	}
-+	snprintf(line, sizeof(line), "%c%d/%u %spc:%llx lr:%llx", role, pid, pick_idx, seconds,
++	snprintf(line, sizeof(line), "%c%d/%u/%u %spc:%llx lr:%llx", role, pid, pick_idx, nthreads, seconds,
 +	    (unsigned long long)((state.pc >= 0x180000000ULL && state.pc >= slide) ? state.pc - slide : state.pc),
 +	    (unsigned long long)((state.lr >= 0x180000000ULL && state.lr >= slide) ? state.lr - slide : state.lr));
 +	native_gop_text(21, line);
@@ -728,16 +781,23 @@ index 31bad41..d0e815e 100644
 +	unsigned int i;
 +	if (!native_diag_focus_configured)
 +		native_diag_focus_configure();
-+	for (i = 0; i < 4; i++)
-+		if (native_diag_focus[i][0] && native_diag_focus_same(native_diag_focus[i], name))
++	for (i = 0; i < 4; i++) {
++		if (native_diag_focus[i][0] && native_diag_focus_same(native_diag_focus[i], name)) {
++			if (native_diag_focus_pid[i] > 0 && native_diag_focus_pid[i] != pid)
++				native_diag_focus_pid2[i] = native_diag_focus_pid[i];
 +			native_diag_focus_pid[i] = pid;
++		}
++	}
 +}
 +
 +void
 +native_diag_focus_exit(int pid)
 +{
 +	unsigned int i;
-+	for (i = 0; i < 4; i++)
++	for (i = 0; i < 4; i++) {
 +		if (native_diag_focus_pid[i] == pid)
 +			native_diag_focus_pid[i] = 0;
++		if (native_diag_focus_pid2[i] == pid)
++			native_diag_focus_pid2[i] = 0;
++	}
 +}

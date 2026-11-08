@@ -693,7 +693,9 @@
         "com.apple.suggestd": true,
         "com.apple.triald": true,
         "com.apple.siriknowledged": true,
-        "com.apple.spotlightknowledged": true
+        "com.apple.spotlightknowledged": true,
+        "com.apple.fairplayd.A2": true,
+        "com.apple.iconservices.iconservicesagent": true
       }
     ],
     [
@@ -719,7 +721,9 @@
         "com.apple.suggestd": true,
         "com.apple.triald": true,
         "com.apple.siriknowledged": true,
-        "com.apple.spotlightknowledged": true
+        "com.apple.spotlightknowledged": true,
+        "com.apple.fairplayd.A2": true,
+        "com.apple.iconservices.iconservicesagent": true
       }
     ]
   ],
