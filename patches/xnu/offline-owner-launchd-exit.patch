@@ -8,7 +8,7 @@ index 11a8212..1d02ae6 100644
  {
 +	if (p->p_pid == 1)
 +		panic("launchd exit1 rv=%d", rv);
-+	if (p->p_pid > 1) {
++	if (p->p_pid > 1 && rv != 0) {
 +		static unsigned int exit_trace_slot;
 +		char trace_text[96];
 +		unsigned int trace_line;

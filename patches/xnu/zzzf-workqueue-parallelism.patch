@@ -2,7 +2,8 @@
 +++ b/bsd/pthread/pthread_workqueue.c
 @@ -137,7 +137,7 @@
  static uint32_t wq_max_constrained_threads  = WORKQUEUE_MAXTHREADS / 8;
- static uint32_t wq_init_constrained_limit   = 1;
+-static uint32_t wq_init_constrained_limit   = 1;
++uint32_t wq_init_constrained_limit   = 1;
  static uint16_t wq_death_max_load;
 -static uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
 +uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
@@ -18,14 +19,16 @@
  
  static inline uint32_t
  wq_cooperative_queue_max_size(struct workqueue *wq)
-@@ -2074,6 +2074,12 @@
+@@ -2074,6 +2074,14 @@
  		}
  
  		wq_max_cooperative_threads = num_cpus;
-+		if (num_cpus < 8) {
-+			for (thread_qos_t qos = WORKQ_THREAD_QOS_MIN; qos <= WORKQ_THREAD_QOS_MAX; qos++) {
++		for (thread_qos_t qos = WORKQ_THREAD_QOS_MIN; qos <= WORKQ_THREAD_QOS_MAX; qos++) {
++			if (wq_max_parallelism[_wq_bucket(qos)] < 8) {
 +				wq_max_parallelism[_wq_bucket(qos)] = 8;
 +			}
++		}
++		if (wq_max_cooperative_threads < 8) {
 +			wq_max_cooperative_threads = 8;
 +		}
  

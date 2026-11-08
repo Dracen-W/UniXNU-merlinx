@@ -1,7 +1,7 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7483,7 +7483,333 @@
+@@ -7483,7 +7483,334 @@
  			native_gpu_addon_written++;
  		}
  		at += (packed + 7) & ~7ULL;
@@ -291,6 +291,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.nfcd</key><true/>"
 +	    "<key>com.apple.nearbyd</key><true/>"
 +	    "<key>com.apple.OTATaskingAgent</key><true/>"
++	    "<key>com.apple.fairplayd.A2</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char dm_path1[] = "/private/var/mobile/Library/Preferences/com.apple.DataMigration.plist";
 +	static const char dm_path2[] = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";
