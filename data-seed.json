@@ -508,6 +508,12 @@
       501,
       501,
       "0755"
+    ],
+    [
+      "mobile/Library/Application Support",
+      501,
+      501,
+      "0755"
     ]
   ],
   "files": [
@@ -678,7 +684,16 @@
         "com.apple.liveactivitiesd": true,
         "com.apple.ScreenTimeAgent": true,
         "com.apple.dmd": true,
-        "com.apple.UsageTrackingAgent": true
+        "com.apple.UsageTrackingAgent": true,
+        "com.apple.thermalmonitord": true,
+        "com.apple.duetexpertd": true,
+        "com.apple.coreduetd": true,
+        "com.apple.webbookmarksd": true,
+        "com.apple.searchd": true,
+        "com.apple.suggestd": true,
+        "com.apple.triald": true,
+        "com.apple.siriknowledged": true,
+        "com.apple.spotlightknowledged": true
       }
     ],
     [
@@ -691,7 +706,20 @@
         "com.apple.ScreenTimeAgent": true,
         "com.apple.dmd": true,
         "com.apple.UsageTrackingAgent": true,
-        "com.apple.cryptexd": true
+        "com.apple.cryptexd": true,
+        "com.apple.watchdogd": true,
+        "com.apple.thermalmonitord": true,
+        "com.apple.bluetoothd": true,
+        "com.apple.PerfPowerServices": true,
+        "com.apple.liveactivitiesd": true,
+        "com.apple.duetexpertd": true,
+        "com.apple.coreduetd": true,
+        "com.apple.webbookmarksd": true,
+        "com.apple.searchd": true,
+        "com.apple.suggestd": true,
+        "com.apple.triald": true,
+        "com.apple.siriknowledged": true,
+        "com.apple.spotlightknowledged": true
       }
     ]
   ],

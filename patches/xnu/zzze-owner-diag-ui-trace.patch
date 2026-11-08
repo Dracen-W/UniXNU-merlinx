@@ -99,7 +99,7 @@ index d015dab..f43099c 100644
 +		"securityd", "UserEventAgent", "notifyd", "logd",
 +		"dasd", "hangtracerd", "ReportCrash", "MTLCompiler",
 +		"ScreenTime", "frontboardd", "iconservices", "datamigrator",
-+		"migrationplugin", "Setup",
++		"migrationplugin", "Setup", "pkd", "duetexpertd", "thermalmonitor",
 +	};
 +	unsigned int i;
 +	if (!name || !name[0])
