@@ -2,7 +2,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,158 @@
+@@ -101,8 +101,185 @@
  #include <sys/acct.h>
  
 +#include <pexpert/pexpert.h>
@@ -48,23 +48,50 @@ index d015dab..f43099c 100644
 +	return FALSE;
 +}
 +
++extern uint32_t wq_max_parallelism[6];
++extern uint32_t wq_max_cooperative_threads;
++
++static void
++native_diag_boost_workq_parallelism(void)
++{
++	for (unsigned int qi = 0; qi < 6; qi++) {
++		if (wq_max_parallelism[qi] < 8)
++			wq_max_parallelism[qi] = 8;
++	}
++	if (wq_max_cooperative_threads < 8)
++		wq_max_cooperative_threads = 8;
++}
++
 +static boolean_t
 +native_diag_is_blocked_spawn(const char *base, const char *arg1)
 +{
-+	uint32_t allow_mg = 0;
-+	if (PE_parse_boot_argn("merlinx-allow-mghelper", &allow_mg, sizeof(allow_mg)) && allow_mg != 0)
-+		return FALSE;
-+	if (base && (strcmp(base, "MobileGestaltHelper") == 0 ||
-+	    strcmp(base, "thermalmonitord") == 0 ||
++	if (base && (strcmp(base, "thermalmonitord") == 0 ||
 +	    strcmp(base, "duetexpertd") == 0 ||
 +	    strcmp(base, "webbookmarksd") == 0 ||
-+	    strcmp(base, "CloudKeychainProxy") == 0))
++	    strcmp(base, "CloudKeychainProxy") == 0 ||
++	    strcmp(base, "studentd") == 0 ||
++	    strcmp(base, "biomed") == 0 ||
++	    strcmp(base, "assistant_cd") == 0 ||
++	    strcmp(base, "corespeechd") == 0 ||
++	    strcmp(base, "siriinferenced") == 0 ||
++	    strcmp(base, "itunescloudd") == 0 ||
++	    strcmp(base, "nfcd") == 0 ||
++	    strcmp(base, "nearbyd") == 0 ||
++	    strcmp(base, "OTATaskingAgent") == 0))
 +		return TRUE;
-+	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "mobilegestalt.xpc") ||
-+	    native_diag_has_substr(arg1, "thermalmonitord") ||
++	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "thermalmonitord") ||
 +	    native_diag_has_substr(arg1, "duetexpertd") ||
 +	    native_diag_has_substr(arg1, "webbookmarksd") ||
-+	    native_diag_has_substr(arg1, "cloudkeychainproxy")))
++	    native_diag_has_substr(arg1, "cloudkeychainproxy") ||
++	    native_diag_has_substr(arg1, "studentd") ||
++	    native_diag_has_substr(arg1, "biomed") ||
++	    native_diag_has_substr(arg1, "assistant_cd") ||
++	    native_diag_has_substr(arg1, "corespeechd") ||
++	    native_diag_has_substr(arg1, "siriinferenced") ||
++	    native_diag_has_substr(arg1, "itunescloudd") ||
++	    native_diag_has_substr(arg1, "nfcd") ||
++	    native_diag_has_substr(arg1, "nearbyd") ||
++	    native_diag_has_substr(arg1, "OTATaskingAgent")))
 +		return TRUE;
 +	return FALSE;
 +}
@@ -161,7 +188,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2387,12 +2536,24 @@ encapsulated_binary:
+@@ -2387,12 +2564,24 @@ encapsulated_binary:
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
 -		if (p->p_pid > 1) {
@@ -193,7 +220,7 @@ index d015dab..f43099c 100644
  		}
  	}
  bad:
-@@ -3608,15 +3769,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3608,15 +3797,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		struct vnode_attr origva;
  	} *__spawn_data;
  
@@ -226,7 +253,7 @@ index d015dab..f43099c 100644
  		}
  	}
  
-@@ -4934,7 +5110,10 @@ bad:
+@@ -4934,7 +5138,10 @@ bad:
  	}
  #endif
  
@@ -239,7 +266,7 @@ index d015dab..f43099c 100644
 -		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
 +		snprintf(spawn_text, sizeof(spawn_text), "SPF %d e%d %.20s", ap ? ap->p_pid : 0, error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5348,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5376,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -262,7 +289,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7180,13 +7375,35 @@ native_gop_text(unsigned line, const char *text)
+@@ -7180,13 +7403,35 @@ native_gop_text(unsigned line, const char *text)
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  
@@ -299,7 +326,7 @@ index d015dab..f43099c 100644
  
  static int
  native_diag_tracked_slot(const char *name)
-@@ -7195,28 +7412,35 @@ native_diag_tracked_slot(const char *name)
+@@ -7195,28 +7440,35 @@ native_diag_tracked_slot(const char *name)
  	if (!name)
  		return -1;
  	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
@@ -342,7 +369,7 @@ index d015dab..f43099c 100644
  }
  
  void
-@@ -7226,6 +7450,68 @@ native_diag_note_exit(int pid, const char *name)
+@@ -7226,6 +7478,68 @@ native_diag_note_exit(int pid, const char *name)
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
  	native_diag_process_summary();
@@ -411,10 +438,11 @@ index d015dab..f43099c 100644
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -8437,6 +8723,7 @@ load_init_program(proc_t p)
+@@ -8437,6 +8751,8 @@ load_init_program(proc_t p)
  	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
  	boot_progress_stage("Data mount returned");
  	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
++	native_diag_boost_workq_parallelism();
 +	native_diag_jobs_probe();
  #if defined(XNU_BOOT_PROGRESS) && XNU_BOOT_PROGRESS
  	extern int sheng_boot_watchdog_policy(void *, uint64_t);
@@ -469,7 +497,7 @@ index 31bad41..d0e815e 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2464,3 +2468,221 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
+@@ -2464,3 +2468,223 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
  SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
  
  #endif
@@ -555,6 +583,8 @@ index 31bad41..d0e815e 100644
 +		role = 'S';
 +	else if (name[0] == 'b' || name[0] == 'B')
 +		role = 'B';
++	else if (name[0] == 'm' || name[0] == 'M')
++		role = 'M';
 +	if (native_diag_focus_chrono) {
 +		uint64_t ns = 0;
 +		absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
@@ -691,3 +721,22 @@ index 31bad41..d0e815e 100644
 +		if (native_diag_focus_pid[i] == pid)
 +			native_diag_focus_pid[i] = 0;
 +}
+\ndiff --git a/bsd/pthread/pthread_workqueue.c b/bsd/pthread/pthread_workqueue.c
+--- a/bsd/pthread/pthread_workqueue.c
++++ b/bsd/pthread/pthread_workqueue.c
+@@ -137,12 +137,12 @@
+ static uint32_t wq_max_threads              = WORKQUEUE_MAXTHREADS;
+ static uint32_t wq_max_constrained_threads  = WORKQUEUE_MAXTHREADS / 8;
+ static uint32_t wq_init_constrained_limit   = 1;
+ static uint16_t wq_death_max_load;
+-static uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
++uint32_t wq_max_parallelism[WORKQ_NUM_QOS_BUCKETS];
+ 
+ /*
+  * This is not a hard limit but the max size we want to aim to hit across the
+  * entire cooperative pool. We can oversubscribe the pool due to non-cooperative
+  * workers and the max we will oversubscribe the pool by, is a total of
+  * wq_max_cooperative_threads * WORKQ_NUM_QOS_BUCKETS.
+  */
+-static uint32_t wq_max_cooperative_threads;
++uint32_t wq_max_cooperative_threads;

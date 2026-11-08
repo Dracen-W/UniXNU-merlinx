@@ -1,7 +1,7 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7483,7 +7483,326 @@
+@@ -7483,7 +7483,333 @@
  			native_gpu_addon_written++;
  		}
  		at += (packed + 7) & ~7ULL;
@@ -280,10 +280,17 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.triald</key><true/>"
 +	    "<key>com.apple.siriknowledged</key><true/>"
 +	    "<key>com.apple.spotlightknowledged</key><true/>"
-+	    "<key>com.apple.mobilegestalt.xpc</key><true/>"
-+	    "<key>com.apple.MobileGestaltHelper</key><true/>"
 +	    "<key>com.apple.CloudKeychainProxy</key><true/>"
 +	    "<key>com.apple.security.cloudkeychainproxy3</key><true/>"
++	    "<key>com.apple.studentd</key><true/>"
++	    "<key>com.apple.biomed</key><true/>"
++	    "<key>com.apple.assistant_cd</key><true/>"
++	    "<key>com.apple.corespeechd</key><true/>"
++	    "<key>com.apple.siriinferenced</key><true/>"
++	    "<key>com.apple.itunescloudd</key><true/>"
++	    "<key>com.apple.nfcd</key><true/>"
++	    "<key>com.apple.nearbyd</key><true/>"
++	    "<key>com.apple.OTATaskingAgent</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char dm_path1[] = "/private/var/mobile/Library/Preferences/com.apple.DataMigration.plist";
 +	static const char dm_path2[] = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";
