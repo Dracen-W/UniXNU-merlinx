@@ -162,13 +162,13 @@ index ae94c7e..31bad41 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -1532,6 +1533,70 @@ handle_sw_step_debug(arm_saved_state_t *state)
+@@ -1532,6 +1533,80 @@ handle_sw_step_debug(arm_saved_state_t *state)
  	__builtin_unreachable();
  }
  
 +/* An unresolved user fault is about to become a signal. Record the pid, the PC and LR in shared-cache coordinates and the fault
 + * address + x0/x1 registers, throttled per process so a crash loop (lsd) does not evict earlier boot events from the ring. */
-+static void
++static boolean_t
 +native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr)
 +{
 +	extern int proc_getpid(proc_t);
@@ -177,8 +177,6 @@ index ae94c7e..31bad41 100644
 +	extern void native_gop_text(unsigned line, const char *text);
 +	proc_t p = current_proc();
 +	char *nm = p ? proc_best_name(p) : "?";
-+	if (!native_diag_should_print_fault(nm))
-+		return;
 +	task_t task = current_task();
 +	vm_map_t map = task ? get_task_map(task) : VM_MAP_NULL;
 +	uint64_t slide = (task && task->shared_region) ? task->shared_region->sr_slide : 0;
@@ -191,6 +189,17 @@ index ae94c7e..31bad41 100644
 +		pc -= slide;
 +	if (lr >= 0x180000000ULL && lr >= slide)
 +		lr -= slide;
++	if (pc == 0x1800e9068ULL && lr == 0x1800edcd4ULL && fault_addr < 0x100000000ULL) {
++		if (native_diag_should_print_fault(nm)) {
++			snprintf(line, sizeof(line), "UR %d %.8s %llx", proc_getpid(p), nm, (unsigned long long)fault_addr);
++			native_gop_text(100, line);
++		}
++		saved_state64(state)->x[0] = 0;
++		saved_state64(state)->pc = get_saved_state_lr(state);
++		return TRUE;
++	}
++	if (!native_diag_should_print_fault(nm))
++		return FALSE;
 +	snprintf(line, sizeof(line), "UG %d %.8s %llx %llx", proc_getpid(p), nm,
 +	    (unsigned long long)pc, (unsigned long long)lr);
 +	native_gop_text(100, line);
@@ -228,16 +237,18 @@ index ae94c7e..31bad41 100644
 +			native_gop_text(100, line);
 +		}
 +	}
++	return FALSE;
 +}
 +
  static void
  handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,
      fault_status_t fault_code, vm_prot_t fault_type, expected_fault_handler_t expected_fault_handler)
-@@ -1675,6 +1740,7 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+@@ -1675,6 +1750,8 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
  #endif /* __has_feature(ptrauth_calls) */
  
  	boot_progress_user_abort(state, esr, fault_addr);
-+	native_diag_user_fault(state, fault_addr);
++	if (native_diag_user_fault(state, fault_addr))
++		return;
  	if (user_fault_in_self_restrict_mode(thread) &&
  	    task_is_jit_exception_fatal(get_threadtask(thread))) {
  		extern int exit_with_jit_exception(proc_t p);
