@@ -2,9 +2,10 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,157 @@
+@@ -101,8 +101,158 @@
  #include <sys/acct.h>
  
++#include <pexpert/pexpert.h>
  void native_gop_text(unsigned line, const char *text);
 +void native_gop_redraw_ring(void);
  void native_diag_note_exec(int pid, const char *name);
