@@ -189,7 +189,7 @@ index ae94c7e..31bad41 100644
 +		pc -= slide;
 +	if (lr >= 0x180000000ULL && lr >= slide)
 +		lr -= slide;
-+	if (pc == 0x1800e9068ULL && lr == 0x1800edcd4ULL && fault_addr < 0x100000000ULL) {
++	if (pc >= 0x1800e0000ULL && pc < 0x180120000ULL && fault_addr >= 0x10000000ULL && fault_addr < 0x100000000ULL) {
 +		if (native_diag_should_print_fault(nm)) {
 +			snprintf(line, sizeof(line), "UR %d %.8s %llx", proc_getpid(p), nm, (unsigned long long)fault_addr);
 +			native_gop_text(100, line);

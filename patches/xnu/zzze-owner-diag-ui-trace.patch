@@ -2,7 +2,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,196 @@
+@@ -101,8 +101,200 @@
  #include <sys/acct.h>
  
 +#include <pexpert/pexpert.h>
@@ -83,12 +83,16 @@ index d015dab..f43099c 100644
 +	    strcmp(base, "iconservicesagent") == 0 ||
 +	    strcmp(base, "iconservicesagen") == 0 ||
 +	    strcmp(base, "cryptexd") == 0 ||
++	    strcmp(base, "ReportMemoryException") == 0 ||
++	    strcmp(base, "privacyaccountd") == 0 ||
 +	    strcmp(base, "OTATaskingAgent") == 0))
 +		return TRUE;
 +	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "thermalmonitord") ||
 +	    native_diag_has_substr(arg1, "fairplayd") ||
 +	    native_diag_has_substr(arg1, "iconservices") ||
 +	    native_diag_has_substr(arg1, "cryptexd") ||
++	    native_diag_has_substr(arg1, "ReportMemoryException") ||
++	    native_diag_has_substr(arg1, "privacyaccountd") ||
 +	    native_diag_has_substr(arg1, "duetexpertd") ||
 +	    native_diag_has_substr(arg1, "webbookmarksd") ||
 +	    native_diag_has_substr(arg1, "cloudkeychainproxy") ||

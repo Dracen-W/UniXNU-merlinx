@@ -291,7 +291,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.nfcd</key><true/>"
 +	    "<key>com.apple.nearbyd</key><true/>"
 +	    "<key>com.apple.OTATaskingAgent</key><true/>"
-+	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/>"
++	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char dm_path1[] = "/private/var/mobile/Library/Preferences/com.apple.DataMigration.plist";
 +	static const char dm_path2[] = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";

@@ -695,7 +695,9 @@
         "com.apple.siriknowledged": true,
         "com.apple.spotlightknowledged": true,
         "com.apple.fairplayd.A2": true,
-        "com.apple.iconservices.iconservicesagent": true
+        "com.apple.iconservices.iconservicesagent": true,
+        "com.apple.ReportMemoryException": true,
+        "com.apple.privacyaccountd": true
       }
     ],
     [
@@ -723,7 +725,9 @@
         "com.apple.siriknowledged": true,
         "com.apple.spotlightknowledged": true,
         "com.apple.fairplayd.A2": true,
-        "com.apple.iconservices.iconservicesagent": true
+        "com.apple.iconservices.iconservicesagent": true,
+        "com.apple.ReportMemoryException": true,
+        "com.apple.privacyaccountd": true
       }
     ]
   ],
