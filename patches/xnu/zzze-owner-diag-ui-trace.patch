@@ -2,7 +2,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,122 @@
+@@ -101,8 +101,157 @@
  #include <sys/acct.h>
  
  void native_gop_text(unsigned line, const char *text);
@@ -32,6 +32,41 @@ index d015dab..f43099c 100644
 +	char tag[28];
 +};
 +static struct native_diag_xp_entry native_diag_xp_table[64];
++
++static boolean_t
++native_diag_has_substr(const char *hay, const char *needle)
++{
++	size_t nlen;
++	if (!hay || !needle || !needle[0])
++		return FALSE;
++	nlen = strlen(needle);
++	for (; *hay; hay++) {
++		if (strncmp(hay, needle, nlen) == 0)
++			return TRUE;
++	}
++	return FALSE;
++}
++
++static boolean_t
++native_diag_is_blocked_spawn(const char *base, const char *arg1)
++{
++	uint32_t allow_mg = 0;
++	if (PE_parse_boot_argn("merlinx-allow-mghelper", &allow_mg, sizeof(allow_mg)) && allow_mg != 0)
++		return FALSE;
++	if (base && (strcmp(base, "MobileGestaltHelper") == 0 ||
++	    strcmp(base, "thermalmonitord") == 0 ||
++	    strcmp(base, "duetexpertd") == 0 ||
++	    strcmp(base, "webbookmarksd") == 0 ||
++	    strcmp(base, "CloudKeychainProxy") == 0))
++		return TRUE;
++	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "mobilegestalt.xpc") ||
++	    native_diag_has_substr(arg1, "thermalmonitord") ||
++	    native_diag_has_substr(arg1, "duetexpertd") ||
++	    native_diag_has_substr(arg1, "webbookmarksd") ||
++	    native_diag_has_substr(arg1, "cloudkeychainproxy")))
++		return TRUE;
++	return FALSE;
++}
 +
 +void
 +native_diag_xp_note(int pid, const char *tag)
@@ -125,7 +160,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2387,12 +2500,24 @@ encapsulated_binary:
+@@ -2387,12 +2536,24 @@ encapsulated_binary:
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
 -		if (p->p_pid > 1) {
@@ -157,7 +192,7 @@ index d015dab..f43099c 100644
  		}
  	}
  bad:
-@@ -3608,15 +3733,27 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3608,15 +3769,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		struct vnode_attr origva;
  	} *__spawn_data;
  
@@ -184,10 +219,13 @@ index d015dab..f43099c 100644
 +					spawn_arg1[sizeof(spawn_arg1) - 1] = 0;
 +				}
 +			}
++			if (native_diag_is_blocked_spawn(spawn_base, spawn_arg1)) {
++				return ENOENT;
++			}
  		}
  	}
  
-@@ -4934,7 +5071,10 @@ bad:
+@@ -4934,7 +5110,10 @@ bad:
  	}
  #endif
  
@@ -200,7 +238,7 @@ index d015dab..f43099c 100644
 -		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
 +		snprintf(spawn_text, sizeof(spawn_text), "SPF %d e%d %.20s", ap ? ap->p_pid : 0, error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5309,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5348,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -223,7 +261,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7180,13 +7336,35 @@ native_gop_text(unsigned line, const char *text)
+@@ -7180,13 +7375,35 @@ native_gop_text(unsigned line, const char *text)
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  
@@ -260,7 +298,7 @@ index d015dab..f43099c 100644
  
  static int
  native_diag_tracked_slot(const char *name)
-@@ -7195,28 +7373,35 @@ native_diag_tracked_slot(const char *name)
+@@ -7195,28 +7412,35 @@ native_diag_tracked_slot(const char *name)
  	if (!name)
  		return -1;
  	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
@@ -303,7 +341,7 @@ index d015dab..f43099c 100644
  }
  
  void
-@@ -7226,6 +7411,68 @@ native_diag_note_exit(int pid, const char *name)
+@@ -7226,6 +7450,68 @@ native_diag_note_exit(int pid, const char *name)
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
  	native_diag_process_summary();
@@ -372,7 +410,7 @@ index d015dab..f43099c 100644
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -8437,6 +8684,7 @@ load_init_program(proc_t p)
+@@ -8437,6 +8723,7 @@ load_init_program(proc_t p)
  	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
  	boot_progress_stage("Data mount returned");
  	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
@@ -430,7 +468,7 @@ index 31bad41..d0e815e 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2464,3 +2468,209 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
+@@ -2464,3 +2468,221 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
  SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
  
  #endif
@@ -532,10 +570,22 @@ index 31bad41..d0e815e 100644
 +	task = proc_task(p);
 +	if (!task)
 +		goto release_proc;
++	unsigned int nthreads = 0, pick_idx = 0, cur_idx = 0;
++	thread_t iter_th = THREAD_NULL;
 +	task_lock(task);
-+	queue_iterate(&task->threads, thread, thread_t, task_threads) {
-+		thread_reference(thread);
-+		break;
++	queue_iterate(&task->threads, iter_th, thread_t, task_threads) {
++		nthreads++;
++	}
++	if (nthreads > 0) {
++		pick_idx = (native_diag_focus_slot >> 2) % nthreads;
++		queue_iterate(&task->threads, iter_th, thread_t, task_threads) {
++			if (cur_idx == pick_idx) {
++				thread = iter_th;
++				thread_reference(thread);
++				break;
++			}
++			cur_idx++;
++		}
 +	}
 +	task_unlock(task);
 +	if (thread == THREAD_NULL)
@@ -558,7 +608,7 @@ index 31bad41..d0e815e 100644
 +			fp = pair[0];
 +		}
 +	}
-+	snprintf(line, sizeof(line), "%c%d %spc:%llx lr:%llx", role, pid, seconds,
++	snprintf(line, sizeof(line), "%c%d/%u %spc:%llx lr:%llx", role, pid, pick_idx, seconds,
 +	    (unsigned long long)((state.pc >= 0x180000000ULL && state.pc >= slide) ? state.pc - slide : state.pc),
 +	    (unsigned long long)((state.lr >= 0x180000000ULL && state.lr >= slide) ? state.lr - slide : state.lr));
 +	native_gop_text(21, line);

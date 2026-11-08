@@ -1,7 +1,7 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7483,7 +7483,317 @@
+@@ -7483,7 +7483,326 @@
  			native_gpu_addon_written++;
  		}
  		at += (packed + 7) & ~7ULL;
@@ -141,6 +141,11 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +static void
 +native_gestalt_cache_drop(proc_t p, user_addr_t scratch)
 +{
++	uint32_t drop_mg = 0;
++	if (!PE_parse_boot_argn("merlinx-drop-mg-cache", &drop_mg, sizeof(drop_mg)) || !drop_mg) {
++		native_gestalt_cache_status = -2;
++		return;
++	}
 +	static const char cache[] = "/private/var/containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches/"
 +	    "com.apple.MobileGestalt.plist";
 +	struct unlink_args request = {.path = scratch + 0xc00};
@@ -275,6 +280,10 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.triald</key><true/>"
 +	    "<key>com.apple.siriknowledged</key><true/>"
 +	    "<key>com.apple.spotlightknowledged</key><true/>"
++	    "<key>com.apple.mobilegestalt.xpc</key><true/>"
++	    "<key>com.apple.MobileGestaltHelper</key><true/>"
++	    "<key>com.apple.CloudKeychainProxy</key><true/>"
++	    "<key>com.apple.security.cloudkeychainproxy3</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char dm_path1[] = "/private/var/mobile/Library/Preferences/com.apple.DataMigration.plist";
 +	static const char dm_path2[] = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";
@@ -319,7 +328,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
  }
  static void
  native_gpu_addon_prepare(proc_t p, user_addr_t scratch)
-@@ -7596,4 +7906,9 @@
+@@ -7596,4 +7915,9 @@
  {
 +	native_data_dirs_seed(p, scratch);
 +	native_cryptex_os_view(p, scratch);
