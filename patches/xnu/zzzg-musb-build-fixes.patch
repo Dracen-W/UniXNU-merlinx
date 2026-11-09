@@ -1,6 +1,44 @@
+diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
+index 7b1b044..431c99e 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -2819,6 +2819,31 @@
+@@ -1592,11 +1592,19 @@ native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr, vm_prot
+ 					native_gop_text(100, line);
+ 				}
+ 				native_musb_log_fault("UR-BR", pid, nm, state, pc, lr, fault_addr, fault_type);
++				for (unsigned int r = 0; r < 29; r++) {
++					uint64_t rv = saved_state64(state)->x[r];
++					if ((x0 != 0 && rv == x0) ||
++					    (fault_addr >= 0x1000ULL && (rv & ~0xfffULL) == (fault_addr & ~0xfffULL)))
++						saved_state64(state)->x[r] = 0;
++				}
+ 				saved_state64(state)->x[0] = 0;
+ 				saved_state64(state)->pc = raw_lr;
+ 				return TRUE;
+ 			}
+-			if (pc >= 0x1800e0000ULL && pc < 0x180120000ULL && raw_pc != raw_lr && top_lr != lr) {
++			if (pc >= 0x1800e0000ULL && pc < 0x180120000ULL &&
++			    !(pc >= 0x1800eef10ULL && pc < 0x1800ef000ULL) &&
++			    raw_pc != raw_lr && top_lr != lr) {
+ 				if (ur_logged < 8) {
+ 					ur_logged++;
+ 					snprintf(line, sizeof(line), "UR#%u %d %llx->%llx @%llx",
+@@ -1604,6 +1612,14 @@ native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr, vm_prot
+ 					native_gop_text(100, line);
+ 				}
+ 				native_musb_log_fault("UR-OBJC", pid, nm, state, pc, lr, fault_addr, fault_type);
++				for (unsigned int r = 0; r < 29; r++) {
++					uint64_t rv = saved_state64(state)->x[r];
++					if ((x0 != 0 && rv == x0) ||
++					    (fault_addr >= 0x1000ULL && (rv & ~0xfffULL) == (fault_addr & ~0xfffULL)))
++						saved_state64(state)->x[r] = 0;
++				}
++				if (lr == 0x1800edcd4ULL)
++					saved_state64(state)->x[19] = 0;
+ 				saved_state64(state)->x[0] = 0;
+ 				saved_state64(state)->pc = raw_lr;
+ 				return TRUE;
+@@ -2745,6 +2761,31 @@ struct merlinx_usb_status_pkt {
  	uint8_t  config;       /* active configuration */
  } __attribute__((packed));
  
@@ -32,7 +70,7 @@
  char merlinx_log_ring[MERLINX_LOG_RING_SIZE] __attribute__((aligned(64)));
  volatile uint64_t merlinx_log_write_seq = 0;
  
-@@ -2890,9 +2915,15 @@
+@@ -2816,11 +2857,35 @@ native_musb_log_gop(unsigned line, const char *text)
  
  void
  native_musb_log_fault(const char *tag, int pid, const char *name,
@@ -41,16 +79,36 @@
 +    arm_saved_state_t *state, uint64_t pc_arg, uint64_t lr_arg,
 +    vm_offset_t fault_addr, vm_prot_t fault_type)
  {
-+	arm_saved_state64_t *ss = (arm_saved_state64_t *)state;
++	arm_saved_state64_t *ss = state ? saved_state64(state) : NULL;
 +	task_t task = current_task();
++	vm_map_t map = task ? get_task_map(task) : VM_MAP_NULL;
 +	uint64_t slide = (task && task->shared_region) ? task->shared_region->sr_slide : 0;
-+	const uint64_t *frames = NULL;
++	uint64_t frame_buf[12] = {0};
++	const uint64_t *frames = frame_buf;
 +	uint32_t insn_prev = 0, insn_pc = 0;
 +	(void)pc_arg; (void)lr_arg; (void)fault_type;
  	if (!ss)
  		return;
++	if (map && ss->pc >= 0x100000000ULL) {
++		(void)vm_map_read_user(map, ss->pc - 4, &insn_prev, sizeof(insn_prev));
++		(void)vm_map_read_user(map, ss->pc, &insn_pc, sizeof(insn_pc));
++	}
++	if (map && ss->fp) {
++		uint64_t fp = ss->fp;
++		for (unsigned int d = 0; d < 12 && fp > ss->sp && (fp & 7ULL) == 0; d++) {
++			uint64_t pair[2] = {0, 0};
++			if (vm_map_read_user(map, fp, pair, sizeof(pair)) != KERN_SUCCESS)
++				break;
++			frame_buf[d] = (pair[1] >= 0x180000000ULL && pair[1] >= slide) ? pair[1] - slide : pair[1];
++			if (pair[0] <= fp || pair[0] - fp > 0x100000ULL)
++				break;
++			fp = pair[0];
++		}
++	}
  	uint64_t ns = 0;
-@@ -2909,7 +2940,7 @@
+ 	absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
+ 	unsigned int s = (unsigned int)(ns / 1000000000ULL);
+@@ -2835,7 +2900,7 @@ native_musb_log_fault(const char *tag, int pid, const char *name,
  	    (unsigned long long)pc_u, (unsigned long long)ss->pc,
  	    (unsigned long long)lr_u, (unsigned long long)ss->lr,
  	    (unsigned long long)ss->sp, (unsigned long long)ss->fp,
@@ -59,7 +117,7 @@
  	    (unsigned long long)slide, insn_prev, insn_pc,
  	    (unsigned long long)ss->x[0], (unsigned long long)ss->x[1],
  	    (unsigned long long)ss->x[2], (unsigned long long)ss->x[3],
-@@ -2954,8 +2985,8 @@
+@@ -2880,8 +2945,8 @@ native_musb_dump_proc_bt(proc_t p, boolean_t mirror_to_ring)
  {
  	if (!p)
  		return;
@@ -70,7 +128,7 @@
  	const char *xtag = native_diag_xp_lookup(pid);
  	task_t task = proc_task(p);
  	if (!task) {
-@@ -3175,7 +3206,7 @@
+@@ -3101,7 +3166,7 @@ native_musb_exec_command(const char *cmd)
  			proc_t p = proc_find(pid);
  			if (!p)
  				continue;
@@ -79,7 +137,7 @@
  			const char *xtag = native_diag_xp_lookup(pid);
  			task_t task = proc_task(p);
  			unsigned int nth = 0;
-@@ -3222,9 +3253,9 @@
+@@ -3148,9 +3213,9 @@ native_musb_exec_command(const char *cmd)
  				proc_t p = proc_find(pid);
  				if (!p)
  					continue;
@@ -91,3 +149,162 @@
  					native_musb_dump_proc_bt(p, TRUE);
  					matches++;
  				}
+@@ -3274,13 +3339,24 @@ native_musb_phy_and_clk_init(void)
+ 		__builtin_arm_dmb(0xf);
+ 	}
+ 	if (merlinx_musb_base) {
++		/* Mask top-level L1 interrupt to GIC (0xA4 = 0), but enable internal MUSB status latches */
+ 		musb_write32(0xA4U, 0x00000000U);
+-		musb_write16(MUSB_INTRTXE, 0x0000U);
++		musb_write16(0x82U, 0xFFFFU); /* MUSB_RXTOGEN */
++		musb_write16(0x86U, 0xFFFFU); /* MUSB_TXTOGEN */
++		musb_write16(0x74U, musb_read16(0x74U) | 0x0003U); /* MUSB_SWRST_DISUSBRESET | MUSB_SWRST_SWRST */
++		musb_write16(MUSB_INTRTXE, 0x0001U); /* Latch EP0 in INTRTX */
+ 		musb_write16(MUSB_INTRRXE, 0x0000U);
+-		musb_write8(MUSB_INTRUSBE, 0x00U);
+-		(void)musb_read16(MUSB_INTRTX);
+-		(void)musb_read16(MUSB_INTRRX);
+-		(void)musb_read8(MUSB_INTRUSB);
++		musb_write8(MUSB_INTRUSBE, 0xF7U);   /* Latch Reset/Suspend/Resume/Discon in INTRUSB */
++		/* MediaTek MUSB interrupt status registers are W1C (Write-1-to-Clear) */
++		uint16_t itx = musb_read16(MUSB_INTRTX);
++		uint16_t irx = musb_read16(MUSB_INTRRX);
++		uint8_t iusb = musb_read8(MUSB_INTRUSB);
++		if (itx)
++			musb_write16(MUSB_INTRTX, itx);
++		if (irx)
++			musb_write16(MUSB_INTRRX, irx);
++		if (iusb)
++			musb_write8(MUSB_INTRUSB, iusb);
+ 		musb_write8(MUSB_INDEX, 0);
+ 		musb_write8(MUSB_FADDR, 0);
+ 		uint8_t devctl = musb_read8(MUSB_DEVCTL);
+@@ -3353,22 +3429,40 @@ native_musb_ep0_fifo_read(uint8_t *dst, uint32_t len)
+ static void
+ native_musb_ep0_pump_tx(void)
+ {
+-	if (!merlinx_ep0_tx_active)
+-		return;
+ 	musb_write8(MUSB_INDEX, 0);
+-	uint16_t csr0 = musb_read16(MUSB_CSR0);
+-	if (csr0 & MUSB_CSR0_TXPKTRDY)
+-		return;
+-	uint32_t rem = (merlinx_ep0_tx_len > merlinx_ep0_tx_off) ? (merlinx_ep0_tx_len - merlinx_ep0_tx_off) : 0;
+-	uint32_t chunk = (rem > 64U) ? 64U : rem;
+-	if (chunk > 0)
+-		native_musb_ep0_fifo_write(merlinx_ep0_tx_buf + merlinx_ep0_tx_off, chunk);
+-	merlinx_ep0_tx_off += chunk;
+-	if (merlinx_ep0_tx_off >= merlinx_ep0_tx_len) {
+-		merlinx_ep0_tx_active = FALSE;
+-		musb_write16(MUSB_CSR0, MUSB_CSR0_TXPKTRDY | MUSB_CSR0_P_DATAEND);
+-	} else {
+-		musb_write16(MUSB_CSR0, MUSB_CSR0_TXPKTRDY);
++	while (merlinx_ep0_tx_active) {
++		uint16_t csr0 = musb_read16(MUSB_CSR0);
++		if (csr0 & MUSB_CSR0_TXPKTRDY) {
++			unsigned int w = 0;
++			for (; w < 600; w++) {
++				csr0 = musb_read16(MUSB_CSR0);
++				if ((csr0 & MUSB_CSR0_TXPKTRDY) == 0)
++					break;
++				delay(1);
++			}
++			if (csr0 & MUSB_CSR0_TXPKTRDY)
++				return;
++		}
++		uint16_t itx = musb_read16(MUSB_INTRTX);
++		if (itx & 0x0001U)
++			musb_write16(MUSB_INTRTX, 0x0001U);
++		uint32_t rem = (merlinx_ep0_tx_len > merlinx_ep0_tx_off) ? (merlinx_ep0_tx_len - merlinx_ep0_tx_off) : 0;
++		uint32_t chunk = (rem > 64U) ? 64U : rem;
++		if (chunk > 0)
++			native_musb_ep0_fifo_write(merlinx_ep0_tx_buf + merlinx_ep0_tx_off, chunk);
++		merlinx_ep0_tx_off += chunk;
++		if (merlinx_ep0_tx_off >= merlinx_ep0_tx_len) {
++			merlinx_ep0_tx_active = FALSE;
++			musb_write16(MUSB_CSR0, MUSB_CSR0_TXPKTRDY | MUSB_CSR0_P_DATAEND);
++			for (unsigned int w = 0; w < 600; w++) {
++				if ((musb_read16(MUSB_CSR0) & MUSB_CSR0_TXPKTRDY) == 0)
++					break;
++				delay(1);
++			}
++			return;
++		} else {
++			musb_write16(MUSB_CSR0, MUSB_CSR0_TXPKTRDY);
++		}
+ 	}
+ }
+ 
+@@ -3412,10 +3506,23 @@ native_musb_handle_setup(const uint8_t setup[8])
+ 		case 0x03:
+ 			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
+ 			return;
+-		case 0x05:
+-			merlinx_usb_pending_addr = (uint8_t)(wValue & 0x7FU);
++		case 0x05: {
++			uint8_t new_addr = (uint8_t)(wValue & 0x7FU);
+ 			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
++			/* Wait for Status IN zero-length packet at address 0 to be ACKed (signaled by EP0 INTRTX bit 0) */
++			for (unsigned int w = 0; w < 2500; w++) {
++				uint16_t itx = musb_read16(MUSB_INTRTX);
++				if (itx & 0x0001U) {
++					musb_write16(MUSB_INTRTX, itx);
++					musb_write8(MUSB_FADDR, new_addr);
++					merlinx_usb_pending_addr = 0;
++					return;
++				}
++				delay(1);
++			}
++			merlinx_usb_pending_addr = new_addr;
+ 			return;
++		}
+ 		case 0x06: {
+ 			uint8_t dtype = (uint8_t)(wValue >> 8);
+ 			uint8_t didx = (uint8_t)(wValue & 0xFFU);
+@@ -3550,8 +3657,15 @@ native_musb_poll_step(void)
+ 	merlinx_usb_polls++;
+ 
+ 	uint8_t intrusb = musb_read8(MUSB_INTRUSB);
+-	(void)musb_read16(MUSB_INTRTX);
+-	(void)musb_read16(MUSB_INTRRX);
++	uint16_t intrtx = musb_read16(MUSB_INTRTX);
++	uint16_t intrrx = musb_read16(MUSB_INTRRX);
++	/* MediaTek MUSB interrupt status registers are W1C (Write-1-to-Clear)! */
++	if (intrusb)
++		musb_write8(MUSB_INTRUSB, intrusb);
++	if (intrtx)
++		musb_write16(MUSB_INTRTX, intrtx);
++	if (intrrx)
++		musb_write16(MUSB_INTRRX, intrrx);
+ 
+ 	if (intrusb & MUSB_INTR_RESET) {
+ 		merlinx_usb_resets++;
+@@ -3559,9 +3673,8 @@ native_musb_poll_step(void)
+ 		merlinx_usb_pending_addr = 0;
+ 		merlinx_ep0_tx_active = FALSE;
+ 		merlinx_ep0_rx_expected = 0;
+-		musb_write8(MUSB_FADDR, 0);
+ 		musb_write8(MUSB_INDEX, 0);
+-		musb_write16(MUSB_CSR0, MUSB_CSR0_FLUSHFIFO | MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_SVDSETUPEND);
++		musb_write8(MUSB_FADDR, 0);
+ 	}
+ 
+ 	uint8_t power = musb_read8(MUSB_POWER);
+@@ -3586,7 +3699,7 @@ native_musb_poll_step(void)
+ 		csr0 = musb_read16(MUSB_CSR0);
+ 	}
+ 
+-	if (merlinx_usb_pending_addr != 0 && !merlinx_ep0_tx_active &&
++	if (merlinx_usb_pending_addr != 0 && !merlinx_ep0_tx_active && (intrtx & 0x0001U) &&
+ 	    (csr0 & (MUSB_CSR0_TXPKTRDY | MUSB_CSR0_RXPKTRDY)) == 0) {
+ 		musb_write8(MUSB_FADDR, merlinx_usb_pending_addr);
+ 		merlinx_usb_pending_addr = 0;
+@@ -3652,7 +3765,7 @@ native_musb_poll_timer(void *arg0 __unused, void *arg1 __unused)
+ 	}
+ 
+ 	uint64_t deadline = 0;
+-	clock_interval_to_deadline(2, (uint32_t)NSEC_PER_MSEC, &deadline);
++	clock_interval_to_deadline(1, (uint32_t)NSEC_PER_MSEC, &deadline);
+ 	thread_call_enter_delayed(merlinx_musb_call, deadline);
+ }
+ 
