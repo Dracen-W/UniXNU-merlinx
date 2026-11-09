@@ -161,9 +161,9 @@ static constexpr uint32_t kSpiPadSelReg       = 0x0024U;
 static constexpr uint32_t kSpiCfg2Reg         = 0x0028U;
 
 static constexpr uint32_t kSpiCmdAct          = (1U << 0);
-static constexpr uint32_t kSpiCmdResume       = (1U << 1);
+static constexpr uint32_t kSpiCmdResume       [[maybe_unused]] = (1U << 1);
 static constexpr uint32_t kSpiCmdRst          = (1U << 2);
-static constexpr uint32_t kSpiCmdPauseEn      = (1U << 4);
+static constexpr uint32_t kSpiCmdPauseEn      [[maybe_unused]] = (1U << 4);
 static constexpr uint32_t kSpiCmdTxmsbf       = (1U << 12);
 static constexpr uint32_t kSpiCmdRxmsbf       = (1U << 13);
 static constexpr uint32_t kSpiFifoSize        = 32U;
@@ -773,13 +773,18 @@ static bool merlinxInitTouchHardware()
     mtkGpioSetMode(kGpioTouchIrq, 0U);
     mtkGpioSetDir(kGpioTouchIrq, false);
 
-    // Ensure GPIO 85..88 remain in mode 2 as configured in merlinx.dts gpio_init_default
-    if (mtkGpioGetMode(kGpioSpi0Miso) == 0U) {
-        mtkGpioSetMode(kGpioSpi0Miso, 2U);
-        mtkGpioSetMode(kGpioSpi0Cs,   2U);
-        mtkGpioSetMode(kGpioSpi0Mosi, 2U);
-        mtkGpioSetMode(kGpioSpi0Clk,  2U);
-    }
+    // Configure GPIO 85 (MISO), 87 (MOSI), 88 (CLK) in Mode 2 (SPI0 hardware engine),
+    // and drive GPIO 86 (CSB) in Mode 0 (active-low GPIO output, initially high).
+    // Holding CSB in GPIO Mode 0 allows each segment (the 1-byte header followed by a
+    // 30 us pause, and each 32-byte payload chunk) to execute as a clean single-shot
+    // FIFO transfer starting at word 0 without triggering the MT6768 SPI_CMD_PAUSE_EN /
+    // SPI_CMD_RESUME state-machine bug that dropped SCLK on subsequent segments.
+    mtkGpioSetMode(kGpioSpi0Miso, 2U);
+    mtkGpioSetMode(kGpioSpi0Mosi, 2U);
+    mtkGpioSetMode(kGpioSpi0Clk,  2U);
+    mtkGpioSetOut(kGpioSpi0Cs, true);
+    mtkGpioSetDir(kGpioSpi0Cs, true);
+    mtkGpioSetMode(kGpioSpi0Cs, 0U);
 
     uint32_t bootPadSel = mmioRead32(gSpi0Base, kSpiPadSelReg);
     mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
@@ -799,7 +804,7 @@ static bool merlinxInitTouchHardware()
     return true;
 }
 
-// Segmented 32-byte FIFO transfer using SPI_CMD_PAUSE_EN + SPI_CMD_ACT / SPI_CMD_RESUME.
+// Segmented 32-byte FIFO transfer with GPIO 86 software CSB + hardware SPI0 single-shot FIFO.
 // Honors first_delay_us (30 us pause after the 1-byte header while keeping CSB asserted low)
 // and handles arbitrary transfer lengths (1 B, 3 B, 93 B touch frames, 4099 B PRAM firmware chunks).
 static int merlinxSpiTransferSegmentedFifo(
@@ -811,8 +816,8 @@ static int merlinxSpiTransferSegmentedFifo(
     if (!gSpi0Base || len == 0) {
         return FTS_ERR_PARAM;
     }
-    mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
-    mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
+    mtkGpioSetOut(kGpioSpi0Cs, false);
+    IODelay(2);
 
     size_t offset = 0;
     bool firstSeg = true;
@@ -823,14 +828,11 @@ static int merlinxSpiTransferSegmentedFifo(
             : ((rem > kSpiFifoSize) ? kSpiFifoSize : rem);
         bool lastSeg = (offset + segLen >= len);
 
+        mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
+        mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
+
         uint32_t cfg1 = ((static_cast<uint32_t>(segLen - 1U) & 0x3FFU) << 16) | 2U;
         mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
-
-        uint32_t cmd = kSpiCmdTxmsbf | kSpiCmdRxmsbf;
-        if (!lastSeg) {
-            cmd |= kSpiCmdPauseEn;
-        }
-        mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
 
         size_t numWords = (segLen + 3U) / 4U;
         for (size_t w = 0; w < numWords; ++w) {
@@ -843,12 +845,12 @@ static int merlinxSpiTransferSegmentedFifo(
             mmioWrite32(gSpi0Base, kSpiTxDataReg, word);
         }
 
-        mmioWrite32(gSpi0Base, kSpiCmdReg, cmd | (firstSeg ? kSpiCmdAct : kSpiCmdResume));
+        mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdAct);
 
         bool done = false;
         for (uint32_t poll = 0; poll < 50000U; ++poll) {
             uint32_t st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
-            if (lastSeg ? ((st0 & 0x1U) != 0U) : ((st0 & 0x3U) != 0U)) {
+            if ((st0 & 0x1U) != 0U) {
                 done = true;
                 break;
             }
@@ -860,6 +862,7 @@ static int merlinxSpiTransferSegmentedFifo(
             gSpiHwTimeouts++;
             mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
             mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
+            mtkGpioSetOut(kGpioSpi0Cs, true);
             return FTS_ERR_TIMEOUT;
         }
 
@@ -881,6 +884,9 @@ static int merlinxSpiTransferSegmentedFifo(
         firstSeg = false;
         offset += segLen;
     }
+
+    IODelay(1);
+    mtkGpioSetOut(kGpioSpi0Cs, true);
     return FTS_OK;
 }
 
