@@ -1,0 +1,70 @@
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -2819,6 +2819,11 @@
+ 	uint8_t  config;       /* active configuration */
+ } __attribute__((packed));
+ 
++extern int vsnprintf(char *str, size_t size, const char *fmt, va_list ap);
++extern char *strstr(const char *haystack, const char *needle);
++extern int proc_getpid(proc_t);
++extern char *proc_best_name(proc_t);
++
+ char merlinx_log_ring[MERLINX_LOG_RING_SIZE] __attribute__((aligned(64)));
+ volatile uint64_t merlinx_log_write_seq = 0;
+ 
+@@ -2890,9 +2895,15 @@
+ 
+ void
+ native_musb_log_fault(const char *tag, int pid, const char *name,
+-    arm_saved_state64_t *ss, uint64_t slide, const uint64_t *frames,
+-    uint32_t insn_prev, uint32_t insn_pc)
++    arm_saved_state_t *state, uint64_t pc_arg, uint64_t lr_arg,
++    vm_offset_t fault_addr, vm_prot_t fault_type)
+ {
++	arm_saved_state64_t *ss = (arm_saved_state64_t *)state;
++	task_t task = current_task();
++	uint64_t slide = (task && task->shared_region) ? task->shared_region->sr_slide : 0;
++	const uint64_t *frames = NULL;
++	uint32_t insn_prev = 0, insn_pc = 0;
++	(void)pc_arg; (void)lr_arg; (void)fault_type;
+ 	if (!ss)
+ 		return;
+ 	uint64_t ns = 0;
+@@ -2909,7 +2920,7 @@
+ 	    (unsigned long long)pc_u, (unsigned long long)ss->pc,
+ 	    (unsigned long long)lr_u, (unsigned long long)ss->lr,
+ 	    (unsigned long long)ss->sp, (unsigned long long)ss->fp,
+-	    (unsigned long long)ss->far, (unsigned int)ss->esr,
++	    (unsigned long long)fault_addr, 0u,
+ 	    (unsigned long long)slide, insn_prev, insn_pc,
+ 	    (unsigned long long)ss->x[0], (unsigned long long)ss->x[1],
+ 	    (unsigned long long)ss->x[2], (unsigned long long)ss->x[3],
+@@ -2954,8 +2965,8 @@
+ {
+ 	if (!p)
+ 		return;
+-	int pid = p->p_pid;
+-	const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++	int pid = proc_getpid(p);
++	const char *nm = proc_best_name(p);
+ 	const char *xtag = native_diag_xp_lookup(pid);
+ 	task_t task = proc_task(p);
+ 	if (!task) {
+@@ -3175,7 +3186,7 @@
+ 			proc_t p = proc_find(pid);
+ 			if (!p)
+ 				continue;
+-			const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++			const char *nm = proc_best_name(p);
+ 			const char *xtag = native_diag_xp_lookup(pid);
+ 			task_t task = proc_task(p);
+ 			unsigned int nth = 0;
+@@ -3222,7 +3233,7 @@
+ 				proc_t p = proc_find(pid);
+ 				if (!p)
+ 					continue;
+-				const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++				const char *nm = proc_best_name(p);
+ 				const char *xtag = native_diag_xp_lookup(pid);
+ 				if (strstr(nm, arg) || (xtag && strstr(xtag, arg))) {
+ 					native_musb_dump_proc_bt(p, TRUE);
