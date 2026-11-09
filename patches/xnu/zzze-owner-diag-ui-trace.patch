@@ -2,7 +2,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,200 @@
+@@ -101,8 +101,203 @@
  #include <sys/acct.h>
  
 +#include <pexpert/pexpert.h>
@@ -67,6 +67,8 @@ index d015dab..f43099c 100644
 +static boolean_t
 +native_diag_is_blocked_spawn(const char *base, const char *arg1)
 +{
++	uint32_t allow_setup = 0;
++	boolean_t block_setup = !(PE_parse_boot_argn("merlinx-allow-setup", &allow_setup, sizeof(allow_setup)) && allow_setup == 1);
 +	if (base && (strcmp(base, "thermalmonitord") == 0 ||
 +	    strcmp(base, "fairplayd.A2") == 0 ||
 +	    strcmp(base, "duetexpertd") == 0 ||
@@ -80,8 +82,8 @@ index d015dab..f43099c 100644
 +	    strcmp(base, "itunescloudd") == 0 ||
 +	    strcmp(base, "nfcd") == 0 ||
 +	    strcmp(base, "nearbyd") == 0 ||
-+	    strcmp(base, "iconservicesagent") == 0 ||
-+	    strcmp(base, "iconservicesagen") == 0 ||
++	    strcmp(base, "CommCenter") == 0 ||
++	    (block_setup && (strcmp(base, "Setup") == 0 || strcmp(base, "purplebuddy") == 0)) ||
 +	    strcmp(base, "cryptexd") == 0 ||
 +	    strcmp(base, "ReportMemoryException") == 0 ||
 +	    strcmp(base, "privacyaccountd") == 0 ||
@@ -89,7 +91,8 @@ index d015dab..f43099c 100644
 +		return TRUE;
 +	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "thermalmonitord") ||
 +	    native_diag_has_substr(arg1, "fairplayd") ||
-+	    native_diag_has_substr(arg1, "iconservices") ||
++	    native_diag_has_substr(arg1, "CommCenter") ||
++	    (block_setup && native_diag_has_substr(arg1, "purplebuddy")) ||
 +	    native_diag_has_substr(arg1, "cryptexd") ||
 +	    native_diag_has_substr(arg1, "ReportMemoryException") ||
 +	    native_diag_has_substr(arg1, "privacyaccountd") ||
@@ -203,7 +206,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2387,12 +2575,24 @@ encapsulated_binary:
+@@ -2387,12 +2578,24 @@ encapsulated_binary:
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
 -		if (p->p_pid > 1) {
@@ -235,12 +238,12 @@ index d015dab..f43099c 100644
  		}
  	}
  bad:
-@@ -3608,15 +3808,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3608,15 +3811,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		struct vnode_attr origva;
  	} *__spawn_data;
  
 -	if (current_proc()->p_pid == 1 && uap->path != USER_ADDR_NULL) {
-+	char spawn_arg1[40] = "";
++	char spawn_arg1[96] = "";
 +	if (uap->path != USER_ADDR_NULL) {
  		char spawn_path[128];
  		size_t spawn_len = 0;
@@ -268,7 +271,7 @@ index d015dab..f43099c 100644
  		}
  	}
  
-@@ -4934,7 +5149,10 @@ bad:
+@@ -4934,7 +5152,10 @@ bad:
  	}
  #endif
  
@@ -281,7 +284,7 @@ index d015dab..f43099c 100644
 -		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
 +		snprintf(spawn_text, sizeof(spawn_text), "SPF %d e%d %.20s", ap ? ap->p_pid : 0, error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5387,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -5169,6 +5390,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -304,7 +307,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7180,13 +7414,35 @@ native_gop_text(unsigned line, const char *text)
+@@ -7180,13 +7417,35 @@ native_gop_text(unsigned line, const char *text)
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  
@@ -341,7 +344,7 @@ index d015dab..f43099c 100644
  
  static int
  native_diag_tracked_slot(const char *name)
-@@ -7195,28 +7451,36 @@ native_diag_tracked_slot(const char *name)
+@@ -7195,28 +7454,36 @@ native_diag_tracked_slot(const char *name)
  	if (!name)
  		return -1;
  	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
@@ -385,7 +388,7 @@ index d015dab..f43099c 100644
  }
  
  void
-@@ -7226,6 +7490,103 @@ native_diag_note_exit(int pid, const char *name)
+@@ -7226,6 +7493,103 @@ native_diag_note_exit(int pid, const char *name)
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
  	native_diag_process_summary();
@@ -489,7 +492,7 @@ index d015dab..f43099c 100644
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -8437,6 +8798,8 @@ load_init_program(proc_t p)
+@@ -8437,6 +8801,8 @@ load_init_program(proc_t p)
  	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
  	boot_progress_stage("Data mount returned");
  	if (data_error) panic("offline scratch Data mount failed: %d", data_error);

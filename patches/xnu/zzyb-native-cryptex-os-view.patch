@@ -1,7 +1,7 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7483,7 +7483,334 @@
+@@ -7483,7 +7483,370 @@
  			native_gpu_addon_written++;
  		}
  		at += (packed + 7) & ~7ULL;
@@ -291,11 +291,45 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.nfcd</key><true/>"
 +	    "<key>com.apple.nearbyd</key><true/>"
 +	    "<key>com.apple.OTATaskingAgent</key><true/>"
-+	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/>"
++	    "<key>com.apple.CommCenter</key><true/>"
++	    "<key>com.apple.purplebuddy</key><true/>"
++	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/>"
++	    "</dict></plist>\n";
++	static const char pb_xml[] =
++	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
++	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
++	    "<plist version=\"1.0\"><dict>"
++	    "<key>SetupDone</key><true/>"
++	    "<key>SetupFinishedAllSteps</key><true/>"
++	    "<key>SetupVersion</key><integer>11</integer>"
++	    "<key>SetupState</key><string>SetupUsingAssistant</string>"
++	    "<key>ForceNoBuddy</key><true/>"
++	    "<key>daemonizeNeedsToRun</key><false/>"
++	    "</dict></plist>\n";
++	static const char pb_nb_xml[] =
++	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
++	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
++	    "<plist version=\"1.0\"><dict>"
++	    "<key>ShouldRunDiagnosticsMiniBuddy</key><false/>"
++	    "<key>ShouldRunHSA2MiniBuddy</key><false/>"
++	    "<key>ShouldRunKeychainSyncMiniBuddy</key><false/>"
++	    "<key>ShouldRunMesaMiniBuddy</key><false/>"
++	    "<key>ShouldRunPaymentMiniBuddy</key><false/>"
++	    "<key>ShouldRunStandardMiniBuddy</key><false/>"
++	    "<key>SilentICDPUpgrade</key><false/>"
++	    "</dict></plist>\n";
++	static const char mc_nb_xml[] =
++	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
++	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
++	    "<plist version=\"1.0\"><dict>"
++	    "<key>LockdownActivationIndicatesCloudConfigurationAvailable</key><false/>"
 +	    "</dict></plist>\n";
 +	static const char dm_path1[] = "/private/var/mobile/Library/Preferences/com.apple.DataMigration.plist";
 +	static const char dm_path2[] = "/private/var/mobile/Library/Preferences/com.apple.migration.plist";
 +	static const char sb_path[] = "/private/var/mobile/Library/Preferences/com.apple.springboard.plist";
++	static const char buddy1[] = "/private/var/mobile/Library/Preferences/com.apple.purplebuddy.plist";
++	static const char buddy2[] = "/private/var/mobile/Library/Preferences/com.apple.purplebuddy.notbackedup.plist";
++	static const char mc_nb_path[] = "/private/var/mobile/Library/Preferences/com.apple.managedconfiguration.notbackedup.plist";
 +	static const char migrated_path[] = "/private/var/db/com.apple.xpc.launchd/disabled.migrated";
 +	static const char dis_sys_path[] = "/private/var/db/com.apple.xpc.launchd/disabled.plist";
 +	static const char dis_usr_path[] = "/private/var/db/com.apple.xpc.launchd/disabled.501.plist";
@@ -306,8 +340,23 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	(void)native_gpu_addon_write(migrated_path, (const uint8_t *)"1\n", 2, 0644, ctx);
 +	(void)native_gpu_addon_write(dis_sys_path, (const uint8_t *)disabled_xml, sizeof(disabled_xml) - 1, 0644, ctx);
 +	(void)native_gpu_addon_write(dis_usr_path, (const uint8_t *)disabled_xml, sizeof(disabled_xml) - 1, 0644, ctx);
-+	const char *chown_paths[3] = {dm_path1, dm_path2, sb_path};
-+	for (unsigned i = 0; i < 3; ++i) {
++	uint32_t allow_setup = 0;
++	if (PE_parse_boot_argn("merlinx-allow-setup", &allow_setup, sizeof(allow_setup)) && allow_setup == 1) {
++		struct unlink_args ureq = {.path = scratch + 0xc00};
++		int32_t ures = 0;
++		if (!copyout(buddy1, ureq.path, sizeof(buddy1))) {
++			(void)unlink(p, &ureq, &ures);
++		}
++		if (!copyout(buddy2, ureq.path, sizeof(buddy2))) {
++			(void)unlink(p, &ureq, &ures);
++		}
++	} else {
++		(void)native_gpu_addon_write(buddy1, (const uint8_t *)pb_xml, sizeof(pb_xml) - 1, 0600, ctx);
++		(void)native_gpu_addon_write(buddy2, (const uint8_t *)pb_nb_xml, sizeof(pb_nb_xml) - 1, 0600, ctx);
++		(void)native_gpu_addon_write(mc_nb_path, (const uint8_t *)mc_nb_xml, sizeof(mc_nb_xml) - 1, 0600, ctx);
++	}
++	const char *chown_paths[6] = {dm_path1, dm_path2, sb_path, buddy1, buddy2, mc_nb_path};
++	for (unsigned i = 0; i < 6; ++i) {
 +		vnode_t vp = NULLVP;
 +		if (!vnode_lookup(chown_paths[i], 0, &vp, ctx)) {
 +			struct vnode_attr va;
@@ -319,24 +368,11 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +			vnode_put(vp);
 +		}
 +	}
-+	uint32_t allow_setup = 0;
-+	if (PE_parse_boot_argn("merlinx-allow-setup", &allow_setup, sizeof(allow_setup)) && allow_setup == 1) {
-+		static const char buddy1[] = "/private/var/mobile/Library/Preferences/com.apple.purplebuddy.plist";
-+		static const char buddy2[] = "/private/var/mobile/Library/Preferences/com.apple.purplebuddy.notbackedup.plist";
-+		struct unlink_args ureq = {.path = scratch + 0xc00};
-+		int32_t ures = 0;
-+		if (!copyout(buddy1, ureq.path, sizeof(buddy1))) {
-+			(void)unlink(p, &ureq, &ures);
-+		}
-+		if (!copyout(buddy2, ureq.path, sizeof(buddy2))) {
-+			(void)unlink(p, &ureq, &ures);
-+		}
-+	}
 +	native_data_migration_status = err1 ? err1 : err2;
  }
  static void
  native_gpu_addon_prepare(proc_t p, user_addr_t scratch)
-@@ -7596,4 +7915,9 @@
+@@ -7596,4 +7951,9 @@
  {
 +	native_data_dirs_seed(p, scratch);
 +	native_cryptex_os_view(p, scratch);

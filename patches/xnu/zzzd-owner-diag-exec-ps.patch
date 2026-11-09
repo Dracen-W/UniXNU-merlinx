@@ -162,25 +162,31 @@ index ae94c7e..31bad41 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -1532,6 +1533,80 @@ handle_sw_step_debug(arm_saved_state_t *state)
+@@ -1532,6 +1533,148 @@ handle_sw_step_debug(arm_saved_state_t *state)
  	__builtin_unreachable();
  }
  
 +/* An unresolved user fault is about to become a signal. Record the pid, the PC and LR in shared-cache coordinates and the fault
 + * address + x0/x1 registers, throttled per process so a crash loop (lsd) does not evict earlier boot events from the ring. */
 +static boolean_t
-+native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr)
++native_diag_user_fault(arm_saved_state_t *state, vm_offset_t fault_addr, vm_prot_t fault_type)
 +{
 +	extern int proc_getpid(proc_t);
 +	extern char *proc_best_name(proc_t);
 +	extern boolean_t native_diag_should_print_fault(const char *name);
 +	extern void native_gop_text(unsigned line, const char *text);
++	static unsigned int ur_logged;
++	static int ur_last_pid;
++	static unsigned int ur_proc_cnt;
++	static uint64_t ur_last_pc;
 +	proc_t p = current_proc();
++	int pid = p ? proc_getpid(p) : 0;
 +	char *nm = p ? proc_best_name(p) : "?";
 +	task_t task = current_task();
 +	vm_map_t map = task ? get_task_map(task) : VM_MAP_NULL;
 +	uint64_t slide = (task && task->shared_region) ? task->shared_region->sr_slide : 0;
-+	uint64_t pc = get_saved_state_pc(state), lr = get_saved_state_lr(state);
++	uint64_t raw_pc = get_saved_state_pc(state), raw_lr = get_saved_state_lr(state);
++	uint64_t pc = raw_pc, lr = raw_lr;
 +	uint64_t fp = saved_state64(state)->fp, sp = saved_state64(state)->sp;
 +	uint64_t x0 = saved_state64(state)->x[0], x1 = saved_state64(state)->x[1];
 +	uint64_t uframes[6] = {0, 0, 0, 0, 0, 0}, objw[2] = {0, 0};
@@ -189,14 +195,76 @@ index ae94c7e..31bad41 100644
 +		pc -= slide;
 +	if (lr >= 0x180000000ULL && lr >= slide)
 +		lr -= slide;
-+	if (pc >= 0x1800e0000ULL && pc < 0x180120000ULL && fault_addr >= 0x10000000ULL && fault_addr < 0x100000000ULL) {
-+		if (native_diag_should_print_fault(nm)) {
-+			snprintf(line, sizeof(line), "UR %d %.8s %llx", proc_getpid(p), nm, (unsigned long long)fault_addr);
-+			native_gop_text(100, line);
++	if (nm && nm[0] == 'l' && nm[1] == 's' && nm[2] == 'd' && nm[3] == 0) {
++		if (ur_last_pid != pid) {
++			ur_last_pid = pid;
++			ur_proc_cnt = 0;
++			ur_last_pc = 0;
 +		}
-+		saved_state64(state)->x[0] = 0;
-+		saved_state64(state)->pc = get_saved_state_lr(state);
-+		return TRUE;
++		if (ur_proc_cnt < 64) {
++			uint64_t top_lr = 0;
++			if (map && fp > sp && (fp & 7ULL) == 0) {
++				uint64_t fpair[2] = {0, 0};
++				if (vm_map_read_user(map, fp, fpair, sizeof(fpair)) == KERN_SUCCESS)
++					top_lr = (fpair[1] >= 0x180000000ULL && fpair[1] >= slide) ? fpair[1] - slide : fpair[1];
++			}
++			ur_proc_cnt++;
++			if (raw_pc < 0x100000000ULL && raw_lr >= 0x100000000ULL) {
++				if (ur_logged < 8) {
++					ur_logged++;
++					snprintf(line, sizeof(line), "UR#%u %d %llx->%llx @%llx",
++					    ur_proc_cnt, pid, (unsigned long long)pc, (unsigned long long)lr, (unsigned long long)fault_addr);
++					native_gop_text(100, line);
++				}
++				saved_state64(state)->x[0] = 0;
++				saved_state64(state)->pc = raw_lr;
++				return TRUE;
++			}
++			if (pc >= 0x1800e0000ULL && pc < 0x180120000ULL && raw_pc != raw_lr && top_lr != lr) {
++				if (ur_logged < 8) {
++					ur_logged++;
++					snprintf(line, sizeof(line), "UR#%u %d %llx->%llx @%llx",
++					    ur_proc_cnt, pid, (unsigned long long)pc, (unsigned long long)lr, (unsigned long long)fault_addr);
++					native_gop_text(100, line);
++				}
++				saved_state64(state)->x[0] = 0;
++				saved_state64(state)->pc = raw_lr;
++				return TRUE;
++			}
++			if (map && raw_pc >= 0x100000000ULL) {
++				uint32_t insn = 0;
++				if (vm_map_read_user(map, raw_pc, &insn, sizeof(insn)) == KERN_SUCCESS && insn != 0) {
++					if (ur_logged < 8) {
++						ur_logged++;
++						snprintf(line, sizeof(line), "UR#%u %d %llx+4 i:%x @%llx",
++						    ur_proc_cnt, pid, (unsigned long long)pc, insn, (unsigned long long)fault_addr);
++						native_gop_text(100, line);
++					}
++					if (raw_pc == ur_last_pc) {
++						unsigned int rn = (insn >> 5) & 0x1fU;
++						if (rn < 29)
++							saved_state64(state)->x[rn] = 0;
++					}
++					ur_last_pc = raw_pc;
++					if (!(fault_type & VM_PROT_WRITE) && ((insn >> 26) & 1U) == 0) {
++						if ((insn & 0x38000000U) == 0x28000000U) {
++							unsigned int rt1 = insn & 0x1fU;
++							unsigned int rt2 = (insn >> 10) & 0x1fU;
++							if (rt1 < 29)
++								saved_state64(state)->x[rt1] = 0;
++							if (rt2 < 29)
++								saved_state64(state)->x[rt2] = 0;
++						} else {
++							unsigned int rt = insn & 0x1fU;
++							if (rt < 29)
++								saved_state64(state)->x[rt] = 0;
++						}
++					}
++					saved_state64(state)->pc = raw_pc + 4;
++					return TRUE;
++				}
++			}
++		}
 +	}
 +	if (!native_diag_should_print_fault(nm))
 +		return FALSE;
@@ -243,11 +311,11 @@ index ae94c7e..31bad41 100644
  static void
  handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,
      fault_status_t fault_code, vm_prot_t fault_type, expected_fault_handler_t expected_fault_handler)
-@@ -1675,6 +1750,8 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+@@ -1675,6 +1818,8 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
  #endif /* __has_feature(ptrauth_calls) */
  
  	boot_progress_user_abort(state, esr, fault_addr);
-+	if (native_diag_user_fault(state, fault_addr))
++	if (native_diag_user_fault(state, fault_addr, fault_type))
 +		return;
  	if (user_fault_in_self_restrict_mode(thread) &&
  	    task_is_jit_exception_fatal(get_threadtask(thread))) {
