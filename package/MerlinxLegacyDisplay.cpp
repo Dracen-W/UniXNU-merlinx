@@ -156,7 +156,7 @@ static constexpr uint32_t kSpiTxDataReg       = 0x0010U;
 static constexpr uint32_t kSpiRxDataReg       = 0x0014U;
 static constexpr uint32_t kSpiCmdReg          = 0x0018U;
 static constexpr uint32_t kSpiStatus0Reg      = 0x001cU;
-static constexpr uint32_t kSpiStatus1Reg      = 0x0020U;
+static constexpr uint32_t kSpiStatus1Reg      [[maybe_unused]] = 0x0020U;
 static constexpr uint32_t kSpiPadSelReg       = 0x0024U;
 static constexpr uint32_t kSpiCfg2Reg         = 0x0028U;
 
