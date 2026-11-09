@@ -172,7 +172,26 @@ if component == 'NativeEmmc':
     }"""
     if old_write_loop in text:
         text = text.replace(old_write_loop, new_write_loop, 1)
-    text = text.replace('    IODelay(1);\n  }', '    if ((i & 15U) == 15U) {\n      IODelay(1);\n    }\n  }')
+    # The current submodule routes every empty-FIFO wait through pollPause().
+    # Sleep only once per 64 consecutive empty polls instead of once per poll.
+    old_poll_pause = """static inline void pollPause(unsigned iteration)
+{
+  if (iteration < kSpinPolls) {
+    __asm__ volatile("yield" ::: "memory");
+  } else {
+    IODelay(1);
+  }
+}"""
+    new_poll_pause = """static inline void pollPause(unsigned iteration)
+{
+  if ((iteration & ((kSpinPolls / 2U) - 1U)) != 0U) {
+    __asm__ volatile("yield" ::: "memory");
+  } else {
+    IODelay(1);
+  }
+}"""
+    if old_poll_pause in text:
+        text = text.replace(old_poll_pause, new_poll_pause, 1)
     source = out / 'NativeEmmc.cpp'
     source.write_text(text)
 destination = out / (component + '.o')
