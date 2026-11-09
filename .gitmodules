@@ -60,4 +60,4 @@
 	url = https://github.com/Dracen-W/MaliMetal
 [submodule "drivers/FocalTechTouch"]
 	path = drivers/FocalTechTouch
-	url = https://github.com/Dracen-W/FocalTechTouch-FT8719.git
+	url = git@github.com:Dracen-W/FocalTechTouch-FT8719.git
