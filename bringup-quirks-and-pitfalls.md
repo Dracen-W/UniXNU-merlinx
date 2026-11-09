@@ -211,7 +211,7 @@
 
 ---
 
-## 七、 Phase 6–11 的“雷霆问题”（2026-11-08）
+## 七、 Phase 6–11 的隐蔽问题（2026-11-08）
 
 这一节记录从“所有守护进程都起来”到“SpringBoard 等 lsd”之间真正卡住过的坑。
 
@@ -273,7 +273,91 @@
 
 ---
 
-## 八、 总结与快速排查法则
+## 八、 Phase 12–14：MUSB、锁屏与触摸（2026-11-09）
+
+这一节覆盖从“锁屏和 Dock 能画出来”到“MUSB 能枚举 + 画面位置正确 + 触摸可注入”之间的坑。
+
+### 1. MUSB：`p:60` 变 `p:70` 后仍然连不上（W1C 中断）
+
+* **`p:70` 的含义**：`MUSB_POWER` 的 `0x60`（`SOFTCONN | HSENAB`）变成 `0x70`，多出来的 `0x10`（`HSMODE`）是硬件只读状态位，只会在 USB 2.0 High-Speed Chirp K/J 握手完成后置位。看到 `p:70` 说明 PHY、时钟、VUSB 供电和高速握手都已正常，问题在协议层。
+* **根因**：MediaTek MUSB 的 `INTRUSB` / `INTRTX` / `INTRRX` 是 **写 1 清零（W1C）**，不是标准 MUSB 的读清零（见 Linux `drivers/usb/musb/mediatek.c` 的 `mtk_musb_clearb/clearw`）。只读不写回，`MUSB_INTR_RESET (0x04)` 会一直为 1：
+  * 每 2 ms 轮询都当成一次新的 Bus Reset，`r:` 计数一路涨；
+  * 每轮在读取 `CSR0` 之前执行 `MUSB_CSR0_FLUSHFIFO | MUSB_CSR0_P_SVDRXPKTRDY`，把电脑刚发来的 `GET_DESCRIPTOR` SETUP 包在解析前清掉，于是永远无法枚举。
+* **修复**：
+  * 读出 `INTRUSB`/`INTRTX`/`INTRRX` 后原值写回清零；
+  * 开内部锁存 `INTRUSBE = 0xF7`、`INTRTXE = 0x0001`，同时保持 `USB_L1INTM = 0` 屏蔽 GIC；
+  * 收到 `INTR_RESET` 时**不要**盲清 `CSR0`；
+  * 多包 IN 传输直接轮询泵完数据。
+* **`SET_ADDRESS` 时序**：必须等 `INTRTX` 的 bit 0（地址 0 的 Status IN 阶段握手完成）置位后再写 `MUSB_FADDR`，否则电脑按旧地址发下一个 `GET_DESCRIPTOR` 时设备已经换了地址。
+
+### 2. MUSB 驱动在内核里的编译坑（`zzzg-musb-build-fixes.patch`）
+
+* `vsnprintf` 在内核里可用，但 **`strstr` 不参与内核链接**：编译能过，链接阶段报 `_strstr referenced from native_musb_exec_command`。要么自带 `static` 实现，要么别用。
+* `osfmk/` 下的文件看不到完整的 `struct proc`：不要直接读 `p->p_pid` / `p->p_name` / `p->p_comm`，用 `proc_getpid()` / `proc_best_name()`。
+* 共享函数 `native_musb_log_fault()` 的签名必须和调用方完全一致（`tag, pid, name, state, pc, lr, fault_addr, fault_type`），并改用传入的 `fault_addr`，不要读 `arm_saved_state64_t` 的 `far/esr`。
+* 这些错误全部发生在链接/编译后段，CI 一次要 8–10 分钟；先把 `patches/xnu/series` 在本地完整 `git apply` 一遍，再推 CI。
+
+### 3. `lsd` 的 `UR#1..UR#8` 连环触发：只清 `x0` 不够
+
+* **现象**：`UR#1` 在 `pc=1800e9068`（`objc_retain`）→ `lr=1800edcd4`（`objc_storeStrong` 的 `str x19, [x21]`）被放过，随后同一调用方 `1a0702fd8..1a0703298` 又连续 7 次把同一个坏指针交给 `objc_msgSend`/`objc_release`，最后 `EX 87 lsd 6 R8:1`（栈保护失败）。
+* **机理**：坏指针在 `objc_storeStrong` 里保存在 **`x19`**，调用方也还有一份寄存器副本。只把 `x0` 清零、`pc = lr`，回到 `1800edcd4` 后 `str x19, [x21]` 仍然把坏指针写进目标变量，于是连环触发。
+* **修复**：`UR-OBJC`/`UR-BR` 触发时扫描并清零 `x0..x28` 中所有等于该坏对象（或落在同一故障页）的寄存器，让 `objc_storeStrong` 直接存入 `nil`；同时排除 `0x1800eef10..0x1800ef000` 的慢路径栈帧，避免 `pc = lr` 让栈指针偏移触发 `__stack_chk_fail`。
+* **结果**：`lsd` 全程存活（`ls88*`），`1010.89s` 放行 `UR-OBJC`，`1011.91s` 拉起 `installd`，`1015.27s` 拉起 `pkd`，`1039.87s` `SpringBoard` 提交 `F6` 帧，锁屏时间和 Dock 画出。
+
+### 4. 画面偏上约 1 cm、底部露出 `android` logo
+
+* **根因**：`LK` 分配的 `mblock-15-framebuffer` 基址是 `0x7cdb0000`，但 UEFI（`SimpleFbDxe`）把 Framebuffer Head 切在 `0x00900000`，传给 XNU 的 `video.v_baseAddr` 变成 `0x7d6b0020`。
+* 一帧 `1080 × 2340 × 4` 是 `0x009a3f80` 字节（stride 4352 时占 `0x009b6400`，页对齐 `0x009b7000`），`0x00900000` 比它少 `0xA4000 ~ 0xB7000`，正好约 **155–170 行像素（≈1 cm）**。`DISP_OVL0` 扫描的 `L0_ADDR` 比 XNU 写入的地址靠后，于是顶部 1 cm 被裁掉、整体上移，屏幕底部仍在扫描 `LK` 的旧显存（`android` logo）。
+* **修复**：在 `native_legacy_gop_mapping_observed()` 里重编程 `DISP_OVL0 (0x1400b000)` 与 `DISP_OVL0_2L (0x1400c000)`：
+  * `OVL_L0_CON` 清掉低 9 位、写 `0xFF`（关 `AEN`，constant alpha 全不透明）；
+  * `OVL_L0_SRC_SIZE = (2340<<16)|1080`、`OVL_L0_OFFSET = 0`、`OVL_L0_PITCH = 4352`；
+  * `OVL_L0_ADDR`（以及 L1–L3）直接写成 XNU 的 `0x7d6b0020`；
+  * `OVL_SRC_CON = 1`，只保留 Layer 0；
+  * 最后写 `DISP_MUTEX0 (0x14001020) = 1`，让寄存器在下一个 VSYNC 生效。
+* 同时把 `mblock-15-framebuffer` 中 `0x7cdb0000..0x7d6b0020` 的前缀和 `0x7e053fa0..0x7f000000` 的后缀清成不透明黑，避免 `LK` 的 OEM/Android 残影。
+
+### 5. 中间 OEM logo 透出、锁屏时间字体泛红
+
+* **根因**：`LK` 默认在 `OVL0` 上开了多图层合成（`OVL_SRC_CON` 多个 layer）和逐像素 Alpha（`OVL_L0_CON` bit 8 `AEN = 1`）。`PosterBoard` 还没生成壁纸时，iOS 画的背景像素是 `0x00000000`（Alpha = 0），硬件当成全透明，直接透出下层 `LK` 的 OEM logo；半透明的珊瑚红时钟字与底层混合后也会发暗发红。
+* **修复**：关 `AEN` 并只留 Layer 0（见上一条）；像素写入时强制 `Alpha = 0xFF`。
+
+### 6. OSD 调试文字与 UI 互相闪烁
+
+* **现象**：`backboardd` 每提交一帧，`native_gop_redraw_ring()` 就把绿字/白字画回显存，锁屏画面和 OSD 疯狂交替。
+* **修复**：`native_legacy_retired_frames >= 6`（前 5 帧开机 Apple logo 之后）停止往屏幕画字，只写 USB 环形日志；需要时用 `merlinx-gop-osd=1` 强制打开。`zzzh-merlinx-osd-and-usb-cmds.patch` 把这个判断加在 `native_gop_draw_span()` 入口。
+
+### 7. 锁屏之后的 Respring 链（不是显示故障）
+
+* `1051.46s` `PosterBoard` 启动，画完 `F7/F8` 后因无 GPU/沙盒 `SIGABRT` 退出（`EX 177 PosterBoard 6 R2:6`，另有 186、192）。
+* `1252.64s` 第一个 `SpringBoard` 等 `PosterBoard`/`installcoordinationd` 超时，被 `FrontBoard` 看门狗杀掉（`EX 27 SpringBoard 5 R2:5`）。
+* `1258s~1499s` `backboardd` 接管屏幕，在中央以约 10 FPS 画 Respring 菊花（`DISP COPY 0 9a3f80`、`DISP RET F11..F1312`）。
+* `1475.06s` `launchd` 拉起第二个 `SpringBoard`（`GO#2 238 SpringBoard`），它会重新画出锁屏。判断是否“真死”要看 `GO#2` 之后的 `S238/t/n` 是否继续推进，而不是看菊花本身。
+* **性能因素**：`LK` 默认把 A75 大核限制在 `1175 MHz / 0.8 V`，`SpringBoard`/`PosterBoard` 初始化慢，容易撞 `FrontBoard` 看门狗。`hakios-mt6768` 的做法是通过 `PWRAP (0x1000d000)` 抬 `Vproc11/12`、`VSRAM`，再把 `APMIXED (0x1000c000)` 的 `ARMPLL_L_CON1` 抬到 2000 MHz、`ARMPLL_LL_CON1` 抬到 1700 MHz。
+
+### 8. FT8719 触摸：SPI 分段与 HID 注入
+
+* **硬件**：`spi0@1100a000`（`mediatek,mt6765-spi`，`pad-select = 0`），`reset-gpio = GPIO 92`（低有效），`irq-gpio = GPIO 1`（低有效/下降沿）；固件 `focaltech_ts_fw_xinli.bin` 为 131,072 字节。
+* **时钟/门控**：`infracfg_ao (0x10001000)` 的 `MODULE_SW_CG_1_CLR (0x8c)` bit 27；`topckgen (0x10000000)` 的 `CLK_CFG_2_CLR (0x68)` 选 26 MHz 晶振。
+* **协议要求同一个 CS 周期**：先发 1 字节命令包头，等 **30 µs**（`first_delay_us`），再发 `tx[1..len)`（读帧 93 字节，下发固件 4099 字节）。
+* **MT6768 SPI FIFO 只有 32 字节**：用 `SPI_CMD_PAUSE_EN`（bit 4）+ `SPI_CMD_RESUME`（bit 1）分段：
+  * 首字节时 `PACKET_LEN = 0`，`len > 1` 则置 `PAUSE_EN | ACT`，传完硬件保持 `CSB` 低（`SPI_STATUS0` bit 1）；
+  * `CSB` 低期间 `IODelay(30 µs)`；
+  * 后续每片最多 32 字节写 `SPI_TX_DATA`；中间片保留 `PAUSE_EN` 并写 `RESUME`，最后一片清 `PAUSE_EN` 再写 `RESUME`，硬件自动拉高 `CSB`。
+* **HID 注入**：`fts_hid_set_sink()` 把触点（`0..1079`, `0..2339`）缩放到 `NativeHidInput` 报告的 `X: 0..30480`、`Y: 0..20320`，用 `IOHIDDevice::handleReport()` 交给 `backboardd`。`dk=0` 让内核态 `IOHIDEventDriver` 直接匹配，不必等用户态 DriverKit。
+* **接线**：`fts-touch=3 sheng-touch-hid=1` 打开触摸与 HID 桥；`zzzh` 另外提供 `disp/touch/tap/swipe/home/cpufreq` USB 命令，可在没有触摸时用主机脚本点按。
+
+### 9. 零侵入接子模块的做法
+
+* 显示（`drivers/GopFramebuffer`）和触摸（`drivers/FocalTechTouch`）都作为 submodule 锁定 commit，工作区保持干净。
+* 板级逻辑全部放在主仓库：
+  * `package/MerlinxLegacyDisplay.cpp` 负责 OVL 重编程、显存清理、OSD 停绘和 `fts_board_*` 弱符号；
+  * `package/MerlinxHidInput.cpp` 负责 `IOHIDDevice` 桥；
+  * `scripts/build-gop-legacy-display.py` 在构建目录生成 `OriginalLegacyFramebufferABI.h`，用内联包装宏注入 `Alpha=0xFF` 等行为，不改子模块源码。
+* 新增的外部符号（如 `native_legacy_retired_frames`、`merlinx_usb_cmd_*`）一律加 `__attribute__((weak))`，未链接对应模块时不会破坏内核。
+
+---
+
+## 九、 总结与快速排查法则
 
 1. **看屏幕左侧 `J` 和 `P`**：如果非 `11111`，说明挂载遮盖，查 union/bindfs。
 2. **看 `PS` 行有没有 `!`**：如果服务是 `0` 且无 `!`，说明 launchd 压根没尝试 spawn 它，查 `ignition_level`、`rd=` 和 `launchd_unsecure_cache`。
