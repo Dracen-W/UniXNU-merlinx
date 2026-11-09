@@ -66,6 +66,115 @@ if args.negative_aes_kat:
     (out / 'OriginalAESABI.h').write_bytes(source.with_name('OriginalAESABI.h').read_bytes())
     source = out / 'NativeAES.cpp'
     source.write_text(text.replace(marker, '0x77,0x49,0xab,0xac'))
+if component == 'NativeEmmc':
+    # Stage a build-time copy of NativeEmmc.cpp into build/native-emmc/ so the
+    # drivers/NativeEmmc submodule stays 100% clean while eliminating the
+    # unconditional per-FIFO-word IODelay(1) bottleneck (160 ms -> <2 ms per 64 KiB read).
+    text = source.read_text()
+    text = text.replace(
+        'constexpr uint32_t kTransferBlocks = 128;',
+        'constexpr uint32_t kTransferBlocks = 256;',
+        1,
+    )
+    old_pio_loop = """  uint32_t got = 0;
+  unsigned idle = 0;
+  while (got < total) {
+    status = read32(base, MSDC_INT);
+    if (status & MSDC_INT_ERROR) {
+      *failure = 4;
+      return false;
+    }
+    uint32_t available = read32(base, MSDC_FIFOCS) & MSDC_FIFOCS_RX_MASK;
+    uint32_t before = got;
+    while (available >= 4 && got + 4 <= total) {
+      uint32_t word = read32(base, MSDC_RXDATA);
+      out[got + 0] = static_cast<uint8_t>(word);
+      out[got + 1] = static_cast<uint8_t>(word >> 8);
+      out[got + 2] = static_cast<uint8_t>(word >> 16);
+      out[got + 3] = static_cast<uint8_t>(word >> 24);
+      got += 4;
+      available -= 4;
+    }
+    if ((status & MSDC_INT_XFER_COMPL) && got == total) {
+      clearStatus(base, status & MSDC_INT_XFER_COMPL);
+      break;
+    }
+    if (got != before) {
+      idle = 0;
+    } else if (++idle > 200000) {
+      *failure = 5;
+      return false;
+    }
+    IODelay(1);
+  }"""
+    new_pio_loop = """  for (unsigned clrSpin = 0; clrSpin < 100000U && (read32(base, MSDC_FIFOCS) & MSDC_FIFOCS_CLR); ++clrSpin) {
+  }
+  uint32_t got = 0;
+  unsigned idle = 0;
+  while (got < total) {
+    uint32_t available = read32(base, MSDC_FIFOCS) & MSDC_FIFOCS_RX_MASK;
+    uint32_t before = got;
+    while (available >= 4 && got + 4 <= total) {
+      uint32_t word = read32(base, MSDC_RXDATA);
+      out[got + 0] = static_cast<uint8_t>(word);
+      out[got + 1] = static_cast<uint8_t>(word >> 8);
+      out[got + 2] = static_cast<uint8_t>(word >> 16);
+      out[got + 3] = static_cast<uint8_t>(word >> 24);
+      got += 4;
+      available -= 4;
+    }
+    if (got >= total) {
+      break;
+    }
+    if (got != before) {
+      idle = 0;
+      continue;
+    }
+    status = read32(base, MSDC_INT);
+    if (status & MSDC_INT_ERROR) {
+      *failure = 4;
+      return false;
+    }
+    if (++idle > 2000000U) {
+      *failure = 5;
+      return false;
+    }
+    if ((idle & 63U) == 0U) {
+      IODelay(1);
+    }
+  }
+  for (unsigned xferSpin = 0; xferSpin < 200000U; ++xferSpin) {
+    status = read32(base, MSDC_INT);
+    if (status & (MSDC_INT_XFER_COMPL | MSDC_INT_ERROR)) {
+      break;
+    }
+    if ((xferSpin & 15U) == 15U) {
+      IODelay(1);
+    }
+  }
+  if (status & MSDC_INT_ERROR) {
+    *failure = 4;
+    return false;
+  }"""
+    if old_pio_loop in text:
+        text = text.replace(old_pio_loop, new_pio_loop, 1)
+    old_write_loop = """    for (uint32_t index = 0; index < n; index++) {
+      uint64_t offset = (done + index) * 512;
+      if (buffer->writeBytes(offset, bounce + index * 512, 512) != 512) {
+        result = kIOReturnIOError;
+        break;
+      }
+    }"""
+    new_write_loop = """    IOByteCount chunkBytes = static_cast<IOByteCount>(n) * 512;
+    if (buffer->writeBytes(done * 512, bounce, chunkBytes) != chunkBytes) {
+      result = kIOReturnIOError;
+      break;
+    }"""
+    if old_write_loop in text:
+        text = text.replace(old_write_loop, new_write_loop, 1)
+    text = text.replace('    IODelay(1);\n  }', '    if ((i & 15U) == 15U) {\n      IODelay(1);\n    }\n  }')
+    source = out / 'NativeEmmc.cpp'
+    source.write_text(text)
 destination = out / (component + '.o')
 arguments = record['arguments']
 command = []

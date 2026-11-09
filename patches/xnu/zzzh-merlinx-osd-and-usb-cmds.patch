@@ -94,7 +94,25 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -2905,7 +2905,47 @@
+@@ -1235,7 +1235,17 @@
+ 	mach_exception_data_type_t codes[2]  = {EXC_ARM_BREAKPOINT};
+ 	mach_msg_type_number_t     numcodes  = 2;
+ 
+ 	boot_progress_user_breakpoint(state, esr);
++	{
++		extern int proc_getpid(proc_t);
++		extern char *proc_best_name(proc_t);
++		extern void native_musb_log_fault(const char *tag, int pid, const char *nm,
++		    arm_saved_state_t *st, uint64_t pc, uint64_t lr, vm_offset_t fa, vm_prot_t ftype);
++		proc_t bp_p = current_proc();
++		native_musb_log_fault("UG-BRK", bp_p ? proc_getpid(bp_p) : 0,
++		    bp_p ? proc_best_name(bp_p) : "?", state,
++		    get_saved_state_pc(state), get_saved_state_lr(state), esr, 0);
++	}
+ #if __has_feature(ptrauth_calls)
+ 	if (ESR_EC(esr) == ESR_EC_BRK_AARCH64 &&
+ 	    brk_comment_is_ptrauth(ISS_BRK_COMMENT(esr))) {
+@@ -2905,7 +2915,47 @@
  	    frames ? (unsigned long long)frames[11] : 0ULL);
  }
  
@@ -143,7 +161,7 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
  native_musb_cmd_append(const char *fmt, ...)
  {
  	uint32_t cur = merlinx_cmd_out_len;
-@@ -3142,7 +3175,14 @@
+@@ -3142,7 +3192,14 @@
  		    "  ring              Dump the 64-slot screen event ring + PS summary\n"
  		    "  kill <pid> [sig]  Send signal (default 9=SIGKILL) to PID\n"
  		    "  icblock <0|1>     Set iconservicesagent spawn block (currently %u)\n"
@@ -155,11 +173,11 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 +		    "  tap <x> <y>       Inject touch tap at pixel (x, y) in 1080x2340\n"
 +		    "  swipe <x1> <y1> <x2> <y2>  Inject touch swipe gesture\n"
 +		    "  home              Inject Home button + bottom-edge unlock swipe\n"
-+		    "  cpufreq           Dump CPU clock management state\n",
++		    "  cpufreq           Boost / dump MT6768 + MT6358 CPU & CCI clock state\n",
  		    native_diag_block_iconservices);
  	} else if (strncmp(cmd, "ps", 2) == 0) {
  		native_musb_cmd_append("PID   THR  NAME                 XPC_TAG\n");
-@@ -3270,6 +3310,37 @@
+@@ -3270,6 +3327,37 @@
  		    "STATS: polls=%u resets=%u setups=%u cfg=%u\n",
  		    faddr, power, devctl, csr0, u2p_1c, u2p_68, u2p_6c,
  		    merlinx_usb_polls, merlinx_usb_resets, merlinx_usb_setups, merlinx_usb_config);

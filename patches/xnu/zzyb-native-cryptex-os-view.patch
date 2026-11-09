@@ -252,8 +252,8 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
 +	    "<plist version=\"1.0\"><dict>"
 +	    "<key>BKNoWatchdogs</key><true/>"
-+	    "<key>FBLaunchWatchdogScale</key><real>20.0</real>"
-+	    "<key>FBLaunchWatchdogExceptions</key><dict><key>com.apple.purplebuddy</key><real>100.0</real></dict>"
++	    "<key>FBLaunchWatchdogScale</key><real>100.0</real>"
++	    "<key>FBLaunchWatchdogExceptions</key><dict><key>com.apple.purplebuddy</key><real>200.0</real><key>com.apple.PosterBoard</key><real>200.0</real><key>com.apple.SpringBoard</key><real>200.0</real></dict>"
 +	    "<key>MCForceShowCloudConfigurationUI</key><false/>"
 +	    "<key>SBDisableAutoDim</key><true/>"
 +	    "<key>SBDontDimOrLockOnAC</key><true/>"
@@ -293,7 +293,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.OTATaskingAgent</key><true/>"
 +	    "<key>com.apple.CommCenter</key><true/>"
 +	    "<key>com.apple.purplebuddy</key><true/>"
-+	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/>"
++	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/><key>com.apple.privacyaccountingd</key><true/><key>com.apple.chronod</key><true/><key>com.apple.cloudd</key><true/><key>com.apple.MobileSMS</key><true/><key>com.apple.maild</key><true/><key>com.apple.amsaccountsd</key><true/><key>com.apple.amsengagementd</key><true/><key>com.apple.locationd.pipelined</key><true/><key>com.apple.accessoryupdaterd</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char pb_xml[] =
 +	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"

@@ -91,8 +91,8 @@ index d015dab..f43099c 100644
 +	    (block_setup && (strcmp(base, "Setup") == 0 || strcmp(base, "purplebuddy") == 0)) ||
 +	    strcmp(base, "cryptexd") == 0 ||
 +	    strcmp(base, "ReportMemoryException") == 0 ||
-+	    strcmp(base, "privacyaccountd") == 0 ||
-+	    strcmp(base, "OTATaskingAgent") == 0))
++	    strcmp(base, "privacyaccountd") == 0 || strcmp(base, "privacyaccountingd") == 0 || strcmp(base, "chronod") == 0 || strcmp(base, "WidgetRenderer_Default") == 0 ||
++	    strcmp(base, "OTATaskingAgent") == 0 || strcmp(base, "cloudd") == 0 || strcmp(base, "maild") == 0 || strcmp(base, "amsaccountsd") == 0 || strcmp(base, "amsengagementd") == 0 || strcmp(base, "pipelined") == 0 || strcmp(base, "accessoryupdaterd") == 0))
 +		return TRUE;
 +	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "thermalmonitord") ||
 +	    native_diag_has_substr(arg1, "fairplayd") ||
@@ -101,7 +101,7 @@ index d015dab..f43099c 100644
 +	    (block_setup && native_diag_has_substr(arg1, "purplebuddy")) ||
 +	    native_diag_has_substr(arg1, "cryptexd") ||
 +	    native_diag_has_substr(arg1, "ReportMemoryException") ||
-+	    native_diag_has_substr(arg1, "privacyaccountd") ||
++	    native_diag_has_substr(arg1, "privacyaccount") || native_diag_has_substr(arg1, "chronod") || native_diag_has_substr(arg1, "WidgetRenderer") ||
 +	    native_diag_has_substr(arg1, "duetexpertd") ||
 +	    native_diag_has_substr(arg1, "webbookmarksd") ||
 +	    native_diag_has_substr(arg1, "cloudkeychainproxy") ||
@@ -113,7 +113,7 @@ index d015dab..f43099c 100644
 +	    native_diag_has_substr(arg1, "itunescloudd") ||
 +	    native_diag_has_substr(arg1, "nfcd") ||
 +	    native_diag_has_substr(arg1, "nearbyd") ||
-+	    native_diag_has_substr(arg1, "OTATaskingAgent")))
++	    native_diag_has_substr(arg1, "OTATaskingAgent") || native_diag_has_substr(arg1, "cloudd") || native_diag_has_substr(arg1, "maild") || native_diag_has_substr(arg1, "amsaccountsd") || native_diag_has_substr(arg1, "amsengagementd") || native_diag_has_substr(arg1, "pipelined") || native_diag_has_substr(arg1, "accessoryupdaterd")))
 +		return TRUE;
 +	return FALSE;
 +}
@@ -467,7 +467,7 @@ index d015dab..f43099c 100644
 +	static const char fb_xml[] =
 +	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 +	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
-+	    "<plist version=\"1.0\"><dict><key>FBLaunchWatchdogScale</key><real>20.0</real></dict></plist>\n";
++	    "<plist version=\"1.0\"><dict><key>FBLaunchWatchdogScale</key><real>100.0</real></dict></plist>\n";
 +	static const char bb_xml[] =
 +	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 +	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"

@@ -125,7 +125,7 @@ text_fixups = [
 [payload.adt]
 tool = "scripts/make-merlinx-adt.py"
 owned_memory_size = "0x50000000"
-cpu_regs = "0,0x100,0x200,0x300,0x400,0x500,0x600,0x700"
+cpu_regs = "0,0x700,0x600,0x100,0x200,0x300,0x400,0x500"
 psci_method = "smc"
 packed_data_ramdisk = true
 ipad_identity = true

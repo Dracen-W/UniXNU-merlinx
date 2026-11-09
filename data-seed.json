@@ -601,10 +601,12 @@
       "0600",
       "plist",
       {
-        "FBLaunchWatchdogScale": 20.0,
+        "FBLaunchWatchdogScale": 100.0,
         "BKNoWatchdogs": true,
         "FBLaunchWatchdogExceptions": {
-          "com.apple.purplebuddy": 100.0
+          "com.apple.purplebuddy": 200.0,
+          "com.apple.PosterBoard": 200.0,
+          "com.apple.SpringBoard": 200.0
         },
         "MCForceShowCloudConfigurationUI": false,
         "SBDisableAutoDim": true,
@@ -619,7 +621,7 @@
       "0600",
       "plist",
       {
-        "FBLaunchWatchdogScale": 20.0
+        "FBLaunchWatchdogScale": 100.0
       }
     ],
     [
@@ -699,7 +701,15 @@
         "com.apple.privacyaccountd": true,
         "com.apple.purplebuddy": true,
         "com.apple.CommCenter": true,
-        "com.apple.iconservices.iconservicesagent": true
+        "com.apple.iconservices.iconservicesagent": true,
+        "com.apple.privacyaccountingd": true,
+        "com.apple.chronod": true,
+        "com.apple.cloudd": true,
+        "com.apple.maild": true,
+        "com.apple.amsaccountsd": true,
+        "com.apple.amsengagementd": true,
+        "com.apple.locationd.pipelined": true,
+        "com.apple.accessoryupdaterd": true
       }
     ],
     [
@@ -731,7 +741,15 @@
         "com.apple.privacyaccountd": true,
         "com.apple.purplebuddy": true,
         "com.apple.CommCenter": true,
-        "com.apple.iconservices.iconservicesagent": true
+        "com.apple.iconservices.iconservicesagent": true,
+        "com.apple.privacyaccountingd": true,
+        "com.apple.chronod": true,
+        "com.apple.cloudd": true,
+        "com.apple.maild": true,
+        "com.apple.amsaccountsd": true,
+        "com.apple.amsengagementd": true,
+        "com.apple.locationd.pipelined": true,
+        "com.apple.accessoryupdaterd": true
       }
     ]
   ],

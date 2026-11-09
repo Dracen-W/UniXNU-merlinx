@@ -333,8 +333,20 @@
 * `1252.64s` 第一个 `SpringBoard` 等 `PosterBoard`/`installcoordinationd` 超时，被 `FrontBoard` 看门狗杀掉（`EX 27 SpringBoard 5 R2:5`）。
 * `1258s~1499s` `backboardd` 接管屏幕，在中央以约 10 FPS 画 Respring 菊花（`DISP COPY 0 9a3f80`、`DISP RET F11..F1312`）。
 * `1475.06s` `launchd` 拉起第二个 `SpringBoard`（`GO#2 238 SpringBoard`），它会重新画出锁屏。判断是否“真死”要看 `GO#2` 之后的 `S238/t/n` 是否继续推进，而不是看菊花本身。
-* **性能因素**：`LK` 默认把 A75 大核限制在 `1175 MHz / 0.8 V`，`SpringBoard`/`PosterBoard` 初始化慢，容易撞 `FrontBoard` 看门狗。
-* **不要直接写 APMIXED 的 PLL 寄存器**：日志里 `Boosted ARMPLL_LL=0x00000000` 说明写入把小核 PLL 关回了 26 MHz 晶振，`launchd` 光 `MMAP` 就跑了 600 秒还没进 Apple Logo。MT6768 的频点由 SSPM `dvfsp@00110c00` 接管，应当通过它请求频率，而不是改 `ARMPLL_*_CON1`。
+* **性能因素与真实根因**：
+  1. `LK` 默认把 Cortex-A75 大核（`ARMPLL_L`）和 Cortex-A55 小核（`ARMPLL_LL`）都停在 `1175 MHz / 0.8 V`；
+  2. `board.toml` 原先按 `0,0x100..0x700` 排列，两颗乱序执行的 Cortex-A75 大核排在最末（`cpu6`/`cpu7`），前 6 颗全是顺序执行的小核；
+  3. `NativeEmmc.cpp` 的 `readBlocks()` 在 `while (got < total)` 末尾无条件调用 `IODelay(1)`，每读 4~16 字节 FIFO 就死等 1 µs，导致每次 64 KiB 缺页（`FAULT -> F-OK`）耗时高达 **160~170 ms**，`dyld_shared_cache` 映射耗时 549 秒；
+  4. `privacyaccountd` 拼写漏了 `ing`（真实二进制名为 `privacyaccountingd`），加上 `chronod` 反复拉起 `WidgetRenderer_Default`（撞 `R15:b111b111` RunningBoard 断言）、`cloudd`、`maild`、`amsaccountsd` 等后台守护进程并发抢占 eMMC 与 CPU，拖慢 `SpringBoard` 直至触发 `FrontBoard` 看门狗 `SIGTRAP`（`EX ... 5 R2:5`），`backboardd` 接管屏幕画转圈菊花。
+* **为什么第一次写 APMIXED PLL 会出现 `ARMPLL_LL=0x00000000`**：
+  * 之前误用了 MT6765/MT6357 的寄存器偏移（`APMIXED 0x200/0x204` 与 `0x210/0x214`、`PWRAP 0x0c0/0x0c4`、PMIC `0x19b2/0x1488`）。在 **MT6768 + MT6358** 上，`0x204`/`0x214` 根本不是 `CON1`！
+  * **MT6768 + MT6358 正确的硬件提频序列**（已在 `package/MerlinxLegacyDisplay.cpp` 的 `merlinxBoostCpuClocks()` 中实装，并在 `DISP PROBE 1` 即 `t≈23s` 时执行）：
+    * `PWRAP (0x1000d000)`：`WACS2_CMD = 0xC20`、`WACS2_RDATA = 0xC24`（`FSM = (r >> 16) & 7`，`IDLE = 0`，`WFVLDCLR = 6`）、`WACS2_VLDCLR = 0xC28`（读完必须写 1 清 valid）；
+    * **先升压（先 `VSRAM` 后 `VPROC`，确保 `VSRAM >= VPROC + 100 mV`），延时 `1000 µs` 并回读 `DBG0` 校验档位到位后，再改 `APMIXED (0x1000c000)` 的 `CON1`（先写 22-bit DDS + bit 31 `CHG`，等 `20 µs`，再写 bits 26:24 `POSDIV`）**：
+      * **Cortex-A75 大核（`ARMPLL_L_CON1 = 0x20C`）**：`MT6358_VSRAM_CON0 (0x1bee)` 升至 step `99`（`1118.75 mV`），`MT6358_VPROC11_ELR0 (0x13a6)` 升至 step `96`（`1100 mV`，回读 `0x139e` 校验），`ARMPLL_L_CON1` 升至 **`2000 MHz`（`posdiv_sel = 0`）**；
+      * **Cortex-A55 小核（`ARMPLL_LL_CON1 = 0x21C`）**：`MT6358_VSRAM_CON1 (0x1bf0)` 升至 step `92`（`1075 mV`），`MT6358_VPROC12_ELR0 (0x1426)` 升至 step `76`（`975 mV`，回读 `0x141e` 校验），`ARMPLL_LL_CON1` 升至 **`1700 MHz`（`posdiv_sel = 1`，`VCO = 3400 MHz`）**；
+      * **CCI 总线（`CCIPLL_CON1 = 0x22C`）**：在 `VPROC12` 升至 `975 mV` 后，升至 **`1187 MHz`（`posdiv_sel = 1`，`VCO = 2374 MHz`）**。
+    * 同时将 `board.toml` 的 `cpu_regs` 设为 `"0,0x700,0x600,0x100,0x200,0x300,0x400,0x500"`，让两颗 2.0 GHz Cortex-A75 大核紧跟 `cpu0` 之后作为 `cpu1`/`cpu2` 优先承载 `SpringBoard` 与 `backboardd`；并在 `scripts/build-arm-driver.py` 编译期为 `NativeEmmc` 消除非空闲 `IODelay(1)`（保持 `drivers/NativeEmmc` 子模块零改动）。
 
 ### 8. FT8719 触摸：SPI 分段与 HID 注入
 
