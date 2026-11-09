@@ -1,18 +1,38 @@
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -2819,6 +2819,11 @@
+@@ -2819,6 +2819,31 @@
  	uint8_t  config;       /* active configuration */
  } __attribute__((packed));
  
 +extern int vsnprintf(char *str, size_t size, const char *fmt, va_list ap);
-+extern char *strstr(const char *haystack, const char *needle);
++static char *
++native_musb_strstr(const char *haystack, const char *needle)
++{
++	const char *h = haystack;
++	size_t nlen = 0;
++
++	if (!haystack || !needle)
++		return NULL;
++	while (needle[nlen])
++		nlen++;
++	if (nlen == 0)
++		return (char *)haystack;
++	for (; *h; h++) {
++		size_t i = 0;
++		while (i < nlen && h[i] == needle[i])
++			i++;
++		if (i == nlen)
++			return (char *)h;
++	}
++	return NULL;
++}
 +extern int proc_getpid(proc_t);
 +extern char *proc_best_name(proc_t);
 +
  char merlinx_log_ring[MERLINX_LOG_RING_SIZE] __attribute__((aligned(64)));
  volatile uint64_t merlinx_log_write_seq = 0;
  
-@@ -2890,9 +2895,15 @@
+@@ -2890,9 +2915,15 @@
  
  void
  native_musb_log_fault(const char *tag, int pid, const char *name,
@@ -30,7 +50,7 @@
  	if (!ss)
  		return;
  	uint64_t ns = 0;
-@@ -2909,7 +2920,7 @@
+@@ -2909,7 +2940,7 @@
  	    (unsigned long long)pc_u, (unsigned long long)ss->pc,
  	    (unsigned long long)lr_u, (unsigned long long)ss->lr,
  	    (unsigned long long)ss->sp, (unsigned long long)ss->fp,
@@ -39,7 +59,7 @@
  	    (unsigned long long)slide, insn_prev, insn_pc,
  	    (unsigned long long)ss->x[0], (unsigned long long)ss->x[1],
  	    (unsigned long long)ss->x[2], (unsigned long long)ss->x[3],
-@@ -2954,8 +2965,8 @@
+@@ -2954,8 +2985,8 @@
  {
  	if (!p)
  		return;
@@ -50,7 +70,7 @@
  	const char *xtag = native_diag_xp_lookup(pid);
  	task_t task = proc_task(p);
  	if (!task) {
-@@ -3175,7 +3186,7 @@
+@@ -3175,7 +3206,7 @@
  			proc_t p = proc_find(pid);
  			if (!p)
  				continue;
@@ -59,12 +79,15 @@
  			const char *xtag = native_diag_xp_lookup(pid);
  			task_t task = proc_task(p);
  			unsigned int nth = 0;
-@@ -3222,7 +3233,7 @@
+@@ -3222,9 +3253,9 @@
  				proc_t p = proc_find(pid);
  				if (!p)
  					continue;
 -				const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
 +				const char *nm = proc_best_name(p);
  				const char *xtag = native_diag_xp_lookup(pid);
- 				if (strstr(nm, arg) || (xtag && strstr(xtag, arg))) {
+-				if (strstr(nm, arg) || (xtag && strstr(xtag, arg))) {
++				if (native_musb_strstr(nm, arg) || (xtag && native_musb_strstr(xtag, arg))) {
  					native_musb_dump_proc_bt(p, TRUE);
+ 					matches++;
+ 				}
