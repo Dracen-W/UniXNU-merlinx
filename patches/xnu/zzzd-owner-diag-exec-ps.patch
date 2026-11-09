@@ -162,7 +162,7 @@ index ae94c7e..31bad41 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -1532,6 +1533,148 @@ handle_sw_step_debug(arm_saved_state_t *state)
+@@ -1532,6 +1533,154 @@ handle_sw_step_debug(arm_saved_state_t *state)
  	__builtin_unreachable();
  }
  
@@ -175,6 +175,8 @@ index ae94c7e..31bad41 100644
 +	extern char *proc_best_name(proc_t);
 +	extern boolean_t native_diag_should_print_fault(const char *name);
 +	extern void native_gop_text(unsigned line, const char *text);
++	extern void native_musb_log_fault(const char *tag, int pid, const char *nm,
++	    arm_saved_state_t *st, uint64_t pc, uint64_t lr, vm_offset_t fa, vm_prot_t ftype);
 +	static unsigned int ur_logged;
 +	static int ur_last_pid;
 +	static unsigned int ur_proc_cnt;
@@ -216,6 +218,7 @@ index ae94c7e..31bad41 100644
 +					    ur_proc_cnt, pid, (unsigned long long)pc, (unsigned long long)lr, (unsigned long long)fault_addr);
 +					native_gop_text(100, line);
 +				}
++				native_musb_log_fault("UR-BR", pid, nm, state, pc, lr, fault_addr, fault_type);
 +				saved_state64(state)->x[0] = 0;
 +				saved_state64(state)->pc = raw_lr;
 +				return TRUE;
@@ -227,6 +230,7 @@ index ae94c7e..31bad41 100644
 +					    ur_proc_cnt, pid, (unsigned long long)pc, (unsigned long long)lr, (unsigned long long)fault_addr);
 +					native_gop_text(100, line);
 +				}
++				native_musb_log_fault("UR-OBJC", pid, nm, state, pc, lr, fault_addr, fault_type);
 +				saved_state64(state)->x[0] = 0;
 +				saved_state64(state)->pc = raw_lr;
 +				return TRUE;
@@ -260,12 +264,14 @@ index ae94c7e..31bad41 100644
 +								saved_state64(state)->x[rt] = 0;
 +						}
 +					}
++					native_musb_log_fault("UR-SKIP", pid, nm, state, pc, lr, fault_addr, fault_type);
 +					saved_state64(state)->pc = raw_pc + 4;
 +					return TRUE;
 +				}
 +			}
 +		}
 +	}
++	native_musb_log_fault("UG-FAULT", pid, nm, state, pc, lr, fault_addr, fault_type);
 +	if (!native_diag_should_print_fault(nm))
 +		return FALSE;
 +	snprintf(line, sizeof(line), "UG %d %.8s %llx %llx", proc_getpid(p), nm,
@@ -311,7 +317,7 @@ index ae94c7e..31bad41 100644
  static void
  handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,
      fault_status_t fault_code, vm_prot_t fault_type, expected_fault_handler_t expected_fault_handler)
-@@ -1675,6 +1818,8 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+@@ -1675,6 +1824,8 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
  #endif /* __has_feature(ptrauth_calls) */
  
  	boot_progress_user_abort(state, esr, fault_addr);

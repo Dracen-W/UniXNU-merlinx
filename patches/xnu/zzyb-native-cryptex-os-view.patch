@@ -293,7 +293,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.OTATaskingAgent</key><true/>"
 +	    "<key>com.apple.CommCenter</key><true/>"
 +	    "<key>com.apple.purplebuddy</key><true/>"
-+	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/>"
++	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char pb_xml[] =
 +	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"

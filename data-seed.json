@@ -698,7 +698,8 @@
         "com.apple.ReportMemoryException": true,
         "com.apple.privacyaccountd": true,
         "com.apple.purplebuddy": true,
-        "com.apple.CommCenter": true
+        "com.apple.CommCenter": true,
+        "com.apple.iconservices.iconservicesagent": true
       }
     ],
     [
@@ -729,7 +730,8 @@
         "com.apple.ReportMemoryException": true,
         "com.apple.privacyaccountd": true,
         "com.apple.purplebuddy": true,
-        "com.apple.CommCenter": true
+        "com.apple.CommCenter": true,
+        "com.apple.iconservices.iconservicesagent": true
       }
     ]
   ],

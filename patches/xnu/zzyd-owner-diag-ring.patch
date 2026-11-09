@@ -27,7 +27,7 @@ index 450b923..de1fd9f 100644
  	}
  bad:
  	proc_transend(p, 0);
-@@ -7083,38 +7097,74 @@ static const unsigned long long native_gop_font[] = {
+@@ -7083,38 +7097,77 @@ static const unsigned long long native_gop_font[] = {
  	0x22F000000210BE31, 0x23E0000021087A31, 0x26D0000000008421, 0x22E0000000074506, 0x04F1080000064842, 0x23100000000B6631, 0x2310000000022951, 0x23100000000556B5,
  	0x151000000008A884, 0x231000001D185B31, 0x11F00000000F8444, 0x0642109801821084, 0x0842108000021084, 0x3042108300321084, 0x0004D64000000000, 0x0000000000000000
  };
@@ -86,9 +86,12 @@ index 450b923..de1fd9f 100644
 +	}
 +}
 +
++extern void native_musb_log_gop(unsigned line, const char *text);
 +void
 +native_gop_text(unsigned line, const char *text)
 +{
++	if (text)
++		native_musb_log_gop(line, text);
 +	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600 || !text)
 +		return;
 +	uint32_t mid = vinfo.v_width / 2;

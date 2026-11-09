@@ -2,7 +2,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 index d015dab..f43099c 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,203 @@
+@@ -101,8 +101,209 @@
  #include <sys/acct.h>
  
 +#include <pexpert/pexpert.h>
@@ -64,13 +64,18 @@ index d015dab..f43099c 100644
 +	wq_init_constrained_limit = 0;
 +}
 +
++volatile uint32_t native_diag_block_iconservices = 1;
++
 +static boolean_t
 +native_diag_is_blocked_spawn(const char *base, const char *arg1)
 +{
-+	uint32_t allow_setup = 0;
++	uint32_t allow_setup = 0, allow_ic = 0;
 +	boolean_t block_setup = !(PE_parse_boot_argn("merlinx-allow-setup", &allow_setup, sizeof(allow_setup)) && allow_setup == 1);
++	boolean_t block_ic = native_diag_block_iconservices &&
++	    !(PE_parse_boot_argn("merlinx-allow-iconservices", &allow_ic, sizeof(allow_ic)) && allow_ic == 1);
 +	if (base && (strcmp(base, "thermalmonitord") == 0 ||
 +	    strcmp(base, "fairplayd.A2") == 0 ||
++	    (block_ic && strcmp(base, "iconservicesagent") == 0) ||
 +	    strcmp(base, "duetexpertd") == 0 ||
 +	    strcmp(base, "webbookmarksd") == 0 ||
 +	    strcmp(base, "CloudKeychainProxy") == 0 ||
@@ -91,6 +96,7 @@ index d015dab..f43099c 100644
 +		return TRUE;
 +	if (arg1 && arg1[0] && (native_diag_has_substr(arg1, "thermalmonitord") ||
 +	    native_diag_has_substr(arg1, "fairplayd") ||
++	    (block_ic && native_diag_has_substr(arg1, "iconservicesagent")) ||
 +	    native_diag_has_substr(arg1, "CommCenter") ||
 +	    (block_setup && native_diag_has_substr(arg1, "purplebuddy")) ||
 +	    native_diag_has_substr(arg1, "cryptexd") ||
@@ -206,7 +212,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2387,12 +2578,24 @@ encapsulated_binary:
+@@ -2387,12 +2578,27 @@ encapsulated_binary:
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
 -		if (p->p_pid > 1) {
@@ -232,6 +238,9 @@ index d015dab..f43099c 100644
 +					else
 +						snprintf(go_text, sizeof(go_text), "GO %d %.16s", epid, cm);
 +					native_gop_text(100, go_text);
++				} else {
++					extern void native_musb_log_printf(const char *fmt, ...);
++					native_musb_log_printf("[EXEC] GO#%u %d %s\n", go_count, epid, cm);
 +				}
 +				native_diag_focus_start();
 +			}
@@ -505,7 +514,7 @@ diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
 index f0721cc..5ec2380 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1628,19 +1628,29 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+@@ -1628,19 +1628,33 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
  	if (p->p_pid > 1) {
  		extern void native_gop_text(unsigned line, const char *text);
  		extern void native_diag_note_exit(int pid, const char *name);
@@ -531,8 +540,12 @@ index f0721cc..5ec2380 100644
  		}
 -		native_gop_text(100, ex_text);
  		native_diag_note_exit(p->p_pid, nm);
-+		if (native_diag_should_print_exit(nm, exit_reason != OS_REASON_NULL, rv))
++		if (native_diag_should_print_exit(nm, exit_reason != OS_REASON_NULL, rv)) {
 +			native_gop_text(100, ex_text);
++		} else {
++			extern void native_musb_log_printf(const char *fmt, ...);
++			native_musb_log_printf("[EXIT] %s\n", ex_text);
++		}
  	}
  
  	proc_prepareexit(p, rv, perf_notify);
@@ -540,7 +553,7 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 index 31bad41..d0e815e 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -62,6 +62,10 @@
+@@ -62,6 +62,12 @@
  #include <vm/vm_fault.h>
  #include <vm/vm_kern.h>
  #include <vm/vm_shared_region.h>
@@ -548,10 +561,12 @@ index 31bad41..d0e815e 100644
 +#include <kern/thread_call.h>
 +#include <pexpert/pexpert.h>
 +#include <mach/arm/thread_status.h>
++#include <arm64/proc_reg.h>
++#include <stdarg.h>
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2475,3 +2479,271 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
+@@ -2475,3 +2479,1273 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
  SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
  
  #endif
@@ -738,6 +753,21 @@ index 31bad41..d0e815e 100644
 +	    (unsigned long long)((state.pc >= 0x180000000ULL && state.pc >= slide) ? state.pc - slide : state.pc),
 +	    (unsigned long long)((state.lr >= 0x180000000ULL && state.lr >= slide) ? state.lr - slide : state.lr));
 +	native_gop_text(21, line);
++	{
++		extern void native_musb_log_printf(const char *fmt, ...);
++		native_musb_log_printf("[FOCUS] %c%d(%s) tid=%u/%u %spc=%llx lr=%llx x16=%lld x0=%llx x1=%llx "
++		    "f1=%llx f2=%llx f3=%llx f4=%llx f5=%llx f6=%llx f7=%llx f8=%llx f9=%llx f10=%llx f11=%llx f12=%llx\n",
++		    role, pid, name, pick_idx, nthreads, seconds,
++		    (unsigned long long)((state.pc >= 0x180000000ULL && state.pc >= slide) ? state.pc - slide : state.pc),
++		    (unsigned long long)((state.lr >= 0x180000000ULL && state.lr >= slide) ? state.lr - slide : state.lr),
++		    (long long)state.x[16], (unsigned long long)state.x[0], (unsigned long long)state.x[1],
++		    (unsigned long long)frames[0], (unsigned long long)frames[1],
++		    (unsigned long long)frames[2], (unsigned long long)frames[3],
++		    (unsigned long long)frames[4], (unsigned long long)frames[5],
++		    (unsigned long long)frames[6], (unsigned long long)frames[7],
++		    (unsigned long long)frames[8], (unsigned long long)frames[9],
++		    (unsigned long long)frames[10], (unsigned long long)frames[11]);
++	}
 +	if (frames[6] != 0) {
 +		snprintf(line, sizeof(line), "%c%d x16:%lld f5:%llx f6:%llx", role, pid,
 +		    (long long)state.x[16], (unsigned long long)frames[4], (unsigned long long)frames[5]);
@@ -776,10 +806,997 @@ index 31bad41..d0e815e 100644
 +	thread_call_enter_delayed(native_diag_focus_call, deadline);
 +}
 +
++/* =========================================================================================================
++ * Mode A: MT6768 MUSB EP0 PIO Diagnostic & Live Kernel Log Ring Driver (VID 0x05AC / PID 0x12A8, WinUSB)
++ *
++ * Exposes a 4 MiB in-RAM ring buffer (`merlinx_log_ring`) plus a live command engine over USB Control
++ * Transfers (EP0 PIO, no interrupts or DMA required). Compatible with Linux/macOS/Windows via pyusb/libusb.
++ * ========================================================================================================= */
++#define MERLINX_LOG_RING_SHIFT 22U
++#define MERLINX_LOG_RING_SIZE  (1U << MERLINX_LOG_RING_SHIFT) /* 4 MiB */
++#define MERLINX_LOG_RING_MASK  (MERLINX_LOG_RING_SIZE - 1U)
++
++#define MERLINX_CMD_OUT_SIZE   65536U
++
++struct merlinx_usb_status_pkt {
++	uint32_t magic;        /* 0x4D584C47 'MXLG' */
++	uint32_t ring_size;    /* 4 MiB */
++	uint64_t write_seq;    /* total bytes written to merlinx_log_ring */
++	uint64_t uptime_cs;    /* centiseconds since boot */
++	uint32_t usb_polls;    /* poll loop iterations */
++	uint32_t usb_resets;   /* USB bus resets seen */
++	uint32_t usb_setups;   /* EP0 SETUP packets handled */
++	uint32_t cmd_seq;      /* completed command sequence */
++	uint32_t cmd_len;      /* bytes in merlinx_cmd_out */
++	uint8_t  faddr;        /* current USB function address */
++	uint8_t  power;        /* MUSB POWER register */
++	uint8_t  devctl;       /* MUSB DEVCTL register */
++	uint8_t  config;       /* active configuration */
++} __attribute__((packed));
++
++char merlinx_log_ring[MERLINX_LOG_RING_SIZE] __attribute__((aligned(64)));
++volatile uint64_t merlinx_log_write_seq = 0;
++
++static char merlinx_cmd_in[128];
++static char merlinx_cmd_out[MERLINX_CMD_OUT_SIZE];
++static volatile uint32_t merlinx_cmd_out_len = 0;
++static volatile uint32_t merlinx_cmd_seq = 0;
++
++extern vm_offset_t ml_io_map(vm_offset_t phys_addr, vm_size_t size);
++extern const char *native_diag_xp_lookup(int pid);
++extern int psignal(proc_t p, int sig);
++extern volatile uint32_t native_diag_block_iconservices;
++
++static void
++native_musb_ring_write(const char *buf, size_t len)
++{
++	if (!buf || len == 0)
++		return;
++	uint64_t start = __atomic_fetch_add(&merlinx_log_write_seq, (uint64_t)len, __ATOMIC_RELAXED);
++	for (size_t i = 0; i < len; i++) {
++		merlinx_log_ring[(start + i) & MERLINX_LOG_RING_MASK] = buf[i];
++	}
++}
++
++void
++native_musb_log_putc(int c)
++{
++	char ch = (char)c;
++	native_musb_ring_write(&ch, 1);
++}
++
++void
++native_musb_log_printf(const char *fmt, ...)
++{
++	char buf[384];
++	va_list ap;
++	if (!fmt)
++		return;
++	va_start(ap, fmt);
++	int n = vsnprintf(buf, sizeof(buf), fmt, ap);
++	va_end(ap);
++	if (n <= 0)
++		return;
++	if ((size_t)n >= sizeof(buf))
++		n = (int)(sizeof(buf) - 1);
++	native_musb_ring_write(buf, (size_t)n);
++}
++
++void
++native_musb_log_gop(unsigned line, const char *text)
++{
++	if (!text || !text[0])
++		return;
++	if (line < 100) {
++		static char last_left[100][48];
++		if (strncmp(last_left[line], text, sizeof(last_left[line]) - 1) == 0)
++			return;
++		strlcpy(last_left[line], text, sizeof(last_left[line]));
++	}
++	uint64_t ns = 0;
++	absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
++	unsigned int s = (unsigned int)(ns / 1000000000ULL);
++	unsigned int cs = (unsigned int)((ns / 10000000ULL) % 100ULL);
++	if (line >= 100)
++		native_musb_log_printf("[%u.%02u][RING] %s\n", s, cs, text);
++	else
++		native_musb_log_printf("[%u.%02u][L%02u] %s\n", s, cs, line, text);
++}
++
++void
++native_musb_log_fault(const char *tag, int pid, const char *name,
++    arm_saved_state64_t *ss, uint64_t slide, const uint64_t *frames,
++    uint32_t insn_prev, uint32_t insn_pc)
++{
++	if (!ss)
++		return;
++	uint64_t ns = 0;
++	absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
++	unsigned int s = (unsigned int)(ns / 1000000000ULL);
++	unsigned int cs = (unsigned int)((ns / 10000000ULL) % 100ULL);
++	uint64_t pc_u = (ss->pc >= 0x180000000ULL && ss->pc >= slide) ? ss->pc - slide : ss->pc;
++	uint64_t lr_u = (ss->lr >= 0x180000000ULL && ss->lr >= slide) ? ss->lr - slide : ss->lr;
++	native_musb_log_printf(
++	    "[%u.%02u][FAULT] %s pid=%d comm=%s pc=%llx(raw:%llx) lr=%llx(raw:%llx) sp=%llx fp=%llx far=%llx esr=%x slide=%llx insn=%08x/%08x\n"
++	    "  x0=%llx x1=%llx x2=%llx x3=%llx x4=%llx x5=%llx x6=%llx x7=%llx x8=%llx x16=%lld\n"
++	    "  bt: f1=%llx f2=%llx f3=%llx f4=%llx f5=%llx f6=%llx f7=%llx f8=%llx f9=%llx f10=%llx f11=%llx f12=%llx\n",
++	    s, cs, tag ? tag : "UG", pid, name ? name : "?",
++	    (unsigned long long)pc_u, (unsigned long long)ss->pc,
++	    (unsigned long long)lr_u, (unsigned long long)ss->lr,
++	    (unsigned long long)ss->sp, (unsigned long long)ss->fp,
++	    (unsigned long long)ss->far, (unsigned int)ss->esr,
++	    (unsigned long long)slide, insn_prev, insn_pc,
++	    (unsigned long long)ss->x[0], (unsigned long long)ss->x[1],
++	    (unsigned long long)ss->x[2], (unsigned long long)ss->x[3],
++	    (unsigned long long)ss->x[4], (unsigned long long)ss->x[5],
++	    (unsigned long long)ss->x[6], (unsigned long long)ss->x[7],
++	    (unsigned long long)ss->x[8], (long long)ss->x[16],
++	    frames ? (unsigned long long)frames[0] : 0ULL,
++	    frames ? (unsigned long long)frames[1] : 0ULL,
++	    frames ? (unsigned long long)frames[2] : 0ULL,
++	    frames ? (unsigned long long)frames[3] : 0ULL,
++	    frames ? (unsigned long long)frames[4] : 0ULL,
++	    frames ? (unsigned long long)frames[5] : 0ULL,
++	    frames ? (unsigned long long)frames[6] : 0ULL,
++	    frames ? (unsigned long long)frames[7] : 0ULL,
++	    frames ? (unsigned long long)frames[8] : 0ULL,
++	    frames ? (unsigned long long)frames[9] : 0ULL,
++	    frames ? (unsigned long long)frames[10] : 0ULL,
++	    frames ? (unsigned long long)frames[11] : 0ULL);
++}
++
++static void
++native_musb_cmd_append(const char *fmt, ...)
++{
++	uint32_t cur = merlinx_cmd_out_len;
++	if (cur >= MERLINX_CMD_OUT_SIZE - 2)
++		return;
++	va_list ap;
++	va_start(ap, fmt);
++	int n = vsnprintf(merlinx_cmd_out + cur, MERLINX_CMD_OUT_SIZE - cur, fmt, ap);
++	va_end(ap);
++	if (n > 0) {
++		uint32_t add = (uint32_t)n;
++		if (cur + add >= MERLINX_CMD_OUT_SIZE)
++			merlinx_cmd_out_len = MERLINX_CMD_OUT_SIZE - 1;
++		else
++			merlinx_cmd_out_len = cur + add;
++	}
++}
++
++static void
++native_musb_dump_proc_bt(proc_t p, boolean_t mirror_to_ring)
++{
++	if (!p)
++		return;
++	int pid = p->p_pid;
++	const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++	const char *xtag = native_diag_xp_lookup(pid);
++	task_t task = proc_task(p);
++	if (!task) {
++		native_musb_cmd_append("PID %d (%s%s%s): no task\n",
++		    pid, nm, xtag ? ":" : "", xtag ? xtag : "");
++		return;
++	}
++	vm_map_t map = get_task_map(task);
++	uint64_t slide = (task->shared_region) ? task->shared_region->sr_slide : 0;
++	thread_t th = THREAD_NULL;
++	unsigned int tidx = 0, nthreads = 0;
++
++	task_lock(task);
++	queue_iterate(&task->threads, th, thread_t, task_threads) {
++		nthreads++;
++	}
++	native_musb_cmd_append("PID %d (%s%s%s) threads=%u slide=0x%llx\n",
++	    pid, nm, xtag ? ":" : "", xtag ? xtag : "", nthreads, (unsigned long long)slide);
++	if (mirror_to_ring)
++		native_musb_log_printf("[CMD-BT] PID %d (%s%s%s) threads=%u slide=0x%llx\n",
++		    pid, nm, xtag ? ":" : "", xtag ? xtag : "", nthreads, (unsigned long long)slide);
++
++	struct {
++		arm_thread_state64_t st;
++		boolean_t valid;
++	} snaps[16];
++	unsigned int cap = nthreads < 16 ? nthreads : 16;
++	tidx = 0;
++	queue_iterate(&task->threads, th, thread_t, task_threads) {
++		if (tidx >= cap)
++			break;
++		mach_msg_type_number_t cnt = ARM_THREAD_STATE64_COUNT;
++		memset(&snaps[tidx].st, 0, sizeof(snaps[tidx].st));
++		snaps[tidx].valid = (machine_thread_get_state(th, ARM_THREAD_STATE64,
++		    (thread_state_t)&snaps[tidx].st, &cnt) == KERN_SUCCESS);
++		tidx++;
++	}
++	task_unlock(task);
++
++	for (tidx = 0; tidx < cap; tidx++) {
++		if (!snaps[tidx].valid)
++			continue;
++		arm_thread_state64_t *st = &snaps[tidx].st;
++		uint64_t frames[12] = {0};
++		if (map && st->fp) {
++			uint64_t fp = st->fp;
++			for (unsigned int d = 0; d < 12 && fp > st->sp && (fp & 7ULL) == 0; d++) {
++				uint64_t pair[2] = {0, 0};
++				if (vm_map_read_user(map, fp, pair, sizeof(pair)) != KERN_SUCCESS)
++					break;
++				frames[d] = (pair[1] >= 0x180000000ULL && pair[1] >= slide) ? pair[1] - slide : pair[1];
++				if (pair[0] <= fp || pair[0] - fp > 0x100000ULL)
++					break;
++				fp = pair[0];
++			}
++		}
++		uint64_t pc_u = (st->pc >= 0x180000000ULL && st->pc >= slide) ? st->pc - slide : st->pc;
++		uint64_t lr_u = (st->lr >= 0x180000000ULL && st->lr >= slide) ? st->lr - slide : st->lr;
++		native_musb_cmd_append(
++		    "  [T%u] pc=%llx lr=%llx sp=%llx fp=%llx x16=%lld x0=%llx x1=%llx\n"
++		    "       bt: %llx -> %llx -> %llx -> %llx -> %llx -> %llx -> %llx -> %llx -> %llx -> %llx -> %llx -> %llx\n",
++		    tidx,
++		    (unsigned long long)pc_u, (unsigned long long)lr_u,
++		    (unsigned long long)st->sp, (unsigned long long)st->fp,
++		    (long long)st->x[16], (unsigned long long)st->x[0], (unsigned long long)st->x[1],
++		    (unsigned long long)frames[0], (unsigned long long)frames[1],
++		    (unsigned long long)frames[2], (unsigned long long)frames[3],
++		    (unsigned long long)frames[4], (unsigned long long)frames[5],
++		    (unsigned long long)frames[6], (unsigned long long)frames[7],
++		    (unsigned long long)frames[8], (unsigned long long)frames[9],
++		    (unsigned long long)frames[10], (unsigned long long)frames[11]);
++		if (mirror_to_ring) {
++			native_musb_log_printf(
++			    "  [T%u] pc=%llx lr=%llx x16=%lld x0=%llx bt:%llx/%llx/%llx/%llx/%llx/%llx/%llx/%llx/%llx/%llx/%llx/%llx\n",
++			    tidx, (unsigned long long)pc_u, (unsigned long long)lr_u,
++			    (long long)st->x[16], (unsigned long long)st->x[0],
++			    (unsigned long long)frames[0], (unsigned long long)frames[1],
++			    (unsigned long long)frames[2], (unsigned long long)frames[3],
++			    (unsigned long long)frames[4], (unsigned long long)frames[5],
++			    (unsigned long long)frames[6], (unsigned long long)frames[7],
++			    (unsigned long long)frames[8], (unsigned long long)frames[9],
++			    (unsigned long long)frames[10], (unsigned long long)frames[11]);
++		}
++	}
++}
++
++static volatile uint8_t *merlinx_musb_base = NULL;
++static volatile uint8_t *merlinx_u2phy_base = NULL;
++static volatile uint8_t *merlinx_topck_base = NULL;
++static volatile uint8_t *merlinx_infra_base = NULL;
++static volatile uint8_t *merlinx_pericfg_base = NULL;
++static volatile uint8_t *merlinx_pwrap_base = NULL;
++static boolean_t merlinx_musb_inited = FALSE;
++static thread_call_t merlinx_musb_call = NULL;
++
++static uint32_t merlinx_usb_polls = 0;
++static uint32_t merlinx_usb_resets = 0;
++static uint32_t merlinx_usb_setups = 0;
++static uint8_t  merlinx_usb_config = 0;
++static uint8_t  merlinx_usb_pending_addr = 0;
++
++static uint8_t  merlinx_ep0_tx_buf[4096];
++static uint32_t merlinx_ep0_tx_len = 0;
++static uint32_t merlinx_ep0_tx_off = 0;
++static boolean_t merlinx_ep0_tx_active = FALSE;
++
++static uint32_t merlinx_ep0_rx_expected = 0;
++static uint32_t merlinx_ep0_rx_off = 0;
++static uint8_t  merlinx_ep0_rx_req = 0;
++
++#define MUSB_FADDR      0x00U
++#define MUSB_POWER      0x01U
++#define MUSB_INTRTX     0x02U
++#define MUSB_INTRRX     0x04U
++#define MUSB_INTRTXE    0x06U
++#define MUSB_INTRRXE    0x08U
++#define MUSB_INTRUSB    0x0AU
++#define MUSB_INTRUSBE   0x0BU
++#define MUSB_FRAME      0x0CU
++#define MUSB_INDEX      0x0EU
++#define MUSB_TESTMODE   0x0FU
++#define MUSB_CSR0       0x12U
++#define MUSB_COUNT0     0x18U
++#define MUSB_FIFO0      0x20U
++#define MUSB_DEVCTL     0x60U
++
++#define MUSB_POWER_ISOUPDATE 0x80U
++#define MUSB_POWER_SOFTCONN  0x40U
++#define MUSB_POWER_HSENAB    0x20U
++#define MUSB_POWER_HSMODE    0x10U
++#define MUSB_POWER_RESET     0x08U
++
++#define MUSB_INTR_RESET      0x04U
++
++#define MUSB_CSR0_FLUSHFIFO     0x0100U
++#define MUSB_CSR0_P_SVDSETUPEND 0x0080U
++#define MUSB_CSR0_P_SVDRXPKTRDY 0x0040U
++#define MUSB_CSR0_P_SENDSTALL   0x0020U
++#define MUSB_CSR0_P_SETUPEND    0x0010U
++#define MUSB_CSR0_P_DATAEND     0x0008U
++#define MUSB_CSR0_P_SENTSTALL   0x0004U
++#define MUSB_CSR0_TXPKTRDY      0x0002U
++#define MUSB_CSR0_RXPKTRDY      0x0001U
++
++static inline uint8_t
++musb_read8(uint32_t off)
++{
++	uint8_t v = *(volatile uint8_t *)(merlinx_musb_base + off);
++	__builtin_arm_dmb(0xf);
++	return v;
++}
++
++static inline uint16_t
++musb_read16(uint32_t off)
++{
++	uint16_t v = *(volatile uint16_t *)(merlinx_musb_base + off);
++	__builtin_arm_dmb(0xf);
++	return v;
++}
++
++static inline uint32_t
++musb_read32(uint32_t off)
++{
++	uint32_t v = *(volatile uint32_t *)(merlinx_musb_base + off);
++	__builtin_arm_dmb(0xf);
++	return v;
++}
++
++static inline void
++musb_write8(uint32_t off, uint8_t val)
++{
++	__builtin_arm_dmb(0xf);
++	*(volatile uint8_t *)(merlinx_musb_base + off) = val;
++	__builtin_arm_dmb(0xf);
++}
++
++static inline void
++musb_write16(uint32_t off, uint16_t val)
++{
++	__builtin_arm_dmb(0xf);
++	*(volatile uint16_t *)(merlinx_musb_base + off) = val;
++	__builtin_arm_dmb(0xf);
++}
++
++static inline void
++musb_write32(uint32_t off, uint32_t val)
++{
++	__builtin_arm_dmb(0xf);
++	*(volatile uint32_t *)(merlinx_musb_base + off) = val;
++	__builtin_arm_dmb(0xf);
++}
++
++static void
++native_musb_exec_command(const char *cmd)
++{
++	while (*cmd == ' ' || *cmd == '\t')
++		cmd++;
++	merlinx_cmd_out_len = 0;
++	merlinx_cmd_out[0] = 0;
++	native_musb_log_printf("[USB-CMD] > %s\n", cmd);
++
++	if (strncmp(cmd, "help", 4) == 0 || cmd[0] == 0) {
++		native_musb_cmd_append(
++		    "Merlinx Mode A MUSB EP0 Live Commands:\n"
++		    "  help              Show this help\n"
++		    "  ps                List all active processes (PID, comm, xpc tag, threads)\n"
++		    "  bt <pid|name>     Dump userland stack frames (f1..f12) & regs for PID or daemon name\n"
++		    "  allbt             Dump userland stack frames for all key UI/system daemons\n"
++		    "  ring              Dump the 64-slot screen event ring + PS summary\n"
++		    "  kill <pid> [sig]  Send signal (default 9=SIGKILL) to PID\n"
++		    "  icblock <0|1>     Set iconservicesagent spawn block (currently %u)\n"
++		    "  musb              Dump MUSB + U2PHY hardware register state\n",
++		    native_diag_block_iconservices);
++	} else if (strncmp(cmd, "ps", 2) == 0) {
++		native_musb_cmd_append("PID   THR  NAME                 XPC_TAG\n");
++		for (int pid = 1; pid < 512; pid++) {
++			proc_t p = proc_find(pid);
++			if (!p)
++				continue;
++			const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++			const char *xtag = native_diag_xp_lookup(pid);
++			task_t task = proc_task(p);
++			unsigned int nth = 0;
++			if (task) {
++				thread_t th = THREAD_NULL;
++				task_lock(task);
++				queue_iterate(&task->threads, th, thread_t, task_threads) {
++					nth++;
++				}
++				task_unlock(task);
++			}
++			native_musb_cmd_append("%-5d %-4u %-20s %s\n",
++			    pid, nth, nm, xtag ? xtag : "-");
++			proc_rele(p);
++		}
++	} else if (strncmp(cmd, "allbt", 5) == 0) {
++		for (int pid = 1; pid < 400; pid++) {
++			proc_t p = proc_find(pid);
++			if (!p)
++				continue;
++			native_musb_dump_proc_bt(p, TRUE);
++			proc_rele(p);
++		}
++	} else if (strncmp(cmd, "bt", 2) == 0) {
++		const char *arg = cmd + 2;
++		while (*arg == ' ' || *arg == '\t')
++			arg++;
++		int target_pid = 0;
++		if (*arg >= '0' && *arg <= '9') {
++			while (*arg >= '0' && *arg <= '9') {
++				target_pid = target_pid * 10 + (*arg - '0');
++				arg++;
++			}
++			proc_t p = proc_find(target_pid);
++			if (p) {
++				native_musb_dump_proc_bt(p, TRUE);
++				proc_rele(p);
++			} else {
++				native_musb_cmd_append("PID %d not found\n", target_pid);
++			}
++		} else if (*arg) {
++			unsigned int matches = 0;
++			for (int pid = 1; pid < 512; pid++) {
++				proc_t p = proc_find(pid);
++				if (!p)
++					continue;
++				const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
++				const char *xtag = native_diag_xp_lookup(pid);
++				if (strstr(nm, arg) || (xtag && strstr(xtag, arg))) {
++					native_musb_dump_proc_bt(p, TRUE);
++					matches++;
++				}
++				proc_rele(p);
++			}
++			if (matches == 0)
++				native_musb_cmd_append("No process matching '%s'\n", arg);
++		} else {
++			native_musb_cmd_append("Usage: bt <pid|name>\n");
++		}
++	} else if (strncmp(cmd, "kill", 4) == 0) {
++		const char *arg = cmd + 4;
++		while (*arg == ' ' || *arg == '\t')
++			arg++;
++		int target_pid = 0, sig = 9;
++		while (*arg >= '0' && *arg <= '9') {
++			target_pid = target_pid * 10 + (*arg - '0');
++			arg++;
++		}
++		while (*arg == ' ' || *arg == '\t')
++			arg++;
++		if (*arg >= '0' && *arg <= '9') {
++			sig = 0;
++			while (*arg >= '0' && *arg <= '9') {
++				sig = sig * 10 + (*arg - '0');
++				arg++;
++			}
++		}
++		if (target_pid > 1) {
++			proc_t p = proc_find(target_pid);
++			if (p) {
++				psignal(p, sig);
++				proc_rele(p);
++				native_musb_cmd_append("Sent signal %d to PID %d\n", sig, target_pid);
++				native_musb_log_printf("[USB-CMD] Sent signal %d to PID %d\n", sig, target_pid);
++			} else {
++				native_musb_cmd_append("PID %d not found\n", target_pid);
++			}
++		} else {
++			native_musb_cmd_append("Usage: kill <pid> [sig]\n");
++		}
++	} else if (strncmp(cmd, "icblock", 7) == 0) {
++		const char *arg = cmd + 7;
++		while (*arg == ' ' || *arg == '\t')
++			arg++;
++		if (*arg == '0')
++			native_diag_block_iconservices = 0;
++		else if (*arg == '1')
++			native_diag_block_iconservices = 1;
++		native_musb_cmd_append("native_diag_block_iconservices = %u\n", native_diag_block_iconservices);
++		native_musb_log_printf("[USB-CMD] native_diag_block_iconservices = %u\n", native_diag_block_iconservices);
++	} else if (strncmp(cmd, "ring", 4) == 0) {
++		native_musb_cmd_append("write_seq=%llu polls=%u resets=%u setups=%u\n",
++		    (unsigned long long)merlinx_log_write_seq,
++		    merlinx_usb_polls, merlinx_usb_resets, merlinx_usb_setups);
++	} else if (strncmp(cmd, "musb", 4) == 0 && merlinx_musb_base && merlinx_u2phy_base) {
++		musb_write8(MUSB_INDEX, 0);
++		uint8_t faddr = musb_read8(MUSB_FADDR);
++		uint8_t power = musb_read8(MUSB_POWER);
++		uint8_t devctl = musb_read8(MUSB_DEVCTL);
++		uint16_t csr0 = musb_read16(MUSB_CSR0);
++		uint32_t u2p_68 = *(volatile uint32_t *)(merlinx_u2phy_base + 0x68U);
++		uint32_t u2p_6c = *(volatile uint32_t *)(merlinx_u2phy_base + 0x6CU);
++		uint32_t u2p_1c = *(volatile uint32_t *)(merlinx_u2phy_base + 0x1CU);
++		native_musb_cmd_append(
++		    "MUSB: FADDR=0x%02x POWER=0x%02x DEVCTL=0x%02x CSR0=0x%04x\n"
++		    "U2PHY: 0x1c=0x%08x 0x68=0x%08x 0x6c=0x%08x\n"
++		    "STATS: polls=%u resets=%u setups=%u cfg=%u\n",
++		    faddr, power, devctl, csr0, u2p_1c, u2p_68, u2p_6c,
++		    merlinx_usb_polls, merlinx_usb_resets, merlinx_usb_setups, merlinx_usb_config);
++	} else {
++		native_musb_cmd_append("Unknown command '%s' (try 'help')\n", cmd);
++	}
++	merlinx_cmd_seq++;
++}
++
++static void
++native_musb_phy_and_clk_init(void)
++{
++	if (merlinx_pwrap_base) {
++		volatile uint32_t *wacs2_cmd = (volatile uint32_t *)(merlinx_pwrap_base + 0xC20U);
++		volatile uint32_t *wacs2_rdata = (volatile uint32_t *)(merlinx_pwrap_base + 0xC24U);
++		for (unsigned int tries = 0; tries < 2000; tries++) {
++			if (((*wacs2_rdata >> 16) & 0x7U) == 0) {
++				*wacs2_cmd = (1U << 31) | ((0x1b30U >> 1) << 16) | 0x0001U;
++				__builtin_arm_dmb(0xf);
++				break;
++			}
++		}
++	}
++	if (merlinx_topck_base) {
++		*(volatile uint32_t *)(merlinx_topck_base + 0x098U) = (1U << 23);
++		__builtin_arm_dmb(0xf);
++		*(volatile uint32_t *)(merlinx_topck_base + 0x004U) = (1U << 22);
++		__builtin_arm_dmb(0xf);
++		*(volatile uint32_t *)(merlinx_topck_base + 0x104U) |= (1U << 8);
++		__builtin_arm_dmb(0xf);
++	}
++	if (merlinx_infra_base) {
++		*(volatile uint32_t *)(merlinx_infra_base + 0x084U) = (1U << 8);
++		*(volatile uint32_t *)(merlinx_infra_base + 0x08CU) = (1U << 25);
++		*(volatile uint32_t *)(merlinx_infra_base + 0x0A8U) = (1U << 2);
++		*(volatile uint32_t *)(merlinx_infra_base + 0x0C4U) = (1U << 19);
++		__builtin_arm_dmb(0xf);
++	}
++	if (merlinx_pericfg_base) {
++		uint32_t cg = *(volatile uint32_t *)(merlinx_pericfg_base + 0x018U);
++		*(volatile uint32_t *)(merlinx_pericfg_base + 0x018U) = cg & ~((1U << 1) | (1U << 2));
++		__builtin_arm_dmb(0xf);
++	}
++	if (merlinx_u2phy_base) {
++		volatile uint32_t *acr6 = (volatile uint32_t *)(merlinx_u2phy_base + 0x18U);
++		volatile uint32_t *dtm0 = (volatile uint32_t *)(merlinx_u2phy_base + 0x68U);
++		volatile uint32_t *dtm1 = (volatile uint32_t *)(merlinx_u2phy_base + 0x6CU);
++		*acr6 &= ~(1U << 23);
++		__builtin_arm_dmb(0xf);
++		*dtm0 &= ~((1U << 26) | (1U << 23) | (1U << 18) | (1U << 7) | (1U << 6) | (1U << 21) | (1U << 20));
++		*dtm0 |= (1U << 3);
++		__builtin_arm_dmb(0xf);
++		*dtm1 = (*dtm1 & ~0x3FFFU) | 0x3F2EU;
++		__builtin_arm_dmb(0xf);
++	}
++	if (merlinx_musb_base) {
++		musb_write32(0xA4U, 0x00000000U);
++		musb_write16(MUSB_INTRTXE, 0x0000U);
++		musb_write16(MUSB_INTRRXE, 0x0000U);
++		musb_write8(MUSB_INTRUSBE, 0x00U);
++		(void)musb_read16(MUSB_INTRTX);
++		(void)musb_read16(MUSB_INTRRX);
++		(void)musb_read8(MUSB_INTRUSB);
++		musb_write8(MUSB_INDEX, 0);
++		musb_write8(MUSB_FADDR, 0);
++		uint8_t devctl = musb_read8(MUSB_DEVCTL);
++		if (devctl & 0x04U)
++			musb_write8(MUSB_DEVCTL, devctl & ~0x05U);
++		musb_write8(MUSB_POWER, MUSB_POWER_HSENAB | MUSB_POWER_SOFTCONN);
++		musb_write16(MUSB_CSR0, MUSB_CSR0_FLUSHFIFO | MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_SVDSETUPEND);
++	}
++}
++
++static const uint8_t merlinx_usb_dev_desc[18] = {
++	18, 0x01, 0x00, 0x02, 0xFF, 0x42, 0x01, 64,
++	0xAC, 0x05, 0xA8, 0x12, 0x01, 0x01, 1, 2, 3, 1
++};
++
++static const uint8_t merlinx_usb_cfg_desc[18] = {
++	9, 0x02, 18, 0x00, 1, 1, 0, 0x80, 250,
++	9, 0x04, 0, 0, 0, 0xFF, 0x42, 0x01, 2
++};
++
++static const uint8_t merlinx_usb_ms_os_str[18] = {
++	18, 0x03,
++	'M', 0, 'S', 0, 'F', 0, 'T', 0, '1', 0, '0', 0, '0', 0,
++	0xA0, 0x00
++};
++
++static const uint8_t merlinx_usb_ms_compat_id[40] = {
++	0x28, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, 0x00, 0x01,
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	0x00, 0x01,
++	'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++	0x00, 0x00, 0x00, 0x00, 0x00, 0x00
++};
++
++static uint32_t
++native_musb_make_ascii_str_desc(const char *ascii, uint8_t *out, uint32_t max_len)
++{
++	uint32_t n = 0;
++	while (ascii[n] && (2U + (n + 1U) * 2U) <= max_len && n < 62U)
++		n++;
++	uint32_t total = 2U + n * 2U;
++	out[0] = (uint8_t)total;
++	out[1] = 0x03U;
++	for (uint32_t i = 0; i < n; i++) {
++		out[2U + i * 2U] = (uint8_t)ascii[i];
++		out[3U + i * 2U] = 0;
++	}
++	return total;
++}
++
++static void
++native_musb_ep0_fifo_write(const uint8_t *src, uint32_t len)
++{
++	for (uint32_t i = 0; i < len; i++) {
++		*(volatile uint8_t *)(merlinx_musb_base + MUSB_FIFO0) = src[i];
++	}
++	__builtin_arm_dmb(0xf);
++}
++
++static void
++native_musb_ep0_fifo_read(uint8_t *dst, uint32_t len)
++{
++	for (uint32_t i = 0; i < len; i++) {
++		dst[i] = *(volatile uint8_t *)(merlinx_musb_base + MUSB_FIFO0);
++	}
++	__builtin_arm_dmb(0xf);
++}
++
++static void
++native_musb_ep0_pump_tx(void)
++{
++	if (!merlinx_ep0_tx_active)
++		return;
++	musb_write8(MUSB_INDEX, 0);
++	uint16_t csr0 = musb_read16(MUSB_CSR0);
++	if (csr0 & MUSB_CSR0_TXPKTRDY)
++		return;
++	uint32_t rem = (merlinx_ep0_tx_len > merlinx_ep0_tx_off) ? (merlinx_ep0_tx_len - merlinx_ep0_tx_off) : 0;
++	uint32_t chunk = (rem > 64U) ? 64U : rem;
++	if (chunk > 0)
++		native_musb_ep0_fifo_write(merlinx_ep0_tx_buf + merlinx_ep0_tx_off, chunk);
++	merlinx_ep0_tx_off += chunk;
++	if (merlinx_ep0_tx_off >= merlinx_ep0_tx_len) {
++		merlinx_ep0_tx_active = FALSE;
++		musb_write16(MUSB_CSR0, MUSB_CSR0_TXPKTRDY | MUSB_CSR0_P_DATAEND);
++	} else {
++		musb_write16(MUSB_CSR0, MUSB_CSR0_TXPKTRDY);
++	}
++}
++
++static void
++native_musb_ep0_start_tx(const void *data, uint32_t len, uint16_t wLength)
++{
++	if (len > wLength)
++		len = wLength;
++	if (len > sizeof(merlinx_ep0_tx_buf))
++		len = sizeof(merlinx_ep0_tx_buf);
++	if (len > 0 && data != merlinx_ep0_tx_buf)
++		memcpy(merlinx_ep0_tx_buf, data, len);
++	merlinx_ep0_tx_len = len;
++	merlinx_ep0_tx_off = 0;
++	merlinx_ep0_tx_active = TRUE;
++	native_musb_ep0_pump_tx();
++}
++
++static void
++native_musb_handle_setup(const uint8_t setup[8])
++{
++	uint8_t bmRequestType = setup[0];
++	uint8_t bRequest = setup[1];
++	uint16_t wValue = (uint16_t)setup[2] | ((uint16_t)setup[3] << 8);
++	uint16_t wIndex = (uint16_t)setup[4] | ((uint16_t)setup[5] << 8);
++	uint16_t wLength = (uint16_t)setup[6] | ((uint16_t)setup[7] << 8);
++
++	merlinx_usb_setups++;
++	merlinx_ep0_tx_active = FALSE;
++	merlinx_ep0_rx_expected = 0;
++
++	if ((bmRequestType & 0x60U) == 0x00U) {
++		switch (bRequest) {
++		case 0x00: {
++			uint8_t status_resp[2] = {0x00, 0x00};
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			native_musb_ep0_start_tx(status_resp, 2, wLength);
++			return;
++		}
++		case 0x01:
++		case 0x03:
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
++			return;
++		case 0x05:
++			merlinx_usb_pending_addr = (uint8_t)(wValue & 0x7FU);
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
++			return;
++		case 0x06: {
++			uint8_t dtype = (uint8_t)(wValue >> 8);
++			uint8_t didx = (uint8_t)(wValue & 0xFFU);
++			if (dtype == 0x01U) {
++				musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++				native_musb_ep0_start_tx(merlinx_usb_dev_desc, sizeof(merlinx_usb_dev_desc), wLength);
++				return;
++			} else if (dtype == 0x02U) {
++				musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++				native_musb_ep0_start_tx(merlinx_usb_cfg_desc, sizeof(merlinx_usb_cfg_desc), wLength);
++				return;
++			} else if (dtype == 0x03U) {
++				if (didx == 0) {
++					static const uint8_t lang_desc[4] = {4, 0x03, 0x09, 0x04};
++					musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++					native_musb_ep0_start_tx(lang_desc, sizeof(lang_desc), wLength);
++					return;
++				} else if (didx == 0xEEU) {
++					musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++					native_musb_ep0_start_tx(merlinx_usb_ms_os_str, sizeof(merlinx_usb_ms_os_str), wLength);
++					return;
++				} else {
++					const char *str = "Merlinx XNU";
++					if (didx == 1)
++						str = "UniXNU";
++					else if (didx == 2)
++						str = "Merlinx XNU Diag";
++					else if (didx == 3)
++						str = "MERLINX-MT6768-01";
++					uint32_t slen = native_musb_make_ascii_str_desc(str, merlinx_ep0_tx_buf, 128);
++					musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++					native_musb_ep0_start_tx(merlinx_ep0_tx_buf, slen, wLength);
++					return;
++				}
++			} else if (dtype == 0x06U) {
++				static const uint8_t qual_desc[10] = {10, 0x06, 0x00, 0x02, 0xFF, 0x42, 0x01, 64, 1, 0};
++				musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++				native_musb_ep0_start_tx(qual_desc, sizeof(qual_desc), wLength);
++				return;
++			}
++			break;
++		}
++		case 0x08:
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			native_musb_ep0_start_tx(&merlinx_usb_config, 1, wLength);
++			return;
++		case 0x09:
++			merlinx_usb_config = (uint8_t)(wValue & 0xFFU);
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
++			return;
++		case 0x0A: {
++			uint8_t alt = 0;
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			native_musb_ep0_start_tx(&alt, 1, wLength);
++			return;
++		}
++		case 0x0B:
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
++			return;
++		}
++	}
++
++	if ((bmRequestType & 0x60U) == 0x40U) {
++		if (bRequest == 0xA0U && wIndex == 0x0004U) {
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			native_musb_ep0_start_tx(merlinx_usb_ms_compat_id, sizeof(merlinx_usb_ms_compat_id), wLength);
++			return;
++		} else if (bRequest == 0xF0U) {
++			uint64_t ns = 0;
++			absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
++			struct merlinx_usb_status_pkt st = {
++				.magic = 0x4D584C47U,
++				.ring_size = MERLINX_LOG_RING_SIZE,
++				.write_seq = __atomic_load_n(&merlinx_log_write_seq, __ATOMIC_RELAXED),
++				.uptime_cs = ns / 10000000ULL,
++				.usb_polls = merlinx_usb_polls,
++				.usb_resets = merlinx_usb_resets,
++				.usb_setups = merlinx_usb_setups,
++				.cmd_seq = merlinx_cmd_seq,
++				.cmd_len = merlinx_cmd_out_len,
++				.faddr = musb_read8(MUSB_FADDR),
++				.power = musb_read8(MUSB_POWER),
++				.devctl = musb_read8(MUSB_DEVCTL),
++				.config = merlinx_usb_config,
++			};
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			native_musb_ep0_start_tx(&st, sizeof(st), wLength);
++			return;
++		} else if (bRequest == 0xF1U) {
++			uint32_t offset = ((uint32_t)wIndex << 16) | (uint32_t)wValue;
++			uint32_t count = (wLength > sizeof(merlinx_ep0_tx_buf)) ? sizeof(merlinx_ep0_tx_buf) : wLength;
++			for (uint32_t i = 0; i < count; i++) {
++				merlinx_ep0_tx_buf[i] = (uint8_t)merlinx_log_ring[(offset + i) & MERLINX_LOG_RING_MASK];
++			}
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			native_musb_ep0_start_tx(merlinx_ep0_tx_buf, count, wLength);
++			return;
++		} else if (bRequest == 0xF2U) {
++			if (wLength == 0) {
++				musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
++				native_musb_exec_command("help");
++			} else {
++				merlinx_ep0_rx_expected = (wLength > sizeof(merlinx_cmd_in) - 1) ?
++				    (sizeof(merlinx_cmd_in) - 1) : wLength;
++				merlinx_ep0_rx_off = 0;
++				merlinx_ep0_rx_req = 0xF2U;
++				musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			}
++			return;
++		} else if (bRequest == 0xF3U) {
++			uint32_t off = wValue;
++			uint32_t avail = (merlinx_cmd_out_len > off) ? (merlinx_cmd_out_len - off) : 0;
++			uint32_t count = (avail > wLength) ? wLength : avail;
++			if (count > sizeof(merlinx_ep0_tx_buf))
++				count = sizeof(merlinx_ep0_tx_buf);
++			if (count > 0)
++				memcpy(merlinx_ep0_tx_buf, merlinx_cmd_out + off, count);
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			native_musb_ep0_start_tx(merlinx_ep0_tx_buf, count, wLength);
++			return;
++		}
++	}
++
++	musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_SENDSTALL);
++}
++
++static void
++native_musb_poll_step(void)
++{
++	if (!merlinx_musb_base)
++		return;
++	merlinx_usb_polls++;
++
++	uint8_t intrusb = musb_read8(MUSB_INTRUSB);
++	(void)musb_read16(MUSB_INTRTX);
++	(void)musb_read16(MUSB_INTRRX);
++
++	if (intrusb & MUSB_INTR_RESET) {
++		merlinx_usb_resets++;
++		merlinx_usb_config = 0;
++		merlinx_usb_pending_addr = 0;
++		merlinx_ep0_tx_active = FALSE;
++		merlinx_ep0_rx_expected = 0;
++		musb_write8(MUSB_FADDR, 0);
++		musb_write8(MUSB_INDEX, 0);
++		musb_write16(MUSB_CSR0, MUSB_CSR0_FLUSHFIFO | MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_SVDSETUPEND);
++	}
++
++	uint8_t power = musb_read8(MUSB_POWER);
++	if ((power & (MUSB_POWER_SOFTCONN | MUSB_POWER_HSENAB)) != (MUSB_POWER_SOFTCONN | MUSB_POWER_HSENAB)) {
++		musb_write8(MUSB_POWER, MUSB_POWER_SOFTCONN | MUSB_POWER_HSENAB);
++	}
++
++	musb_write8(MUSB_INDEX, 0);
++	uint16_t csr0 = musb_read16(MUSB_CSR0);
++
++	if (csr0 & MUSB_CSR0_P_SENTSTALL) {
++		musb_write16(MUSB_CSR0, csr0 & ~MUSB_CSR0_P_SENTSTALL);
++		merlinx_ep0_tx_active = FALSE;
++		merlinx_ep0_rx_expected = 0;
++		csr0 = musb_read16(MUSB_CSR0);
++	}
++
++	if (csr0 & MUSB_CSR0_P_SETUPEND) {
++		musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDSETUPEND);
++		merlinx_ep0_tx_active = FALSE;
++		merlinx_ep0_rx_expected = 0;
++		csr0 = musb_read16(MUSB_CSR0);
++	}
++
++	if (merlinx_usb_pending_addr != 0 && !merlinx_ep0_tx_active &&
++	    (csr0 & (MUSB_CSR0_TXPKTRDY | MUSB_CSR0_RXPKTRDY)) == 0) {
++		musb_write8(MUSB_FADDR, merlinx_usb_pending_addr);
++		merlinx_usb_pending_addr = 0;
++	}
++
++	if (merlinx_ep0_tx_active) {
++		native_musb_ep0_pump_tx();
++		return;
++	}
++
++	if (csr0 & MUSB_CSR0_RXPKTRDY) {
++		uint8_t cnt = musb_read8(MUSB_COUNT0);
++		if (merlinx_ep0_rx_expected > 0) {
++			uint8_t tmp[64];
++			uint32_t rd = (cnt > sizeof(tmp)) ? sizeof(tmp) : cnt;
++			native_musb_ep0_fifo_read(tmp, rd);
++			for (uint32_t i = 0; i < rd && merlinx_ep0_rx_off < merlinx_ep0_rx_expected; i++) {
++				merlinx_cmd_in[merlinx_ep0_rx_off++] = (char)tmp[i];
++			}
++			if (merlinx_ep0_rx_off >= merlinx_ep0_rx_expected || rd < 64U) {
++				merlinx_cmd_in[merlinx_ep0_rx_off] = 0;
++				merlinx_ep0_rx_expected = 0;
++				musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY | MUSB_CSR0_P_DATAEND);
++				if (merlinx_ep0_rx_req == 0xF2U) {
++					merlinx_ep0_rx_req = 0;
++					native_musb_exec_command(merlinx_cmd_in);
++				}
++			} else {
++				musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++			}
++		} else if (cnt == 8U) {
++			uint8_t setup[8];
++			native_musb_ep0_fifo_read(setup, 8);
++			native_musb_handle_setup(setup);
++		} else {
++			uint8_t discard[64];
++			native_musb_ep0_fifo_read(discard, cnt > 64U ? 64U : cnt);
++			musb_write16(MUSB_CSR0, MUSB_CSR0_P_SVDRXPKTRDY);
++		}
++	}
++}
++
++static void
++native_musb_poll_timer(void *arg0 __unused, void *arg1 __unused)
++{
++	for (unsigned int i = 0; i < 32; i++) {
++		native_musb_poll_step();
++		if (!merlinx_ep0_tx_active && (musb_read16(MUSB_CSR0) & MUSB_CSR0_RXPKTRDY) == 0)
++			break;
++	}
++
++	if ((merlinx_usb_polls & 0x3FFU) == 0) {
++		char uline[48];
++		musb_write8(MUSB_INDEX, 0);
++		snprintf(uline, sizeof(uline), "U0 p:%02x a:%u c:%u s:%u r:%u %lluK",
++		    musb_read8(MUSB_POWER),
++		    musb_read8(MUSB_FADDR),
++		    merlinx_usb_config,
++		    merlinx_usb_setups % 10000U,
++		    merlinx_usb_resets % 100U,
++		    (unsigned long long)(merlinx_log_write_seq >> 10));
++		native_gop_text(27, uline);
++	}
++
++	uint64_t deadline = 0;
++	clock_interval_to_deadline(2, (uint32_t)NSEC_PER_MSEC, &deadline);
++	thread_call_enter_delayed(merlinx_musb_call, deadline);
++}
++
++static void
++native_musb_start(void)
++{
++	if (merlinx_musb_inited)
++		return;
++	merlinx_musb_inited = TRUE;
++
++	vm_offset_t musb_va   = ml_io_map(0x11200000ULL, 0x10000ULL);
++	vm_offset_t u2phy_va  = ml_io_map(0x11CC0000ULL, 0x10000ULL);
++	vm_offset_t topck_va  = ml_io_map(0x10000000ULL, 0x1000ULL);
++	vm_offset_t infra_va  = ml_io_map(0x10001000ULL, 0x1000ULL);
++	vm_offset_t peri_va   = ml_io_map(0x10003000ULL, 0x1000ULL);
++	vm_offset_t pwrap_va  = ml_io_map(0x1000D000ULL, 0x1000ULL);
++
++	merlinx_musb_base    = (volatile uint8_t *)musb_va;
++	merlinx_u2phy_base   = u2phy_va ? (volatile uint8_t *)(u2phy_va + 0x800ULL) : NULL;
++	merlinx_topck_base   = (volatile uint8_t *)topck_va;
++	merlinx_infra_base   = (volatile uint8_t *)infra_va;
++	merlinx_pericfg_base = (volatile uint8_t *)peri_va;
++	merlinx_pwrap_base   = (volatile uint8_t *)pwrap_va;
++
++	if (!merlinx_musb_base || !merlinx_u2phy_base) {
++		native_gop_text(27, "U0 MAP FAIL");
++		return;
++	}
++
++	native_musb_phy_and_clk_init();
++	native_musb_log_printf("[MUSB] Mode A EP0 PIO initialized: musb=%p u2phy=%p ring=%p (%u KiB)\n",
++	    (void *)merlinx_musb_base, (void *)merlinx_u2phy_base,
++	    (void *)merlinx_log_ring, MERLINX_LOG_RING_SIZE >> 10);
++
++	char uline[48];
++	musb_write8(MUSB_INDEX, 0);
++	snprintf(uline, sizeof(uline), "U0 p:%02x a:%u c:%u s:%u r:%u %lluK",
++	    musb_read8(MUSB_POWER), musb_read8(MUSB_FADDR), merlinx_usb_config,
++	    merlinx_usb_setups, merlinx_usb_resets,
++	    (unsigned long long)(merlinx_log_write_seq >> 10));
++	native_gop_text(27, uline);
++
++	merlinx_musb_call = thread_call_allocate(native_musb_poll_timer, NULL);
++	if (merlinx_musb_call) {
++		uint64_t deadline = 0;
++		clock_interval_to_deadline(2, (uint32_t)NSEC_PER_MSEC, &deadline);
++		thread_call_enter_delayed(merlinx_musb_call, deadline);
++	}
++}
++
 +void
 +native_diag_focus_start(void)
 +{
 +	unsigned int i;
++	native_musb_start();
 +	if (native_diag_focus_call)
 +		return;
 +	if (!native_diag_focus_configured)
