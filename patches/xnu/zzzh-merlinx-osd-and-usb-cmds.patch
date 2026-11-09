@@ -1,0 +1,98 @@
+diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -7353,8 +7353,12 @@ static const unsigned long long native_gop_font[] = {
+ static volatile unsigned int native_diag_seq = 0;
+ char native_diag_ring[64][48];
++extern volatile uint32_t native_legacy_retired_frames __attribute__((weak));
+ 
+ static void
+ native_gop_draw_span(uint32_t x0, uint32_t x1, uint32_t y, unsigned scale, uint32_t fg, const char *text)
+ {
++	if (&native_legacy_retired_frames != NULL && native_legacy_retired_frames >= 6) {
++		return;
++	}
+ 	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600)
+ 		return;
+diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -2905,7 +2905,29 @@
+ 	    frames ? (unsigned long long)frames[11] : 0ULL);
+ }
+ 
+-static void
++extern void merlinx_usb_cmd_disp(void) __attribute__((weak));
++extern void merlinx_usb_cmd_touch(void) __attribute__((weak));
++extern void merlinx_usb_cmd_tap(uint32_t x, uint32_t y) __attribute__((weak));
++extern void merlinx_usb_cmd_swipe(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2) __attribute__((weak));
++extern void merlinx_usb_cmd_home(void) __attribute__((weak));
++extern void merlinx_usb_cmd_cpufreq(void) __attribute__((weak));
++
++static uint32_t
++native_musb_parse_u32(const char **p)
++{
++	const char *s = *p;
++	uint32_t v = 0;
++	while (*s == ' ' || *s == '\t')
++		s++;
++	while (*s >= '0' && *s <= '9') {
++		v = v * 10u + (uint32_t)(*s - '0');
++		s++;
++	}
++	*p = s;
++	return v;
++}
++
++void
+ native_musb_cmd_append(const char *fmt, ...)
+ {
+ 	uint32_t cur = merlinx_cmd_out_len;
+@@ -3142,7 +3164,13 @@
+ 		    "  ring              Dump the 64-slot screen event ring + PS summary\n"
+ 		    "  kill <pid> [sig]  Send signal (default 9=SIGKILL) to PID\n"
+ 		    "  icblock <0|1>     Set iconservicesagent spawn block (currently %u)\n"
+-		    "  musb              Dump MUSB + U2PHY hardware register state\n",
++		    "  musb              Dump MUSB + U2PHY hardware register state\n"
++		    "  disp              Fixup & dump MT6768 DISP_OVL0/2L + GOP scanout state\n"
++		    "  touch             Dump FocalTech FT8719 SPI0 + IOHIDDevice touch state\n"
++		    "  tap <x> <y>       Inject touch tap at pixel (x, y) in 1080x2340\n"
++		    "  swipe <x1> <y1> <x2> <y2>  Inject touch swipe gesture\n"
++		    "  home              Inject Home button + bottom-edge unlock swipe\n"
++		    "  cpufreq           Boost & dump MT6768 ARMPLL_LL/ARMPLL_L CPU clocks\n",
+ 		    native_diag_block_iconservices);
+ 	} else if (strncmp(cmd, "ps", 2) == 0) {
+ 		native_musb_cmd_append("PID   THR  NAME                 XPC_TAG\n");
+@@ -3270,6 +3298,32 @@
+ 		    "STATS: polls=%u resets=%u setups=%u cfg=%u\n",
+ 		    faddr, power, devctl, csr0, u2p_1c, u2p_68, u2p_6c,
+ 		    merlinx_usb_polls, merlinx_usb_resets, merlinx_usb_setups, merlinx_usb_config);
++	} else if (strncmp(cmd, "disp", 4) == 0) {
++		if (merlinx_usb_cmd_disp)
++			merlinx_usb_cmd_disp();
++	} else if (strncmp(cmd, "touch", 5) == 0) {
++		if (merlinx_usb_cmd_touch)
++			merlinx_usb_cmd_touch();
++	} else if (strncmp(cmd, "tap", 3) == 0 && (cmd[3] == ' ' || cmd[3] == '\t')) {
++		const char *p = cmd + 3;
++		uint32_t x = native_musb_parse_u32(&p);
++		uint32_t y = native_musb_parse_u32(&p);
++		if (merlinx_usb_cmd_tap)
++			merlinx_usb_cmd_tap(x, y);
++	} else if (strncmp(cmd, "swipe", 5) == 0 && (cmd[5] == ' ' || cmd[5] == '\t')) {
++		const char *p = cmd + 5;
++		uint32_t x1 = native_musb_parse_u32(&p);
++		uint32_t y1 = native_musb_parse_u32(&p);
++		uint32_t x2 = native_musb_parse_u32(&p);
++		uint32_t y2 = native_musb_parse_u32(&p);
++		if (merlinx_usb_cmd_swipe)
++			merlinx_usb_cmd_swipe(x1, y1, x2, y2);
++	} else if (strncmp(cmd, "home", 4) == 0) {
++		if (merlinx_usb_cmd_home)
++			merlinx_usb_cmd_home();
++	} else if (strncmp(cmd, "cpufreq", 7) == 0) {
++		if (merlinx_usb_cmd_cpufreq)
++			merlinx_usb_cmd_cpufreq();
+ 	} else {
+ 		native_musb_cmd_append("Unknown command '%s' (try 'help')\n", cmd);
+ 	}

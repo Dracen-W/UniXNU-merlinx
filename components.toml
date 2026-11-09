@@ -547,3 +547,23 @@ runtime_identifiers = ["NativeMaliMetal.bundle", "NativeMaliKmod"]
 build_stage = "payload"
 build = []
 outputs = []
+
+
+[[component]]
+id = "FocalTechTouch"
+kind = "driver"
+function = "FT8719 SPI touch protocol, firmware loader and HID contact snapshot"
+scope = "board"
+repository = "https://github.com/Dracen-W/FocalTechTouch-FT8719.git"
+revision = "d4d9df40c7cfef25a487abcffc890dbf6126da90"
+path = "drivers/FocalTechTouch"
+hardware = ["FocalTech FT8719", "MediaTek MT6768 SPI0"]
+os_abi = ["ipados-17.7.11-21H461"]
+board_dependencies = ["MT6768 SPI0 transfer, GPIO92 reset, GPIO1 interrupt and Xinli firmware"]
+verified_devices = []
+dependencies = []
+source_files = ["FtsProtocol.c", "FtsTouchCore.c", "FtsHid.c", "FtsProbe.cpp"]
+runtime_identifiers = ["FtsProbe.cpp", "fts_touch_probe", "fts_hid_publish"]
+build_stage = "embedded"
+build = []
+outputs = []

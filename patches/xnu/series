@@ -79,3 +79,4 @@ zzzd-owner-diag-exec-ps.patch
 zzze-owner-diag-ui-trace.patch
 zzzf-workqueue-parallelism.patch
 zzzg-musb-build-fixes.patch
+zzzh-merlinx-osd-and-usb-cmds.patch

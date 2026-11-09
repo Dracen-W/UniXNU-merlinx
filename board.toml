@@ -11,7 +11,7 @@ kit = "merlinx"
 os_profile = "ipados-17.7.11-21H461"
 
 [components]
-include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "AppleKeyStoreState", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52", "GopFramebuffer"]
+include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "AppleKeyStoreState", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52", "GopFramebuffer", "FocalTechTouch"]
 
 # The target is the unchanged iPad7,1 iPadOS 17.7.11 restore image for the
 # first kernel bring-up. The final phone target can switch to iOS later.
@@ -112,7 +112,7 @@ title = "UniXNU"
 dram_size = "0x100000000"
 panic_screen = true
 timeout = 3
-kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=2", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "merlinx-gop-test=1", "boot-ui-focus=lsd", "boot-ui-focus2=SpringBoard", "boot-ui-focus3=backboardd", "boot-ui-focus4=lsd", "boot-ui-chrono=1"]
+kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=2", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "fts-touch=3", "sheng-touch-hid=1", "sheng-fb-diff=1", "boot-ui-focus=lsd", "boot-ui-focus2=SpringBoard", "boot-ui-focus3=backboardd", "boot-ui-focus4=lsd", "boot-ui-chrono=1"]
 text_fixups = [
   "dyld_shared_cache_arm64.15,421e8bc,28ad1bb0008544f9,c0035fd6008544f9",
   "dyld_shared_cache_arm64.13,1b05bec,44008052,24008052",

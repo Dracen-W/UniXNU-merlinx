@@ -14,12 +14,13 @@ repositories = [
   { name = "NativeEmmc", url = "https://github.com/Dracen-W/NativeEmmc", role = "storage" },
   { name = "Mali-G52", url = "https://github.com/Dracen-W/Mali-G52", role = "gpu-kernel" },
   { name = "MaliMetal", url = "https://github.com/Dracen-W/MaliMetal", role = "gpu-userland" },
+  { name = "FocalTechTouch-FT8719", url = "https://github.com/Dracen-W/FocalTechTouch-FT8719", role = "touch" },
 ]
 
 [[area]]
 id = "configuration"
 status = "device-verified"
-components = ["ArmDTPlatform", "ArmCpu", "SoftwareAES", "DarwinBoot", "XnuPrelink"]
+components = ["ArmDTPlatform", "ArmCpu", "SoftwareAES", "AppleKeyStoreState", "DarwinBoot", "XnuPrelink"]
 paths = ["board.toml", "configs/**", "components.toml", ".github/**"]
 inputs = ["MT6768 board resources, PMIC keys, p33 boot partition and the iPadOS 17.7.11 21H461 restore profile."]
 configuration = ["board.toml selects merlinx_defconfig, the iPad7,1 restore profile, the p33 boot layout and the native eMMC root path."]
@@ -102,8 +103,8 @@ evidence = [
 [[area]]
 id = "display"
 status = "implemented"
-components = []
-paths = ["patches/xnu/offline-owner-systemos-mount.patch", "scripts/xnu-panic-screen.c", "configs/merlinx_defconfig"]
+components = ["GopFramebuffer"]
+paths = ["patches/xnu/offline-owner-systemos-mount.patch", "scripts/xnu-panic-screen.c", "configs/merlinx_defconfig", "package/MerlinxLegacyDisplay.cpp", "scripts/build-gop-legacy-display.py"]
 inputs = ["The UEFI GOP framebuffer at 1080x2340 and the panning offset observed on the panel."]
 configuration = ["The kernel uses the retained GOP framebuffer for panic and boot-stage text. Userland display ownership is not configured."]
 procedure = ["Flash a diagnostic image and read the status lines from the panel."]
@@ -117,17 +118,19 @@ evidence = [
 
 [[area]]
 id = "input"
-status = "planned"
-components = []
-paths = ["package/**", "scripts/**", "dts/**"]
-inputs = ["PMIC keys, volume-up, volume-down and power routing."]
-configuration = ["The UEFI menu uses volume-down to scroll and volume-up or power to select. No userland input path is configured."]
-procedure = ["Measure key events in the UEFI menu and later in userland."]
-findings = ["The PMIC mask covers power and volume-up, so both keys select a menu entry."]
+status = "implemented"
+components = ["FocalTechTouch"]
+paths = ["drivers/FocalTechTouch/**", "package/**", "scripts/**", "dts/**"]
+inputs = ["FocalTech FT8719 on SPI0 CS0 (GPIO85..88, reset GPIO92, IRQ GPIO1), Xinli panel firmware and PMIC/GPIO keys."]
+configuration = ["drivers/FocalTechTouch is registered as a submodule and built with package/MerlinxHidInput.cpp and package/MerlinxLegacyDisplay.cpp into libNativeLegacyDisplay.late.a; fts-touch=3 and sheng-touch-hid=1 enable the touch probe and IOHIDDevice bridge."]
+procedure = ["Boot with fts-touch=3 and sheng-touch-hid=1, inspect [FTS-HW] and [FTS-HID] lines over USB serial or run the touch USB command, and test touch gestures on Lock Screen."]
+findings = ["The FT8719 SPI protocol, Xinli PRAM firmware download and 10-contact seqlock snapshot bridge into IOHIDDevice (NativeHidInput) for backboardd."]
 completion = ["Touch or buttons produce stable HID events in userland."]
-limits = ["No userland touch or HID provider is implemented."]
-next_action = ["Define the input provider after the userland display path."]
-evidence = []
+limits = ["Real-hardware touch coordinate orientation and latency remain to be confirmed on the phone."]
+next_action = ["Verify FT8719 firmware download and Lock Screen swipe-to-unlock on hardware."]
+evidence = [
+  { kind = "source", reference = "drivers/FocalTechTouch/FtsProbe.cpp", result = "Staged FT8719 SPI probe, firmware loader and HID contact snapshot are wired to the board SPI0 and NativeHidInput bridge." },
+]
 
 [[area]]
 id = "gpu"
