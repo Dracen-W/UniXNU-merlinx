@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
-// Bounded offline original lifecycle instrument + MT6768 OVL0 scanout fixup + FocalTech FT8719 SPI0 glue.
+// Bounded offline original lifecycle instrument + MT6768 OVL0 L0/L3 scanout alignment + FocalTech FT8719 SPI0 glue.
 #include <IOKit/IOPlatformExpert.h>
 #include <IOKit/IODeviceMemory.h>
 #include <IOKit/IODeviceTreeSupport.h>
@@ -43,6 +43,7 @@ extern volatile uint32_t fts_touch_contacts, fts_touch_model, fts_touch_version;
 extern volatile int fts_touch_error;
 extern volatile int fts_touch_last_x, fts_touch_last_y;
 
+extern kmod_info_t g_kernel_kmod_info;
 void merlinx_hid_static_init(void) __asm__("__GLOBAL__sub_I_MerlinxHidInput.cpp");
 IOService *native_hid_input_allocate(void);
 IOService *native_hid_touch_allocate(void);
@@ -58,6 +59,7 @@ void merlinx_hid_get_stats(
     uint8_t *outLastContacts,
     uint8_t *outLastFlags);
 extern volatile uint32_t native_legacy_retired_frames;
+volatile void *merlinx_get_active_scanout_va(volatile void *default_dst);
 }
 
 static volatile uint32_t gInUsbCmd = 0;
@@ -83,52 +85,70 @@ extern "C" void merlinx_usb_log_line(const char *fmt, ...)
 namespace {
 
 static uint32_t gMerlinxGopOsdForce = 0;
+static int32_t  gMerlinxRowOffset   = 0;
 
 // MT6768 physical addresses
 static constexpr uint64_t kMtkMblockFbBasePa  = 0x7cdb0000ULL;
 static constexpr uint64_t kMtkMblockFbSize    = 0x02250000ULL;
 static constexpr uint64_t kMtkSimpleFbBasePa  = 0x7d6b0020ULL;
-static constexpr uint64_t kMtkSimpleFbSize    = 0x009a3f80ULL; // 1088 * 2340 * 4 bytes
+static constexpr uint64_t kMtkSimpleFbSize    = 0x009b6400ULL; // 1088 * 2340 * 4 bytes
+
+// Dedicated 16 KiB uncached DMA bounce window at the tail of mblock-15-framebuffer for SPI0 DMA
+static constexpr uint32_t kMtkSpiDmaTxPa      = 0x7effc000U;
+static constexpr uint32_t kMtkSpiDmaRxPa      = 0x7effe000U;
+static constexpr uint32_t kMtkSpiDmaBufBytes  = 0x00002000U; // 8 KiB each
 
 static constexpr uint64_t kMtkDispsysBasePa   = 0x14000000ULL;
 static constexpr uint64_t kMtkDispsysSize     = 0x00020000ULL;
-static constexpr uint32_t kMtkMutexOff        = 0x00001000U;
 static constexpr uint32_t kMtkOvl0Off         = 0x0000b000U;
 static constexpr uint32_t kMtkOvl02LOff       = 0x0000c000U;
 
-static constexpr uint32_t kOvlEn              = 0x00cU;
-static constexpr uint32_t kOvlRoiSize         = 0x020U;
 static constexpr uint32_t kOvlSrcCon          = 0x02cU;
+
 static constexpr uint32_t kOvlL0Con           = 0x030U;
-static constexpr uint32_t kOvlL0Srckey        = 0x034U;
 static constexpr uint32_t kOvlL0SrcSize       = 0x038U;
 static constexpr uint32_t kOvlL0Offset        = 0x03cU;
 static constexpr uint32_t kOvlL0Pitch         = 0x044U;
-static constexpr uint32_t kOvlDatapathExtCon  = 0x324U;
 static constexpr uint32_t kOvlL0Addr          = 0xf40U;
+
 static constexpr uint32_t kOvlL1Addr          = 0xf60U;
 static constexpr uint32_t kOvlL2Addr          = 0xf80U;
+
+static constexpr uint32_t kOvlL3Con           = 0x090U;
+static constexpr uint32_t kOvlL3SrcSize       = 0x098U;
+static constexpr uint32_t kOvlL3Offset        = 0x09cU;
+static constexpr uint32_t kOvlL3Pitch         = 0x0a4U;
 static constexpr uint32_t kOvlL3Addr          = 0xfa0U;
 
+static constexpr uint32_t kOvlDatapathExtCon  = 0x324U;
+static constexpr uint32_t kOvlEL0Addr         = 0xfd0U;
+
+static constexpr uint64_t kMtkTopckgenPa      = 0x10000000ULL;
 static constexpr uint64_t kMtkInfracfgAoPa    = 0x10001000ULL;
+static constexpr uint64_t kMtkPericfgPa       = 0x10003000ULL;
 static constexpr uint64_t kMtkGpioBasePa      = 0x10005000ULL;
-static constexpr uint64_t kMtkApmixedBasePa   = 0x1000c000ULL;
-static constexpr uint64_t kMtkPwrapBasePa     = 0x1000d000ULL;
 static constexpr uint64_t kMtkSpi0BasePa      = 0x1100a000ULL;
 
 static constexpr uint32_t kSpiCfg0Reg         = 0x0000U;
 static constexpr uint32_t kSpiCfg1Reg         = 0x0004U;
+static constexpr uint32_t kSpiTxSrcReg        = 0x0008U;
+static constexpr uint32_t kSpiRxDstReg        = 0x000cU;
 static constexpr uint32_t kSpiTxDataReg       = 0x0010U;
 static constexpr uint32_t kSpiRxDataReg       = 0x0014U;
 static constexpr uint32_t kSpiCmdReg          = 0x0018U;
 static constexpr uint32_t kSpiStatus0Reg      = 0x001cU;
+static constexpr uint32_t kSpiStatus1Reg      = 0x0020U;
 static constexpr uint32_t kSpiPadSelReg       = 0x0024U;
 static constexpr uint32_t kSpiCfg2Reg         = 0x0028U;
+static constexpr uint32_t kSpiTxSrc64Reg      = 0x002cU;
+static constexpr uint32_t kSpiRxDst64Reg      = 0x0030U;
 
 static constexpr uint32_t kSpiCmdAct          = (1U << 0);
 static constexpr uint32_t kSpiCmdResume       = (1U << 1);
 static constexpr uint32_t kSpiCmdRst          = (1U << 2);
 static constexpr uint32_t kSpiCmdPauseEn      = (1U << 4);
+static constexpr uint32_t kSpiCmdRxDma        = (1U << 10);
+static constexpr uint32_t kSpiCmdTxDma        = (1U << 11);
 static constexpr uint32_t kSpiCmdTxmsbf       = (1U << 12);
 static constexpr uint32_t kSpiCmdRxmsbf       = (1U << 13);
 static constexpr uint32_t kSpiFifoSize        = 32U;
@@ -139,54 +159,65 @@ static constexpr uint32_t kGpioSpi0Cs         = 86U;
 static constexpr uint32_t kGpioSpi0Mosi       = 87U;
 static constexpr uint32_t kGpioSpi0Clk        = 88U;
 static constexpr uint32_t kGpioTouchRst       = 92U;
-static constexpr uint32_t kGpioKeyVolDown     = 94U;
+
+static IODeviceMemory *gCarveoutMem = nullptr;
+static IOMemoryMap    *gCarveoutMap = nullptr;
+static volatile uint8_t *gCarveoutBase = nullptr;
 
 static IODeviceMemory *gDispsysMem = nullptr;
-static IOMemoryMap *gDispsysMap = nullptr;
+static IOMemoryMap    *gDispsysMap = nullptr;
 static volatile uint8_t *gDispsysBase = nullptr;
 
 static IODeviceMemory *gGpioMem = nullptr;
-static IOMemoryMap *gGpioMap = nullptr;
+static IOMemoryMap    *gGpioMap = nullptr;
 static volatile uint8_t *gGpioBase = nullptr;
 
+static IODeviceMemory *gTopckMem = nullptr;
+static IOMemoryMap    *gTopckMap = nullptr;
+static volatile uint8_t *gTopckBase = nullptr;
+
 static IODeviceMemory *gInfracfgMem = nullptr;
-static IOMemoryMap *gInfracfgMap = nullptr;
+static IOMemoryMap    *gInfracfgMap = nullptr;
 static volatile uint8_t *gInfracfgBase = nullptr;
 
+static IODeviceMemory *gPericfgMem = nullptr;
+static IOMemoryMap    *gPericfgMap = nullptr;
+static volatile uint8_t *gPericfgBase = nullptr;
+
 static IODeviceMemory *gSpi0Mem = nullptr;
-static IOMemoryMap *gSpi0Map = nullptr;
+static IOMemoryMap    *gSpi0Map = nullptr;
 static volatile uint8_t *gSpi0Base = nullptr;
 
-static IODeviceMemory *gApmixedMem = nullptr;
-static IOMemoryMap *gApmixedMap = nullptr;
-static volatile uint8_t *gApmixedBase = nullptr;
-
-static IODeviceMemory *gPwrapMem = nullptr;
-static IOMemoryMap *gPwrapMap = nullptr;
-static volatile uint8_t *gPwrapBase = nullptr;
+static uint64_t gActiveScanoutPa = kMtkSimpleFbBasePa;
+static volatile uint8_t *gActiveScanoutVa = nullptr;
+static bool gCarveoutBackgroundCleared = false;
 
 static uint32_t gOvl0BeforeSrcCon = 0;
+static uint32_t gOvl0BeforeDatapathExt = 0;
 static uint32_t gOvl0BeforeL0Con = 0;
 static uint32_t gOvl0BeforeL0Addr = 0;
 static uint32_t gOvl0BeforeL0Offset = 0;
 static uint32_t gOvl0BeforeL0SrcSize = 0;
 static uint32_t gOvl0BeforeL0Pitch = 0;
 static uint32_t gOvl0BeforeL1Addr = 0;
+static uint32_t gOvl0BeforeL2Addr = 0;
+static uint32_t gOvl0BeforeL3Con = 0;
+static uint32_t gOvl0BeforeL3Addr = 0;
+static uint32_t gOvl0BeforeL3Offset = 0;
+static uint32_t gOvl0BeforeL3SrcSize = 0;
+static uint32_t gOvl0BeforeL3Pitch = 0;
+static uint32_t gOvl0BeforeEL0Addr = 0;
 static uint32_t gOvl02LBeforeSrcCon = 0;
 static uint32_t gOvl02LBeforeL0Con = 0;
 static uint32_t gOvl02LBeforeL0Addr = 0;
 static uint32_t gOvl02LBeforeL1Addr = 0;
 static uint32_t gOvlFixupCount = 0;
 
-static uint32_t gSpiUseBitbang = 0;
 static uint32_t gSpiTransferCalls = 0;
 static uint32_t gSpiHwTimeouts = 0;
+static uint32_t gSpiDmaCalls = 0;
+static uint32_t gSpiBootResetInjected = 0;
 static int gFtsProbeResult = -999;
-static uint32_t gArmpllLlCon0 = 0;
-static uint32_t gArmpllLlCon1 = 0;
-static uint32_t gArmpllLCon0 = 0;
-static uint32_t gArmpllLCon1 = 0;
-static uint32_t gCpuBoostApplied = 0;
 static bool gTouchWorkerStarted = false;
 static bool gHidMetaRegistered = false;
 static IOService *gActiveHidService = nullptr;
@@ -238,6 +269,16 @@ static volatile uint8_t *mapMmioWindow(
     return reinterpret_cast<volatile uint8_t *>(map->getVirtualAddress());
 }
 
+static uint32_t mtkGpioGetMode(uint32_t pin)
+{
+    if (!gGpioBase) {
+        return 0;
+    }
+    uint32_t regOff = 0x300U + (pin / 8U) * 0x10U;
+    uint32_t shift = (pin % 8U) * 4U;
+    return (mmioRead32(gGpioBase, regOff) >> shift) & 0x7U;
+}
+
 static void mtkGpioSetMode(uint32_t pin, uint32_t mode)
 {
     if (!gGpioBase) {
@@ -281,46 +322,41 @@ static int mtkGpioGetIn(uint32_t pin)
     return ((val >> (pin % 32U)) & 1U) ? 1 : 0;
 }
 
-static void merlinxClearCarveoutSlice(uint64_t physStart, uint64_t byteLen)
+static void merlinxFillCarveoutRangeBlack(uint64_t startPa, uint64_t endPa)
 {
-    if (byteLen == 0) {
+    if (!gCarveoutBase || endPa <= startPa) {
         return;
     }
-    IODeviceMemory *mem = IODeviceMemory::withRange(
-        static_cast<IOPhysicalAddress>(physStart),
-        static_cast<IOByteCount>(byteLen));
-    if (!mem) {
+    if (startPa < kMtkMblockFbBasePa) {
+        startPa = kMtkMblockFbBasePa;
+    }
+    uint64_t maxEnd = kMtkMblockFbBasePa + kMtkMblockFbSize - 0x4000ULL; // keep top 16 KiB for SPI0 DMA
+    if (endPa > maxEnd) {
+        endPa = maxEnd;
+    }
+    if (endPa <= startPa) {
         return;
     }
-    IOMemoryMap *map = mem->map(kIOMapAnywhere | kIOMapInhibitCache);
-    if (map && map->getVirtualAddress()) {
-        volatile uint64_t *p64 = reinterpret_cast<volatile uint64_t *>(map->getVirtualAddress());
-        size_t words = static_cast<size_t>(byteLen / sizeof(uint64_t));
-        for (size_t i = 0; i < words; ++i) {
-            p64[i] = 0xFF000000FF000000ULL;
-        }
-        __asm__ volatile("dsb sy" ::: "memory");
+    uint64_t startOff = (startPa - kMtkMblockFbBasePa) & ~7ULL;
+    uint64_t endOff   = (endPa - kMtkMblockFbBasePa) & ~7ULL;
+    volatile uint64_t *p64 = reinterpret_cast<volatile uint64_t *>(gCarveoutBase + startOff);
+    size_t words = static_cast<size_t>((endOff - startOff) / sizeof(uint64_t));
+    for (size_t i = 0; i < words; ++i) {
+        p64[i] = 0xFF000000FF000000ULL;
     }
-    OSSafeReleaseNULL(map);
-    mem->release();
+    __asm__ volatile("dsb sy" ::: "memory");
 }
 
-// Reprogram MT6768 DISP_OVL0 (0x1400b000) and DISP_OVL0_2L (0x1400c000) to scan out
-// a single opaque BGRA8 layer from 0x7d6b0020 (offset 0, 1080x2340, stride 4352),
-// and wipe residual LK OEM/Android splash buffers in mblock-15-framebuffer.
-static void merlinxFixupMtkOvl(bool clearCarveout)
+// Inspect MT6768 DISP_OVL0 (0x1400b000) without disabling active layers (SRC=0x9 has L0 + L3 enabled!).
+// Resolve the true foreground scanout address (L3_ADDR / EL0_ADDR) and wipe the background L0 splash
+// buffer (0x7cdb0000) in DRAM to opaque black so OEM/Android logos never bleed through and the screen
+// never goes blank.
+static void merlinxFixupMtkOvl(bool wipeBackground)
 {
-    if (clearCarveout) {
-        if (kMtkSimpleFbBasePa > kMtkMblockFbBasePa) {
-            merlinxClearCarveoutSlice(kMtkMblockFbBasePa, kMtkSimpleFbBasePa - kMtkMblockFbBasePa);
-        }
-        uint64_t suffixStart = kMtkSimpleFbBasePa + kMtkSimpleFbSize;
-        uint64_t carveoutEnd = kMtkMblockFbBasePa + kMtkMblockFbSize;
-        if (carveoutEnd > suffixStart) {
-            merlinxClearCarveoutSlice(suffixStart, carveoutEnd - suffixStart);
-        }
+    if (!gCarveoutBase) {
+        gCarveoutBase = mapMmioWindow(
+            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap);
     }
-
     if (!gDispsysBase) {
         gDispsysBase = mapMmioWindow(
             kMtkDispsysBasePa, kMtkDispsysSize, &gDispsysMem, &gDispsysMap);
@@ -331,146 +367,117 @@ static void merlinxFixupMtkOvl(bool clearCarveout)
 
     volatile uint8_t *ovl0 = gDispsysBase + kMtkOvl0Off;
     volatile uint8_t *ovl02l = gDispsysBase + kMtkOvl02LOff;
-    volatile uint8_t *mutex = gDispsysBase + kMtkMutexOff;
 
     if (gOvlFixupCount == 0) {
-        gOvl0BeforeSrcCon    = mmioRead32(ovl0, kOvlSrcCon);
-        gOvl0BeforeL0Con     = mmioRead32(ovl0, kOvlL0Con);
-        gOvl0BeforeL0Addr    = mmioRead32(ovl0, kOvlL0Addr);
-        gOvl0BeforeL0Offset  = mmioRead32(ovl0, kOvlL0Offset);
-        gOvl0BeforeL0SrcSize = mmioRead32(ovl0, kOvlL0SrcSize);
-        gOvl0BeforeL0Pitch   = mmioRead32(ovl0, kOvlL0Pitch);
-        gOvl0BeforeL1Addr    = mmioRead32(ovl0, kOvlL1Addr);
+        gOvl0BeforeSrcCon      = mmioRead32(ovl0, kOvlSrcCon);
+        gOvl0BeforeDatapathExt = mmioRead32(ovl0, kOvlDatapathExtCon);
+        gOvl0BeforeL0Con       = mmioRead32(ovl0, kOvlL0Con);
+        gOvl0BeforeL0Addr      = mmioRead32(ovl0, kOvlL0Addr);
+        gOvl0BeforeL0Offset    = mmioRead32(ovl0, kOvlL0Offset);
+        gOvl0BeforeL0SrcSize   = mmioRead32(ovl0, kOvlL0SrcSize);
+        gOvl0BeforeL0Pitch     = mmioRead32(ovl0, kOvlL0Pitch);
+        gOvl0BeforeL1Addr      = mmioRead32(ovl0, kOvlL1Addr);
+        gOvl0BeforeL2Addr      = mmioRead32(ovl0, kOvlL2Addr);
+        gOvl0BeforeL3Con       = mmioRead32(ovl0, kOvlL3Con);
+        gOvl0BeforeL3Addr      = mmioRead32(ovl0, kOvlL3Addr);
+        gOvl0BeforeL3Offset    = mmioRead32(ovl0, kOvlL3Offset);
+        gOvl0BeforeL3SrcSize   = mmioRead32(ovl0, kOvlL3SrcSize);
+        gOvl0BeforeL3Pitch     = mmioRead32(ovl0, kOvlL3Pitch);
+        gOvl0BeforeEL0Addr     = mmioRead32(ovl0, kOvlEL0Addr);
 
-        gOvl02LBeforeSrcCon  = mmioRead32(ovl02l, kOvlSrcCon);
-        gOvl02LBeforeL0Con   = mmioRead32(ovl02l, kOvlL0Con);
-        gOvl02LBeforeL0Addr  = mmioRead32(ovl02l, kOvlL0Addr);
-        gOvl02LBeforeL1Addr  = mmioRead32(ovl02l, kOvlL1Addr);
+        gOvl02LBeforeSrcCon    = mmioRead32(ovl02l, kOvlSrcCon);
+        gOvl02LBeforeL0Con     = mmioRead32(ovl02l, kOvlL0Con);
+        gOvl02LBeforeL0Addr    = mmioRead32(ovl02l, kOvlL0Addr);
+        gOvl02LBeforeL1Addr    = mmioRead32(ovl02l, kOvlL1Addr);
 
         merlinx_usb_log_line(
-            "[OVL] BEFORE OVL0: SRC=0x%x L0_CON=0x%x L0_ADDR=0x%08x L0_OFF=0x%x L0_SIZE=0x%x L0_PITCH=0x%x L1_ADDR=0x%08x\n",
-            gOvl0BeforeSrcCon, gOvl0BeforeL0Con, gOvl0BeforeL0Addr,
-            gOvl0BeforeL0Offset, gOvl0BeforeL0SrcSize, gOvl0BeforeL0Pitch, gOvl0BeforeL1Addr);
+            "[OVL] OVL0: SRC=0x%x EXT=0x%x L0(con=0x%x,addr=0x%08x,off=0x%x,sz=0x%x,p=0x%x) "
+            "L1=0x%08x L2=0x%08x L3(con=0x%x,addr=0x%08x,off=0x%x,sz=0x%x,p=0x%x) EL0=0x%08x\n",
+            gOvl0BeforeSrcCon, gOvl0BeforeDatapathExt,
+            gOvl0BeforeL0Con, gOvl0BeforeL0Addr, gOvl0BeforeL0Offset, gOvl0BeforeL0SrcSize, gOvl0BeforeL0Pitch,
+            gOvl0BeforeL1Addr, gOvl0BeforeL2Addr,
+            gOvl0BeforeL3Con, gOvl0BeforeL3Addr, gOvl0BeforeL3Offset, gOvl0BeforeL3SrcSize, gOvl0BeforeL3Pitch,
+            gOvl0BeforeEL0Addr);
         merlinx_usb_log_line(
-            "[OVL] BEFORE OVL0_2L: SRC=0x%x L0_CON=0x%x L0_ADDR=0x%08x L1_ADDR=0x%08x\n",
+            "[OVL] OVL0_2L: SRC=0x%x L0_CON=0x%x L0_ADDR=0x%08x L1_ADDR=0x%08x\n",
             gOvl02LBeforeSrcCon, gOvl02LBeforeL0Con, gOvl02LBeforeL0Addr, gOvl02LBeforeL1Addr);
+
+        // Determine the true foreground scanout physical address from the highest active layer in OVL0
+        uint32_t candidatePa = 0;
+        if ((gOvl0BeforeSrcCon & (1U << 3)) && gOvl0BeforeL3Addr >= kMtkMblockFbBasePa &&
+            gOvl0BeforeL3Addr + kMtkSimpleFbSize <= kMtkMblockFbBasePa + kMtkMblockFbSize) {
+            candidatePa = gOvl0BeforeL3Addr;
+        } else if (gOvl0BeforeEL0Addr >= kMtkMblockFbBasePa &&
+                   gOvl0BeforeEL0Addr + kMtkSimpleFbSize <= kMtkMblockFbBasePa + kMtkMblockFbSize) {
+            candidatePa = gOvl0BeforeEL0Addr;
+        } else if ((gOvl0BeforeSrcCon & (1U << 2)) && gOvl0BeforeL2Addr >= kMtkMblockFbBasePa &&
+                   gOvl0BeforeL2Addr + kMtkSimpleFbSize <= kMtkMblockFbBasePa + kMtkMblockFbSize) {
+            candidatePa = gOvl0BeforeL2Addr;
+        } else if ((gOvl0BeforeSrcCon & (1U << 1)) && gOvl0BeforeL1Addr >= kMtkMblockFbBasePa &&
+                   gOvl0BeforeL1Addr + kMtkSimpleFbSize <= kMtkMblockFbBasePa + kMtkMblockFbSize) {
+            candidatePa = gOvl0BeforeL1Addr;
+        }
+
+        if (candidatePa != 0) {
+            gActiveScanoutPa = candidatePa;
+        } else {
+            gActiveScanoutPa = kMtkSimpleFbBasePa;
+        }
+
+        int32_t argYoff = 0;
+        if (PE_parse_boot_argn("merlinx-yoff", &argYoff, sizeof(argYoff))) {
+            gMerlinxRowOffset = argYoff;
+        }
+
+        if (gCarveoutBase && gActiveScanoutPa >= kMtkMblockFbBasePa &&
+            gActiveScanoutPa + kMtkSimpleFbSize <= kMtkMblockFbBasePa + kMtkMblockFbSize) {
+            gActiveScanoutVa = gCarveoutBase + (gActiveScanoutPa - kMtkMblockFbBasePa);
+        }
+
+        merlinx_usb_log_line(
+            "[OVL] Active foreground scanout PA=0x%llx (delta from 0x7d6b0020 = %lld bytes / %lld rows)\n",
+            (unsigned long long)gActiveScanoutPa,
+            (long long)gActiveScanoutPa - (long long)kMtkSimpleFbBasePa,
+            ((long long)gActiveScanoutPa - (long long)kMtkSimpleFbBasePa) / 4352LL);
     }
 
-    const uint32_t targetPa = static_cast<uint32_t>(kMtkSimpleFbBasePa);
-    const uint32_t targetSize = (2340U << 16) | 1080U;
-    const uint32_t targetPitch = (1088U * 4U) & 0xFFFFU;
-
-    uint32_t ovl0En = mmioRead32(ovl0, kOvlEn);
-    uint32_t ovl0Src = mmioRead32(ovl0, kOvlSrcCon);
-    if ((ovl0En & 1U) != 0 || ovl0Src != 0) {
-        uint32_t l0Con = mmioRead32(ovl0, kOvlL0Con);
-        l0Con = (l0Con & ~0x1FFU) | 0xFFU; // Disable AEN (bit 8), set constant alpha = 0xFF
-        mmioWrite32(ovl0, kOvlRoiSize, targetSize);
-        mmioWrite32(ovl0, kOvlL0Con, l0Con);
-        mmioWrite32(ovl0, kOvlL0Srckey, 0U);
-        mmioWrite32(ovl0, kOvlL0SrcSize, targetSize);
-        mmioWrite32(ovl0, kOvlL0Offset, 0U);
-        mmioWrite32(ovl0, kOvlL0Pitch, targetPitch);
-        mmioWrite32(ovl0, kOvlL0Addr, targetPa);
-        mmioWrite32(ovl0, kOvlL1Addr, targetPa);
-        mmioWrite32(ovl0, kOvlL2Addr, targetPa);
-        mmioWrite32(ovl0, kOvlL3Addr, targetPa);
-        mmioWrite32(ovl0, kOvlDatapathExtCon, 0U);
-        mmioWrite32(ovl0, kOvlSrcCon, 1U);
+    // Only clear non-zero layer offset on L3 if present; NEVER disable L3 in OVL_SRC_CON!
+    if ((mmioRead32(ovl0, kOvlSrcCon) & (1U << 3)) != 0) {
+        if (mmioRead32(ovl0, kOvlL3Offset) != 0U) {
+            mmioWrite32(ovl0, kOvlL3Offset, 0U);
+        }
     }
 
-    uint32_t ovl02lEn = mmioRead32(ovl02l, kOvlEn);
-    uint32_t ovl02lSrc = mmioRead32(ovl02l, kOvlSrcCon);
-    if ((ovl02lEn & 1U) != 0 || ovl02lSrc != 0) {
-        uint32_t l0Con2 = mmioRead32(ovl02l, kOvlL0Con);
-        l0Con2 = (l0Con2 & ~0x1FFU) | 0xFFU;
-        mmioWrite32(ovl02l, kOvlRoiSize, targetSize);
-        mmioWrite32(ovl02l, kOvlL0Con, l0Con2);
-        mmioWrite32(ovl02l, kOvlL0Srckey, 0U);
-        mmioWrite32(ovl02l, kOvlL0SrcSize, targetSize);
-        mmioWrite32(ovl02l, kOvlL0Offset, 0U);
-        mmioWrite32(ovl02l, kOvlL0Pitch, targetPitch);
-        mmioWrite32(ovl02l, kOvlL0Addr, targetPa);
-        mmioWrite32(ovl02l, kOvlL1Addr, targetPa);
-        mmioWrite32(ovl02l, kOvlDatapathExtCon, 0U);
-        mmioWrite32(ovl02l, kOvlSrcCon, 1U);
+    // Wipe LK splash layer L0 (0x7cdb0000) and carveout tail outside the active scanout window to opaque black
+    if (wipeBackground && gCarveoutBase && !gCarveoutBackgroundCleared) {
+        gCarveoutBackgroundCleared = true;
+        // Wipe everything in mblock-15-framebuffer outside [gActiveScanoutPa, gActiveScanoutPa + kMtkSimpleFbSize)
+        merlinxFillCarveoutRangeBlack(kMtkMblockFbBasePa, gActiveScanoutPa);
+        merlinxFillCarveoutRangeBlack(
+            gActiveScanoutPa + kMtkSimpleFbSize,
+            kMtkMblockFbBasePa + kMtkMblockFbSize - 0x4000ULL);
     }
 
-    mmioWrite32(mutex, 0x020U, 1U);
     gOvlFixupCount++;
-}
-
-static void merlinxBoostCpuClocks()
-{
-    if (!gApmixedBase) {
-        gApmixedBase = mapMmioWindow(kMtkApmixedBasePa, 0x1000ULL, &gApmixedMem, &gApmixedMap);
-    }
-    if (!gPwrapBase) {
-        gPwrapBase = mapMmioWindow(kMtkPwrapBasePa, 0x1000ULL, &gPwrapMem, &gPwrapMap);
-    }
-    if (!gApmixedBase) {
-        return;
-    }
-
-    gArmpllLlCon0 = mmioRead32(gApmixedBase, 0x200U);
-    gArmpllLlCon1 = mmioRead32(gApmixedBase, 0x204U);
-    gArmpllLCon0  = mmioRead32(gApmixedBase, 0x210U);
-    gArmpllLCon1  = mmioRead32(gApmixedBase, 0x214U);
-
-    auto pwrapWrite = [](uint16_t addr, uint16_t wdata) {
-        if (!gPwrapBase) {
-            return;
-        }
-        for (uint32_t i = 0; i < 2000; ++i) {
-            if (((mmioRead32(gPwrapBase, 0x0c4U) >> 16) & 0x7U) == 0U) {
-                break;
-            }
-            IODelay(1);
-        }
-        uint32_t cmd = (1U << 31) | (static_cast<uint32_t>(addr >> 1) << 16) | wdata;
-        mmioWrite32(gPwrapBase, 0x0c0U, cmd);
-        for (uint32_t i = 0; i < 2000; ++i) {
-            if (((mmioRead32(gPwrapBase, 0x0c4U) >> 16) & 0x7U) == 0U) {
-                break;
-            }
-            IODelay(1);
-        }
-    };
-
-    pwrapWrite(0x19b2U, 0x70U);
-    pwrapWrite(0x19b4U, 0x70U);
-    pwrapWrite(0x19d0U, 0x70U);
-    pwrapWrite(0x19d2U, 0x70U);
-    pwrapWrite(0x1488U, 0x60U);
-    pwrapWrite(0x148aU, 0x60U);
-    pwrapWrite(0x1508U, 0x60U);
-    pwrapWrite(0x150aU, 0x60U);
-    IODelay(150);
-
-    // Boost ARMPLL_LL (Cortex-A55) to ~1703 MHz and ARMPLL_L (Cortex-A75) to ~1989 MHz
-    if ((gArmpllLlCon0 & 1U) != 0) {
-        mmioWrite32(gApmixedBase, 0x204U, (1U << 31) | (1U << 24) | (131U << 14));
-    }
-    if ((gArmpllLCon0 & 1U) != 0) {
-        mmioWrite32(gApmixedBase, 0x214U, (1U << 31) | (1U << 24) | (153U << 14));
-    }
-    IODelay(50);
-
-    gArmpllLlCon1 = mmioRead32(gApmixedBase, 0x204U);
-    gArmpllLCon1  = mmioRead32(gApmixedBase, 0x214U);
-    gCpuBoostApplied = 1;
-    merlinx_usb_log_line(
-        "[CPUFREQ] Boosted ARMPLL_LL=0x%08x ARMPLL_L=0x%08x\n",
-        gArmpllLlCon1, gArmpllLCon1);
 }
 
 static bool merlinxInitTouchHardware()
 {
+    if (!gCarveoutBase) {
+        gCarveoutBase = mapMmioWindow(
+            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap);
+    }
     if (!gGpioBase) {
         gGpioBase = mapMmioWindow(kMtkGpioBasePa, 0x1000ULL, &gGpioMem, &gGpioMap);
     }
+    if (!gTopckBase) {
+        gTopckBase = mapMmioWindow(kMtkTopckgenPa, 0x1000ULL, &gTopckMem, &gTopckMap);
+    }
     if (!gInfracfgBase) {
         gInfracfgBase = mapMmioWindow(kMtkInfracfgAoPa, 0x1000ULL, &gInfracfgMem, &gInfracfgMap);
+    }
+    if (!gPericfgBase) {
+        gPericfgBase = mapMmioWindow(kMtkPericfgPa, 0x1000ULL, &gPericfgMem, &gPericfgMap);
     }
     if (!gSpi0Base) {
         gSpi0Base = mapMmioWindow(kMtkSpi0BasePa, 0x1000ULL, &gSpi0Mem, &gSpi0Map);
@@ -480,13 +487,27 @@ static bool merlinxInitTouchHardware()
         return false;
     }
 
+    merlinx_usb_log_line(
+        "[FTS-HW] Boot GPIO modes: 85..88=(%u,%u,%u,%u) 32..35=(%u,%u,%u,%u) 13..16=(%u,%u,%u,%u) RST92=%u(in=%d) IRQ1=%u(in=%d)\n",
+        mtkGpioGetMode(85), mtkGpioGetMode(86), mtkGpioGetMode(87), mtkGpioGetMode(88),
+        mtkGpioGetMode(32), mtkGpioGetMode(33), mtkGpioGetMode(34), mtkGpioGetMode(35),
+        mtkGpioGetMode(13), mtkGpioGetMode(14), mtkGpioGetMode(15), mtkGpioGetMode(16),
+        mtkGpioGetMode(kGpioTouchRst), mtkGpioGetIn(kGpioTouchRst),
+        mtkGpioGetMode(kGpioTouchIrq), mtkGpioGetIn(kGpioTouchIrq));
+
+    // Ungate SPI0 clocks in topckgen and infracfg_ao (clocks = <&topckgen 0x5b>, <&infracfg_ao 0x1b>)
+    if (gTopckBase) {
+        // CLK_CFG_3_CLR (0x078) bit 23 clears PDN on clk_spi_sel
+        mmioWrite32(gTopckBase, 0x078U, (1U << 23));
+    }
     if (gInfracfgBase) {
-        mmioWrite32(gInfracfgBase, 0x088U, (1U << 21));
+        // MODULE_SW_CG_1_CLR (0x088): bit 21 and bit 27 (0x1b = 27)
+        mmioWrite32(gInfracfgBase, 0x088U, (1U << 21) | (1U << 27));
         mmioWrite32(gInfracfgBase, 0x0a8U, (1U << 1) | (1U << 21));
         mmioWrite32(gInfracfgBase, 0x0c8U, (1U << 1));
     }
 
-    // GPIO 92 = Reset (output high = released), GPIO 1 = IRQ (input), GPIO 94 = VolDown (input)
+    // GPIO 92 = Touch Reset (mode 0, output high = released), GPIO 1 = Touch IRQ (mode 0, input)
     mtkGpioSetMode(kGpioTouchRst, 0U);
     mtkGpioSetDir(kGpioTouchRst, true);
     mtkGpioSetOut(kGpioTouchRst, true);
@@ -494,144 +515,144 @@ static bool merlinxInitTouchHardware()
     mtkGpioSetMode(kGpioTouchIrq, 0U);
     mtkGpioSetDir(kGpioTouchIrq, false);
 
-    mtkGpioSetMode(kGpioKeyVolDown, 0U);
-    mtkGpioSetDir(kGpioKeyVolDown, false);
+    // Ensure GPIO 85..88 remain in mode 2 as configured in merlinx.dts gpio_init_default
+    // (never overwrite them to mode 1!)
+    if (mtkGpioGetMode(kGpioSpi0Miso) == 0U) {
+        mtkGpioSetMode(kGpioSpi0Miso, 2U);
+        mtkGpioSetMode(kGpioSpi0Cs,   2U);
+        mtkGpioSetMode(kGpioSpi0Mosi, 2U);
+        mtkGpioSetMode(kGpioSpi0Clk,  2U);
+    }
 
-    // GPIO 85..88 = FUNC1 (SPI0_MI, SPI0_CSB, SPI0_MO, SPI0_CLK)
-    mtkGpioSetMode(kGpioSpi0Miso, 1U);
-    mtkGpioSetMode(kGpioSpi0Cs,   1U);
-    mtkGpioSetMode(kGpioSpi0Mosi, 1U);
-    mtkGpioSetMode(kGpioSpi0Clk,  1U);
-
+    uint32_t bootPadSel = mmioRead32(gSpi0Base, kSpiPadSelReg);
     mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
     IODelay(10);
     mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
-    mmioWrite32(gSpi0Base, kSpiPadSelReg, 0U);
+    mmioWrite32(gSpi0Base, kSpiPadSelReg, bootPadSel & 0x7U);
+    // ~4 MHz SPI0 clock (SCK_HIGH=12, SCK_LOW=12, CS_HOLD=12, CS_SETUP=12)
     mmioWrite32(gSpi0Base, kSpiCfg0Reg, (12U << 16) | 12U);
     mmioWrite32(gSpi0Base, kSpiCfg2Reg, (12U << 16) | 12U);
     mmioWrite32(gSpi0Base, kSpiCfg1Reg, 12U);
 
-    merlinx_usb_log_line("[FTS-HW] SPI0/GPIO initialized (IRQ1=%d RST92=%d)\n",
-        mtkGpioGetIn(kGpioTouchIrq), mtkGpioGetIn(kGpioTouchRst));
+    merlinx_usb_log_line("[FTS-HW] SPI0 initialized (pad_sel=%u IRQ1=%d RST92=%d)\n",
+        bootPadSel, mtkGpioGetIn(kGpioTouchIrq), mtkGpioGetIn(kGpioTouchRst));
     return true;
 }
 
-static void merlinxSpiSwitchToBitbang()
+static int merlinxSpiTransferFifoSingle(const uint8_t *tx, uint8_t *rx, size_t len)
 {
-    if (gSpiUseBitbang) {
-        return;
+    if (!gSpi0Base || len == 0 || len > kSpiFifoSize) {
+        return FTS_ERR_PARAM;
     }
-    gSpiUseBitbang = 1;
-    mtkGpioSetMode(kGpioSpi0Miso, 0U);
-    mtkGpioSetDir(kGpioSpi0Miso, false);
+    mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
+    mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
 
-    mtkGpioSetMode(kGpioSpi0Cs, 0U);
-    mtkGpioSetDir(kGpioSpi0Cs, true);
-    mtkGpioSetOut(kGpioSpi0Cs, true);
+    uint32_t cfg1 = ((static_cast<uint32_t>(len - 1U) & 0x3FFU) << 16) | 12U;
+    mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
 
-    mtkGpioSetMode(kGpioSpi0Mosi, 0U);
-    mtkGpioSetDir(kGpioSpi0Mosi, true);
-    mtkGpioSetOut(kGpioSpi0Mosi, false);
+    uint32_t cmd = kSpiCmdTxmsbf | kSpiCmdRxmsbf;
+    mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
 
-    mtkGpioSetMode(kGpioSpi0Clk, 0U);
-    mtkGpioSetDir(kGpioSpi0Clk, true);
-    mtkGpioSetOut(kGpioSpi0Clk, false);
-
-    merlinx_usb_log_line("[FTS-HW] Switched SPI0 to GPIO 85..88 bit-bang mode\n");
-}
-
-static int merlinxSpiTransferBitbang(
-    const uint8_t *tx,
-    uint8_t *rx,
-    size_t len,
-    unsigned firstDelayUs)
-{
-    if (!gGpioBase) {
-        return FTS_ERR_BUS;
-    }
-    static constexpr uint32_t kBank2DoutSet = 0x124U;
-    static constexpr uint32_t kBank2DoutClr = 0x128U;
-    static constexpr uint32_t kBank2Din     = 0x220U;
-    static constexpr uint32_t kBitMiso      = (1U << 21); // GPIO 85
-    static constexpr uint32_t kBitCs        = (1U << 22); // GPIO 86
-    static constexpr uint32_t kBitMosi      = (1U << 23); // GPIO 87
-    static constexpr uint32_t kBitClk       = (1U << 24); // GPIO 88
-
-    mmioWrite32(gGpioBase, kBank2DoutClr, kBitCs | kBitClk);
-    for (size_t i = 0; i < len; ++i) {
-        uint8_t outByte = tx ? tx[i] : 0U;
-        uint8_t inByte = 0U;
-        for (int b = 7; b >= 0; --b) {
-            if ((outByte >> b) & 1U) {
-                mmioWrite32(gGpioBase, kBank2DoutSet, kBitMosi);
-            } else {
-                mmioWrite32(gGpioBase, kBank2DoutClr, kBitMosi);
-            }
-            mmioWrite32(gGpioBase, kBank2DoutSet, kBitClk);
-            uint32_t din = mmioRead32(gGpioBase, kBank2Din);
-            inByte = static_cast<uint8_t>((inByte << 1) | ((din & kBitMiso) ? 1U : 0U));
-            mmioWrite32(gGpioBase, kBank2DoutClr, kBitClk);
+    size_t numWords = (len + 3U) / 4U;
+    for (size_t w = 0; w < numWords; ++w) {
+        uint32_t word = 0U;
+        for (size_t b = 0; b < 4U; ++b) {
+            size_t idx = w * 4U + b;
+            uint8_t byteVal = (tx && idx < len) ? tx[idx] : 0U;
+            word |= (static_cast<uint32_t>(byteVal) << (b * 8U));
         }
+        mmioWrite32(gSpi0Base, kSpiTxDataReg, word);
+    }
+
+    mmioWrite32(gSpi0Base, kSpiCmdReg, cmd | kSpiCmdAct);
+
+    bool done = false;
+    for (uint32_t poll = 0; poll < 50000U; ++poll) {
+        uint32_t st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
+        uint32_t st1 = mmioRead32(gSpi0Base, kSpiStatus1Reg);
+        if ((st0 & 0x1U) != 0 || (poll > 5U && (st1 & 0x1U) == 0)) {
+            done = true;
+            break;
+        }
+        IODelay(1);
+    }
+    if (!done) {
+        gSpiHwTimeouts++;
+        mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
+        mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
+        return FTS_ERR_TIMEOUT;
+    }
+
+    for (size_t w = 0; w < numWords; ++w) {
+        uint32_t word = mmioRead32(gSpi0Base, kSpiRxDataReg);
         if (rx) {
-            rx[i] = inByte;
-        }
-        if (i == 0 && firstDelayUs > 0 && len > 1) {
-            IODelay(firstDelayUs);
+            for (size_t b = 0; b < 4U; ++b) {
+                size_t idx = w * 4U + b;
+                if (idx < len) {
+                    rx[idx] = static_cast<uint8_t>((word >> (b * 8U)) & 0xFFU);
+                }
+            }
         }
     }
-    mmioWrite32(gGpioBase, kBank2DoutSet, kBitCs);
-    mmioWrite32(gGpioBase, kBank2DoutClr, kBitMosi | kBitClk);
     return FTS_OK;
 }
 
-static int merlinxSpiTransferHwFifo(
-    const uint8_t *tx,
-    uint8_t *rx,
-    size_t len,
-    unsigned firstDelayUs)
+static int merlinxSpiTransferDma(const uint8_t *tx, uint8_t *rx, size_t len)
 {
-    if (!gSpi0Base) {
-        return FTS_ERR_BUS;
+    if (!gSpi0Base || !gCarveoutBase || len == 0 || len > kMtkSpiDmaBufBytes) {
+        return FTS_ERR_PARAM;
     }
+    gSpiDmaCalls++;
+    volatile uint8_t *dmaTxVa = gCarveoutBase + (kMtkSpiDmaTxPa - kMtkMblockFbBasePa);
+    volatile uint8_t *dmaRxVa = gCarveoutBase + (kMtkSpiDmaRxPa - kMtkMblockFbBasePa);
+
+    for (size_t i = 0; i < len; ++i) {
+        dmaTxVa[i] = tx ? tx[i] : 0U;
+        dmaRxVa[i] = 0U;
+    }
+    for (size_t i = len; i < ((len + 3U) & ~3ULL); ++i) {
+        dmaTxVa[i] = 0U;
+        dmaRxVa[i] = 0U;
+    }
+    __asm__ volatile("dsb sy" ::: "memory");
+
     mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
     mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
 
     size_t offset = 0;
     bool firstChunk = true;
     while (offset < len) {
-        size_t chunk = len - offset;
-        if (firstChunk && firstDelayUs > 0 && len > 1) {
-            chunk = 1U;
-        } else if (chunk > kSpiFifoSize) {
-            chunk = kSpiFifoSize;
+        size_t rem = len - offset;
+        size_t pktLen = rem;
+        size_t pktLoop = 1U;
+        if (rem > 1024U) {
+            pktLoop = rem / 1024U;
+            if (pktLoop > 256U) {
+                pktLoop = 256U;
+            }
+            pktLen = 1024U;
         }
+        size_t chunk = pktLen * pktLoop;
         bool lastChunk = (offset + chunk >= len);
 
-        uint32_t cfg1 = ((static_cast<uint32_t>(chunk - 1U) & 0x3FFU) << 16) | 12U;
+        uint32_t cfg1 = ((static_cast<uint32_t>(pktLen - 1U) & 0x3FFU) << 16) |
+                        ((static_cast<uint32_t>(pktLoop - 1U) & 0xFFU) << 8) | 12U;
         mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
+        mmioWrite32(gSpi0Base, kSpiTxSrcReg, kMtkSpiDmaTxPa + static_cast<uint32_t>(offset));
+        mmioWrite32(gSpi0Base, kSpiRxDstReg, kMtkSpiDmaRxPa + static_cast<uint32_t>(offset));
+        mmioWrite32(gSpi0Base, kSpiTxSrc64Reg, 0U);
+        mmioWrite32(gSpi0Base, kSpiRxDst64Reg, 0U);
 
-        uint32_t cmd = kSpiCmdTxmsbf | kSpiCmdRxmsbf;
+        uint32_t cmd = kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdTxDma | kSpiCmdRxDma;
         if (!lastChunk) {
             cmd |= kSpiCmdPauseEn;
         }
         mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
-
-        size_t numWords = (chunk + 3U) / 4U;
-        for (size_t w = 0; w < numWords; ++w) {
-            uint32_t word = 0U;
-            for (size_t b = 0; b < 4U; ++b) {
-                size_t idx = offset + w * 4U + b;
-                uint8_t byteVal = (tx && idx < offset + chunk) ? tx[idx] : 0U;
-                word |= (static_cast<uint32_t>(byteVal) << (b * 8U));
-            }
-            mmioWrite32(gSpi0Base, kSpiTxDataReg, word);
-        }
-
         cmd |= firstChunk ? kSpiCmdAct : kSpiCmdResume;
         mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
 
         bool done = false;
-        for (uint32_t poll = 0; poll < 50000U; ++poll) {
+        for (uint32_t poll = 0; poll < 200000U; ++poll) {
             uint32_t st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
             if (lastChunk ? ((st0 & 0x1U) != 0) : ((st0 & 0x3U) != 0)) {
                 done = true;
@@ -645,29 +666,42 @@ static int merlinxSpiTransferHwFifo(
             mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
             return FTS_ERR_TIMEOUT;
         }
-
-        for (size_t w = 0; w < numWords; ++w) {
-            uint32_t word = mmioRead32(gSpi0Base, kSpiRxDataReg);
-            if (rx) {
-                for (size_t b = 0; b < 4U; ++b) {
-                    size_t idx = offset + w * 4U + b;
-                    if (idx < offset + chunk) {
-                        rx[idx] = static_cast<uint8_t>((word >> (b * 8U)) & 0xFFU);
-                    }
-                }
-            }
-        }
-
-        if (firstChunk && firstDelayUs > 0 && !lastChunk) {
-            IODelay(firstDelayUs);
-        }
         firstChunk = false;
         offset += chunk;
+    }
+
+    __asm__ volatile("dsb sy" ::: "memory");
+    if (rx) {
+        for (size_t i = 0; i < len; ++i) {
+            rx[i] = dmaRxVa[i];
+        }
     }
     return FTS_OK;
 }
 
 } // namespace
+
+extern "C" volatile void *merlinx_get_active_scanout_va(volatile void *default_dst)
+{
+    // Once the first Lock Screen frame is presented, make sure L0 background splash is wiped to black
+    if (native_legacy_retired_frames >= 1 && !gCarveoutBackgroundCleared && gCarveoutBase) {
+        merlinxFixupMtkOvl(true);
+    }
+    volatile uint8_t *base = gActiveScanoutVa ? gActiveScanoutVa :
+        reinterpret_cast<volatile uint8_t *>(default_dst);
+    if (!base) {
+        return default_dst;
+    }
+    if (gMerlinxRowOffset != 0 && gCarveoutBase) {
+        int64_t byteOff = static_cast<int64_t>(gMerlinxRowOffset) * 4352LL;
+        volatile uint8_t *shifted = base + byteOff;
+        if (shifted >= gCarveoutBase &&
+            shifted + kMtkSimpleFbSize <= gCarveoutBase + kMtkMblockFbSize - 0x4000ULL) {
+            return shifted;
+        }
+    }
+    return base;
+}
 
 // FocalTechTouch submodule board transport contract
 extern "C" int fts_board_spi_transfer(
@@ -678,18 +712,39 @@ extern "C" int fts_board_spi_transfer(
     unsigned first_delay_us)
 {
     (void)context;
+    (void)first_delay_us;
     if (len == 0) {
         return FTS_OK;
     }
-    gSpiTransferCalls++;
-    if (!gSpiUseBitbang) {
-        int rc = merlinxSpiTransferHwFifo(tx, rx, len, first_delay_us);
-        if (rc == FTS_OK) {
-            return FTS_OK;
-        }
-        merlinxSpiSwitchToBitbang();
+
+    // When FtsProbe falls back from fts_identify() to fts_boot_identify() at stage 0,
+    // fts_boot_identify() sends 0x55 (tx={0xC0, 0x01, 0x55}) without pulsing Reset first.
+    // Pulse GPIO 92 Reset low 2ms -> high -> wait 8ms right before 0x55 so FT8719 is inside
+    // its 8ms ROM bootloader window without needing any edits to the FocalTechTouch submodule.
+    if (fts_touch_stage_done == 0 && len == 3 && tx &&
+        tx[0] == FTS_PACKAGE_COMMAND && tx[2] == FTS_CMD_START &&
+        gSpiBootResetInjected < 3U) {
+        gSpiBootResetInjected++;
+        mtkGpioSetOut(kGpioTouchRst, false);
+        IODelay(2000);
+        mtkGpioSetOut(kGpioTouchRst, true);
+        IOSleep(8);
     }
-    return merlinxSpiTransferBitbang(tx, rx, len, first_delay_us);
+
+    gSpiTransferCalls++;
+    int rc = (len <= kSpiFifoSize)
+        ? merlinxSpiTransferFifoSingle(tx, rx, len)
+        : merlinxSpiTransferDma(tx, rx, len);
+
+    if (gSpiTransferCalls <= 12U) {
+        merlinx_usb_log_line(
+            "[FTS-SPI] #%u len=%u tx=%02x,%02x,%02x rx=%02x,%02x,%02x,%02x,%02x rc=%d\n",
+            gSpiTransferCalls, static_cast<unsigned>(len),
+            (tx && len > 0) ? tx[0] : 0, (tx && len > 1) ? tx[1] : 0, (tx && len > 2) ? tx[2] : 0,
+            (rx && len > 0) ? rx[0] : 0, (rx && len > 1) ? rx[1] : 0, (rx && len > 2) ? rx[2] : 0,
+            (rx && len > 3) ? rx[3] : 0, (rx && len > 4) ? rx[4] : 0, rc);
+    }
+    return rc;
 }
 
 extern "C" void fts_board_delay_us(void *context, unsigned us)
@@ -730,8 +785,6 @@ extern "C" int fts_board_irq_wait(void *context, unsigned timeout_ms)
         IOSleep(2);
         waitedUs += 2000U;
     }
-    // Return FTS_OK at the end of the 10 ms window so FtsProbe polls status smoothly
-    // even if the panel interrupt polarity or EINT latch differs.
     return FTS_OK;
 }
 
@@ -789,8 +842,7 @@ extern "C" bool native_hid_input_requested(void)
 
 static void merlinxStartHidAndTouchThread(void *, wait_result_t)
 {
-    IOSleep(400);
-    merlinxBoostCpuClocks();
+    IOSleep(300);
 
     if (!merlinxInitTouchHardware()) {
         return;
@@ -798,10 +850,17 @@ static void merlinxStartHidAndTouchThread(void *, wait_result_t)
 
     int rcFam = OSKextLoadKextWithIdentifier("com.apple.iokit.IOHIDFamily");
     int rcDrv = OSKextLoadKextWithIdentifier("com.apple.iokit.IOHIDEventDriver");
-    merlinx_usb_log_line("[FTS-HID] Load IOHIDFamily=0x%x IOHIDEventDriver=0x%x\n", rcFam, rcDrv);
+    OSDictionary *hidMatch = IOService::nameMatching("IOHIDResource");
+    IOService *hidResource = hidMatch
+        ? IOService::waitForMatchingService(hidMatch, 5000000000ULL)
+        : nullptr;
+    OSSafeReleaseNULL(hidMatch);
+    merlinx_usb_log_line("[FTS-HID] Load IOHIDFamily=0x%x IOHIDEventDriver=0x%x IOHIDResource=%p\n",
+        rcFam, rcDrv, hidResource);
 
     if (!gHidMetaRegistered) {
-        void *handle = OSMetaClass::preModLoad("com.apple.driver.MerlinxHidInput");
+        // Must use g_kernel_kmod_info.name ("__kernel__"), NOT an unregistered kmod identifier!
+        void *handle = OSMetaClass::preModLoad(g_kernel_kmod_info.name);
         if (handle) {
             merlinx_hid_static_init();
             IOReturn mret = OSMetaClass::postModLoad(handle);
@@ -811,42 +870,34 @@ static void merlinxStartHidAndTouchThread(void *, wait_result_t)
     }
 
     if (gHidMetaRegistered && !gActiveHidService) {
-        IOService *parent = IOService::getResourceService();
+        IOService *parent = hidResource ? hidResource : IOService::getResourceService();
         IOService *hid = native_hid_input_allocate();
         if (parent && hid && hid->init() && hid->attach(parent) && hid->start(parent)) {
             hid->registerService(kIOServiceAsynchronous);
             gActiveHidService = hid;
             decorateDigitizerHierarchy(hid, 4);
-            merlinx_usb_log_line("[FTS-HID] Published NativeHidInput=%p on IOResources\n", hid);
+            merlinx_usb_log_line("[FTS-HID] Published NativeHidInput=%p on parent=%p\n", hid, parent);
         } else if (hid) {
             hid->release();
         }
     }
+    OSSafeReleaseNULL(hidResource);
 
     gFtsProbeResult = fts_touch_probe(nullptr);
     merlinx_usb_log_line("[FTS-HW] fts_touch_probe() => %d\n", gFtsProbeResult);
 
-    int prevVolDown = 1;
     uint32_t ticks = 0;
     for (;;) {
-        IOSleep(60);
+        IOSleep(100);
         ticks++;
-        int curVolDown = mtkGpioGetIn(kGpioKeyVolDown);
-        if (prevVolDown == 1 && curVolDown == 0) {
-            merlinx_usb_log_line("[FTS-KEY] GPIO94 Volume Down pressed -> Home + unlock swipe\n");
-            __atomic_store_n(&gHidInputCommand, 1U, __ATOMIC_RELEASE);
-            merlinx_hid_inject_swipe(540, 2336, 540, 1100, 16);
-        }
-        prevVolDown = curVolDown;
-
-        if (ticks == 25 || ticks == 100) {
-            merlinxFixupMtkOvl(false);
+        if (ticks == 15 || ticks == 60) {
             if (gActiveHidService) {
                 decorateDigitizerHierarchy(gActiveHidService, 4);
             }
         }
         if ((ticks % 50U) == 0 && fts_touch_rows[0][0] != '\0') {
-            merlinx_usb_log_line("[FTS] %s | %s\n", fts_touch_rows[0], fts_touch_rows[2]);
+            merlinx_usb_log_line("[FTS] %s | %s | %s\n",
+                fts_touch_rows[0], fts_touch_rows[1], fts_touch_rows[2]);
         }
     }
 }
@@ -897,7 +948,6 @@ static void gopPaint(const char *why, bool full) {
     mapping->release();
 }
 
-extern "C" kmod_info_t g_kernel_kmod_info;
 extern "C" void native_legacy_display_static_init(void) __asm__("__GLOBAL__sub_I_NativeLegacyDisplay.cpp");
 extern "C" IOService *native_legacy_display_allocate(void);
 extern "C" void native_gop_presenter_static_init(void) __asm__("__GLOBAL__sub_I_NativeGOPPresenter.cpp");
@@ -1198,8 +1248,8 @@ __attribute__((noinline)) void native_legacy_retirement_observed(IOService *disp
     native_legacy_retired_current=current;native_legacy_retired_pending=pending;
     native_legacy_retired_generation=completed;native_legacy_presented_generation=presented;native_legacy_retired_frames=frames;
     native_legacy_retirement_calls=native_legacy_retirement_calls+1;
-    if (frames <= 2) {
-        merlinxFixupMtkOvl(false);
+    if (frames == 1) {
+        merlinxFixupMtkOvl(true);
     }
     dline(30,"DISP RET %u/%u F%u S%d:%.6s C%u/%d:%.6s",completed,presented,frames,
         native_legacy_swap_pid,native_legacy_swap_name[0]?native_legacy_swap_name:"-",
@@ -1347,8 +1397,10 @@ __attribute__((noinline)) bool native_legacy_gop_mapping_observed(IOService *obj
     native_legacy_gop_physical=mapping->getPhysicalAddress();native_legacy_gop_bytes=mapping->getLength();
     native_legacy_gop_width=width;native_legacy_gop_height=height;
     PE_parse_boot_argn("merlinx-gop-osd",&gMerlinxGopOsdForce,sizeof(gMerlinxGopOsdForce));
-    merlinxFixupMtkOvl(true);
-    dline(24,"DISP MAP %ux%u %llx",width,height,(unsigned long long)mapping->getPhysicalAddress());
+    merlinxFixupMtkOvl(false);
+    dline(24,"DISP MAP %llx->%llx",
+        (unsigned long long)mapping->getPhysicalAddress(),
+        (unsigned long long)gActiveScanoutPa);
     if(!diagnosticAnchorMapping) {
         PE_Video anchorVideo={};
         if(!PE_current_console(&anchorVideo) && anchorVideo.v_depth==32 &&
@@ -1511,13 +1563,14 @@ void native_legacy_display_late_probe(void) {
 // Interactive USB diagnostic commands
 void merlinx_usb_cmd_disp(void) {
     gInUsbCmd = 1;
-    merlinxFixupMtkOvl(false);
+    merlinxFixupMtkOvl(true);
     volatile uint8_t *ovl0 = gDispsysBase ? (gDispsysBase + kMtkOvl0Off) : nullptr;
     volatile uint8_t *ovl02l = gDispsysBase ? (gDispsysBase + kMtkOvl02LOff) : nullptr;
     merlinx_usb_log_line(
-        "[DISP] gop_pa=0x%llx gop_va=0x%llx %ux%u retired=%u accepted=%u rejected=%u copy_n=%llu\n",
+        "[DISP] gop_pa=0x%llx active_scanout_pa=0x%llx yoff=%d %ux%u retired=%u accepted=%u rejected=%u copy_n=%llu\n",
         (unsigned long long)native_legacy_gop_physical,
-        (unsigned long long)native_legacy_gop_virtual,
+        (unsigned long long)gActiveScanoutPa,
+        gMerlinxRowOffset,
         native_legacy_gop_width,
         native_legacy_gop_height,
         native_legacy_retired_frames,
@@ -1526,19 +1579,24 @@ void merlinx_usb_cmd_disp(void) {
         (unsigned long long)native_legacy_copy_n);
     if (ovl0 && ovl02l) {
         merlinx_usb_log_line(
-            "[DISP] OVL0(before->now): SRC=0x%x->0x%x L0_CON=0x%x->0x%x L0_ADDR=0x%08x->0x%08x L0_OFF=0x%x->0x%x L1_ADDR=0x%08x->0x%08x\n",
-            gOvl0BeforeSrcCon, mmioRead32(ovl0, kOvlSrcCon),
-            gOvl0BeforeL0Con, mmioRead32(ovl0, kOvlL0Con),
-            gOvl0BeforeL0Addr, mmioRead32(ovl0, kOvlL0Addr),
-            gOvl0BeforeL0Offset, mmioRead32(ovl0, kOvlL0Offset),
-            gOvl0BeforeL1Addr, mmioRead32(ovl0, kOvlL1Addr));
-        merlinx_usb_log_line(
-            "[DISP] OVL0_2L(before->now): SRC=0x%x->0x%x L0_CON=0x%x->0x%x L0_ADDR=0x%08x->0x%08x L1_ADDR=0x%08x->0x%08x\n",
-            gOvl02LBeforeSrcCon, mmioRead32(ovl02l, kOvlSrcCon),
-            gOvl02LBeforeL0Con, mmioRead32(ovl02l, kOvlL0Con),
-            gOvl02LBeforeL0Addr, mmioRead32(ovl02l, kOvlL0Addr),
-            gOvl02LBeforeL1Addr, mmioRead32(ovl02l, kOvlL1Addr));
+            "[DISP] OVL0: SRC=0x%x EXT=0x%x L0=0x%08x(con=0x%x,off=0x%x) L1=0x%08x L2=0x%08x L3=0x%08x(con=0x%x,off=0x%x,sz=0x%x,p=0x%x) EL0=0x%08x\n",
+            mmioRead32(ovl0, kOvlSrcCon),
+            mmioRead32(ovl0, kOvlDatapathExtCon),
+            mmioRead32(ovl0, kOvlL0Addr), mmioRead32(ovl0, kOvlL0Con), mmioRead32(ovl0, kOvlL0Offset),
+            mmioRead32(ovl0, kOvlL1Addr),
+            mmioRead32(ovl0, kOvlL2Addr),
+            mmioRead32(ovl0, kOvlL3Addr), mmioRead32(ovl0, kOvlL3Con), mmioRead32(ovl0, kOvlL3Offset),
+            mmioRead32(ovl0, kOvlL3SrcSize), mmioRead32(ovl0, kOvlL3Pitch),
+            mmioRead32(ovl0, kOvlEL0Addr));
     }
+    gInUsbCmd = 0;
+}
+
+void merlinx_usb_cmd_yoff(int32_t rows) {
+    gInUsbCmd = 1;
+    gMerlinxRowOffset = rows;
+    merlinx_usb_log_line("[DISP] Set vertical scanout row offset yoff=%d rows (%lld bytes)\n",
+        gMerlinxRowOffset, static_cast<long long>(gMerlinxRowOffset) * 4352LL);
     gInUsbCmd = 0;
 }
 
@@ -1550,8 +1608,8 @@ void merlinx_usb_cmd_touch(void) {
     uint8_t lastContacts = 0, lastFlags = 0;
     merlinx_hid_get_stats(&started, &dispatched, &failed, &lastKr, &lastX, &lastY, &lastContacts, &lastFlags);
     merlinx_usb_log_line(
-        "[TOUCH] probe_rc=%d spi_bitbang=%u spi_xfers=%u spi_timeouts=%u irq_gpio1=%d rst_gpio92=%d\n",
-        gFtsProbeResult, gSpiUseBitbang, gSpiTransferCalls, gSpiHwTimeouts,
+        "[TOUCH] probe_rc=%d spi_xfers=%u spi_dma=%u spi_timeouts=%u rst_inj=%u irq_gpio1=%d rst_gpio92=%d\n",
+        gFtsProbeResult, gSpiTransferCalls, gSpiDmaCalls, gSpiHwTimeouts, gSpiBootResetInjected,
         mtkGpioGetIn(kGpioTouchIrq), mtkGpioGetIn(kGpioTouchRst));
     for (unsigned i = 0; i < 4; ++i) {
         if (fts_touch_rows[i][0]) {
@@ -1591,9 +1649,7 @@ void merlinx_usb_cmd_home(void) {
 
 void merlinx_usb_cmd_cpufreq(void) {
     gInUsbCmd = 1;
-    merlinxBoostCpuClocks();
-    merlinx_usb_log_line(
-        "[CPUFREQ] boost=%u ARMPLL_LL(A55)=0x%08x/0x%08x ARMPLL_L(A75)=0x%08x/0x%08x\n",
-        gCpuBoostApplied, gArmpllLlCon0, gArmpllLlCon1, gArmpllLCon0, gArmpllLCon1);
+    merlinx_usb_log_line("[CPUFREQ] CPU PLLs are managed by MT6768 SSPM dvfsp@00110c00 (read-only safe mode)\n");
+    gInUsbCmd = 0;
 }
 }

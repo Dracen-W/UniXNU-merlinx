@@ -166,10 +166,11 @@ for i in range(168, 358):
 header += '''};
 static_assert(sizeof(IOMobileFramebufferLegacy)==0x18a0,"Actual original instance extent");
 
-// Override pixel copy routines on merlinx so every pixel stored to the MT6768 scanout
-// framebuffer carries opaque Alpha = 0xFF (preventing OVL per-pixel alpha tinting),
+// Override pixel copy routines on merlinx so every pixel stored to the active MT6768 OVL0
+// foreground layer (L3_ADDR) carries opaque Alpha = 0xFF (preventing OVL per-pixel alpha tinting),
 // and bound per-frame diagnostic scans after the first 2 frames to eliminate CPU stalls.
 extern "C" volatile uint32_t native_legacy_frame_count;
+extern "C" volatile void *merlinx_get_active_scanout_va(volatile void *default_dst);
 
 static inline int merlinx_fast_frame_scan(const void *source, uint64_t sourceBytes,
     uint64_t sourceStride, uint32_t width, uint32_t height, uint64_t out[5]) {
@@ -196,7 +197,8 @@ static inline int merlinx_opaque_copy_pixels(volatile void *destination,
     uint64_t sourceBytes, uint64_t sourceStride, uint32_t width, uint32_t height) {
     if (!native_legacy_copy_layout(destination,destinationBytes,destinationStride,
         source,sourceBytes,sourceStride,width,height)) return 0;
-    uintptr_t dst=(uintptr_t)destination, src=(uintptr_t)source;
+    volatile void *activeDst = merlinx_get_active_scanout_va(destination);
+    uintptr_t dst=(uintptr_t)activeDst, src=(uintptr_t)source;
     int wide=!(dst&7) && !(destinationStride&7);
     for (uint32_t row=0;row<height;++row) {
         volatile uint32_t *out=(volatile uint32_t *)(dst+row*destinationStride);
@@ -229,7 +231,8 @@ static inline uint64_t merlinx_opaque_copy_diff(volatile void *destination,
     void *shadow, int valid) {
     if (!native_legacy_copy_layout(destination,destinationBytes,destinationStride,
         source,sourceBytes,sourceStride,width,height)) return UINT64_MAX;
-    uintptr_t dst=(uintptr_t)destination, src=(uintptr_t)source;
+    volatile void *activeDst = merlinx_get_active_scanout_va(destination);
+    uintptr_t dst=(uintptr_t)activeDst, src=(uintptr_t)source;
     if (!shadow || ((uintptr_t)shadow&7) || (dst&7) || (destinationStride&7) || (width&1)) return UINT64_MAX;
     uint64_t stored=0;
     const uint32_t words=width/2;

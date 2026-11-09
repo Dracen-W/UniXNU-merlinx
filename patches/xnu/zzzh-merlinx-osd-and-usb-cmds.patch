@@ -1,10 +1,11 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7353,8 +7353,12 @@ static const unsigned long long native_gop_font[] = {
+@@ -7353,8 +7353,13 @@ static const unsigned long long native_gop_font[] = {
  static volatile unsigned int native_diag_seq = 0;
  char native_diag_ring[64][48];
 +extern volatile uint32_t native_legacy_retired_frames __attribute__((weak));
++static volatile unsigned int native_gop_boot_pct = 2;
  
  static void
  native_gop_draw_span(uint32_t x0, uint32_t x1, uint32_t y, unsigned scale, uint32_t fg, const char *text)
@@ -14,15 +15,92 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	}
  	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600)
  		return;
+@@ -7390,11 +7398,75 @@ native_gop_draw_span(uint32_t x0, uint32_t x1, uint32_t y, unsigned scale, uint3
+ 	}
+ }
+ 
++static void
++native_gop_update_progress(unsigned line)
++{
++	if (&native_legacy_retired_frames != NULL && native_legacy_retired_frames >= 6)
++		return;
++	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600)
++		return;
++
++	unsigned int pct = native_gop_boot_pct;
++	unsigned int seq = __atomic_load_n(&native_diag_seq, __ATOMIC_RELAXED);
++	if (line == 0 && pct < 6)
++		pct = 6;
++	else if (line == 1 && pct < 12)
++		pct = 12;
++	else if ((line == 2 || line == 3) && pct < 18)
++		pct = 18;
++	else if (line == 7 && pct < 22)
++		pct = 22;
++	else if (line == 4 && pct < 26)
++		pct = 26;
++	if (seq > 0) {
++		unsigned int seq_pct = 26U + (seq * 62U) / 110U;
++		if (seq_pct > 88U)
++			seq_pct = 88U;
++		if (seq_pct > pct)
++			pct = seq_pct;
++	}
++	if (line == 24 && pct < 90U)
++		pct = 90U;
++	if (line == 28 && pct < 93U)
++		pct = 93U;
++	if (&native_legacy_retired_frames != NULL && native_legacy_retired_frames > 0) {
++		unsigned int f_pct = 94U + native_legacy_retired_frames;
++		if (f_pct > 100U)
++			f_pct = 100U;
++		if (f_pct > pct)
++			pct = f_pct;
++	}
++	if (pct == native_gop_boot_pct && line >= 100 && (seq & 3U) != 0)
++		return;
++	native_gop_boot_pct = pct;
++
++	volatile uint32_t *fb = (volatile uint32_t *)(uintptr_t)vinfo.v_baseaddr;
++	uint32_t stride = vinfo.v_rowbytes / 4;
++	uint32_t bar_x0 = 220, bar_x1 = vinfo.v_width - 32;
++	uint32_t bar_y0 = 272, bar_y1 = 300;
++	if (bar_x1 <= bar_x0 + 16 || bar_y1 >= vinfo.v_height)
++		return;
++	uint32_t fill_w = ((bar_x1 - bar_x0 - 4) * pct) / 100U;
++	for (uint32_t py = bar_y0; py < bar_y1; py++) {
++		boolean_t border_y = (py < bar_y0 + 2 || py >= bar_y1 - 2);
++		for (uint32_t px = bar_x0; px < bar_x1; px++) {
++			boolean_t border_x = (px < bar_x0 + 2 || px >= bar_x1 - 2);
++			uint32_t color = (border_x || border_y) ? 0xffffffffu :
++			    ((px < bar_x0 + 2 + fill_w) ? 0xff00e676u : 0xff222222u);
++			fb[(uint64_t)py * stride + px] = color;
++		}
++	}
++	char pct_label[24];
++	snprintf(pct_label, sizeof(pct_label), "BOOT %3u%%", pct);
++	native_gop_draw_span(16, bar_x0 - 8, 274, 2, 0xff00e676u, pct_label);
++}
++
+ extern void native_musb_log_gop(unsigned line, const char *text);
+ void
+ native_gop_text(unsigned line, const char *text)
+ {
+ 	if (text)
+ 		native_musb_log_gop(line, text);
++	native_gop_update_progress(line);
+ 	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600 || !text)
+ 		return;
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -2905,7 +2905,29 @@
+@@ -2905,7 +2905,47 @@
  	    frames ? (unsigned long long)frames[11] : 0ULL);
  }
  
 -static void
 +extern void merlinx_usb_cmd_disp(void) __attribute__((weak));
++extern void merlinx_usb_cmd_yoff(int32_t rows) __attribute__((weak));
 +extern void merlinx_usb_cmd_touch(void) __attribute__((weak));
 +extern void merlinx_usb_cmd_tap(uint32_t x, uint32_t y) __attribute__((weak));
 +extern void merlinx_usb_cmd_swipe(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2) __attribute__((weak));
@@ -44,32 +122,55 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 +	return v;
 +}
 +
++static int32_t
++native_musb_parse_i32(const char **p)
++{
++	const char *s = *p;
++	int32_t sign = 1;
++	while (*s == ' ' || *s == '\t')
++		s++;
++	if (*s == '-') {
++		sign = -1;
++		s++;
++	} else if (*s == '+') {
++		s++;
++	}
++	*p = s;
++	return sign * (int32_t)native_musb_parse_u32(p);
++}
++
 +void
  native_musb_cmd_append(const char *fmt, ...)
  {
  	uint32_t cur = merlinx_cmd_out_len;
-@@ -3142,7 +3164,13 @@
+@@ -3142,7 +3175,14 @@
  		    "  ring              Dump the 64-slot screen event ring + PS summary\n"
  		    "  kill <pid> [sig]  Send signal (default 9=SIGKILL) to PID\n"
  		    "  icblock <0|1>     Set iconservicesagent spawn block (currently %u)\n"
 -		    "  musb              Dump MUSB + U2PHY hardware register state\n",
 +		    "  musb              Dump MUSB + U2PHY hardware register state\n"
-+		    "  disp              Fixup & dump MT6768 DISP_OVL0/2L + GOP scanout state\n"
++		    "  disp              Inspect MT6768 DISP_OVL0/2L + active L3 scanout state\n"
++		    "  yoff <rows>       Adjust vertical scanout row offset (e.g. yoff 0)\n"
 +		    "  touch             Dump FocalTech FT8719 SPI0 + IOHIDDevice touch state\n"
 +		    "  tap <x> <y>       Inject touch tap at pixel (x, y) in 1080x2340\n"
 +		    "  swipe <x1> <y1> <x2> <y2>  Inject touch swipe gesture\n"
 +		    "  home              Inject Home button + bottom-edge unlock swipe\n"
-+		    "  cpufreq           Boost & dump MT6768 ARMPLL_LL/ARMPLL_L CPU clocks\n",
++		    "  cpufreq           Dump CPU clock management state\n",
  		    native_diag_block_iconservices);
  	} else if (strncmp(cmd, "ps", 2) == 0) {
  		native_musb_cmd_append("PID   THR  NAME                 XPC_TAG\n");
-@@ -3270,6 +3298,32 @@
+@@ -3270,6 +3310,37 @@
  		    "STATS: polls=%u resets=%u setups=%u cfg=%u\n",
  		    faddr, power, devctl, csr0, u2p_1c, u2p_68, u2p_6c,
  		    merlinx_usb_polls, merlinx_usb_resets, merlinx_usb_setups, merlinx_usb_config);
 +	} else if (strncmp(cmd, "disp", 4) == 0) {
 +		if (merlinx_usb_cmd_disp)
 +			merlinx_usb_cmd_disp();
++	} else if (strncmp(cmd, "yoff", 4) == 0) {
++		const char *p = cmd + 4;
++		int32_t rows = native_musb_parse_i32(&p);
++		if (merlinx_usb_cmd_yoff)
++			merlinx_usb_cmd_yoff(rows);
 +	} else if (strncmp(cmd, "touch", 5) == 0) {
 +		if (merlinx_usb_cmd_touch)
 +			merlinx_usb_cmd_touch();

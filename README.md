@@ -65,9 +65,13 @@ The boot-chain and UI traps are collected in [bringup-quirks-and-pitfalls.md](br
 | Repository | Contents |
 | --- | --- |
 | [UniXNU](https://github.com/UniXNU/UniXNU) | Build tools, component catalog, ARM64 support, OS profiles, UEFI package, documentation |
-| [UniXNU-sm8550-common](https://github.com/UniXNU/UniXNU-sm8550-common) | Shared SM8550 support |
-| [UniXNU-sheng](https://github.com/UniXNU/UniXNU-sheng) | Xiaomi Pad 6S Pro |
-| [uefi-sheng](https://github.com/UniXNU/uefi-sheng) | UEFI firmware for the Xiaomi Pad 6S Pro |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | Redmi Note 9 device repository (this one) |
+| [UniXNU-MT6768-common](https://github.com/Dracen-W/UniXNU-MT6768-common) | Shared MT6768 support |
+| [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | UEFI firmware for the Redmi Note 9 |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | Native eMMC storage driver |
+| [Mali-G52](https://github.com/Dracen-W/Mali-G52) | Mali-G52 kernel driver |
+| [MaliMetal](https://github.com/Dracen-W/MaliMetal) | Mali userland Metal/PanVK frontend |
+| [FocalTechTouch-FT8719](https://github.com/Dracen-W/FocalTechTouch-FT8719) | FocalTech FT8719 touch driver |
 
 Clone with `--recurse-submodules`.
 

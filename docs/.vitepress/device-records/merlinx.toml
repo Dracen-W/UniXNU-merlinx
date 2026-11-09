@@ -106,12 +106,12 @@ status = "implemented"
 components = ["GopFramebuffer"]
 paths = ["patches/xnu/offline-owner-systemos-mount.patch", "scripts/xnu-panic-screen.c", "configs/merlinx_defconfig", "package/MerlinxLegacyDisplay.cpp", "scripts/build-gop-legacy-display.py"]
 inputs = ["The UEFI GOP framebuffer at 1080x2340 and the panning offset observed on the panel."]
-configuration = ["The legacy display provider keeps the retained GOP framebuffer for panic and boot-stage text, then reprograms DISP_OVL0 and DISP_OVL0_2L to scan the exact XNU framebuffer."]
+configuration = ["The legacy display provider keeps the GOP framebuffer for panic and boot text, then reads the live OVL0 L3 layer address as the foreground scanout base and clears the L0 LK splash, without changing the enabled layer set."]
 procedure = ["Flash a diagnostic image and read the status lines from the panel."]
-findings = ["The GOP base, row stride and 32-bit format work. SystemOS and launchd start, SpringBoard submits frames and draws the Lock Screen clock and Dock. Reprogramming OVL0/OVL0_2L to scan 0x7d6b0020 removes the ~1 cm vertical offset, disables the LK multi-layer composition and clears the splash carveout, so no OEM logo shows through and the clock text renders opaque. The OSD text stops after the first six retired frames."]
+findings = ["OVL0 starts with SRC=0x9, i.e. L0 (the LK splash at 0x7cdb0000) and L3 (the real foreground framebuffer) are both enabled. Forcing SRC_CON=1 disabled the working L3 and turned the panel black right after the colour bars, so the provider now leaves the layer set alone, takes L3_ADDR as the scanout base, aligns its offset to the XNU framebuffer and wipes L0 to opaque black. The ~1 cm vertical offset and the LK OEM/Android logo are gone, and a BOOT 0-100% bar above the framebuffer tracks ROOT, VOL, CACHE, LAUNCHD and the first SpringBoard frame."]
 completion = ["The kernel console is visible, userland presentation reaches the Lock Screen and the panel scans the framebuffer without an offset."]
-limits = ["Userland Metal/GPU composition is not implemented; SpringBoard renders through the legacy provider. Backlight control is not wired."]
-next_action = ["Add the userland GPU scanout path and backlight control after the PosterBoard respring is resolved."]
+limits = ["Userland Metal/GPU composition is not implemented; SpringBoard renders through the legacy provider. Backlight control is not wired. CPU frequency is owned by SSPM dvfsp; writing APMIXED PLL registers directly dropped the little cores to the 26 MHz crystal."]
+next_action = ["Keep the OVL layer inspection read-only apart from the foreground address, and add backlight control; leave CPU frequency to SSPM."]
 evidence = [
   { kind = "source", reference = "patches/xnu/offline-owner-systemos-mount.patch", result = "The GOP status lines and panic screen are linked into the kernel." },
 ]

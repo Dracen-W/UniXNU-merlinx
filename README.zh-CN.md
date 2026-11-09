@@ -71,9 +71,13 @@ fastboot flash boot out/merlinx-uefi-emmc-mali-*.img
 | 仓库 | 内容 |
 | --- | --- |
 | [UniXNU](https://github.com/UniXNU/UniXNU) | 构建工具、组件目录、ARM64 支持、OS 配置、UEFI package、文档 |
-| [UniXNU-sm8550-common](https://github.com/UniXNU/UniXNU-sm8550-common) | SM8550 共享支持 |
-| [UniXNU-sheng](https://github.com/UniXNU/UniXNU-sheng) | 小米平板 6S Pro |
-| [uefi-sheng](https://github.com/UniXNU/uefi-sheng) | 小米平板 6S Pro 的 UEFI 固件 |
+| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | 红米 Note 9 设备仓库（本仓库） |
+| [UniXNU-MT6768-common](https://github.com/Dracen-W/UniXNU-MT6768-common) | MT6768 共享支持 |
+| [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | 红米 Note 9 的 UEFI 固件 |
+| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | 原生 eMMC 存储驱动 |
+| [Mali-G52](https://github.com/Dracen-W/Mali-G52) | Mali-G52 内核驱动 |
+| [MaliMetal](https://github.com/Dracen-W/MaliMetal) | Mali 用户态 Metal/PanVK 前端 |
+| [FocalTechTouch-FT8719](https://github.com/Dracen-W/FocalTechTouch-FT8719) | FocalTech FT8719 触摸驱动 |
 
 克隆时使用 `--recurse-submodules`。
 

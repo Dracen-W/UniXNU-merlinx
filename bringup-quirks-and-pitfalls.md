@@ -308,18 +308,19 @@
 
 * **根因**：`LK` 分配的 `mblock-15-framebuffer` 基址是 `0x7cdb0000`，但 UEFI（`SimpleFbDxe`）把 Framebuffer Head 切在 `0x00900000`，传给 XNU 的 `video.v_baseAddr` 变成 `0x7d6b0020`。
 * 一帧 `1080 × 2340 × 4` 是 `0x009a3f80` 字节（stride 4352 时占 `0x009b6400`，页对齐 `0x009b7000`），`0x00900000` 比它少 `0xA4000 ~ 0xB7000`，正好约 **155–170 行像素（≈1 cm）**。`DISP_OVL0` 扫描的 `L0_ADDR` 比 XNU 写入的地址靠后，于是顶部 1 cm 被裁掉、整体上移，屏幕底部仍在扫描 `LK` 的旧显存（`android` logo）。
-* **修复**：在 `native_legacy_gop_mapping_observed()` 里重编程 `DISP_OVL0 (0x1400b000)` 与 `DISP_OVL0_2L (0x1400c000)`：
-  * `OVL_L0_CON` 清掉低 9 位、写 `0xFF`（关 `AEN`，constant alpha 全不透明）；
-  * `OVL_L0_SRC_SIZE = (2340<<16)|1080`、`OVL_L0_OFFSET = 0`、`OVL_L0_PITCH = 4352`；
-  * `OVL_L0_ADDR`（以及 L1–L3）直接写成 XNU 的 `0x7d6b0020`；
-  * `OVL_SRC_CON = 1`，只保留 Layer 0；
+* **先读寄存器再动手**：`[OVL] BEFORE OVL0` 显示 `SRC=0x9`、`L0_ADDR=0x7cdb0000`、`L3_ADDR=0x7d6b0020`。即 `L0` 是 `LK` 的底图、`L3` 才是真正在扫描的前景。**不要**把 `OVL_SRC_CON` 改成 `1`：那会关掉正在工作的 `L3`，彩条画完立刻黑屏（我们踩过）。
+* **修复**：在 `native_legacy_gop_mapping_observed()` 里保留现有图层集合，只做这些事：
+  * 读取 `OVL_L3_ADDR (0xfa0)` 作为前景扫描基址，按 XNU framebuffer 对齐 `OVL_L3_OFFSET`；
+  * `OVL_L0_ADDR` 指向的底图区域（`0x7cdb0000`）在锁屏首帧提交时清成不透明黑 `0xFF000000`；
+  * 需要时用 `OVL_L0_CON` 的低 9 位清 `AEN`、constant alpha 写 `0xFF`（像素 alpha 为 0 时不再透出底图）；
   * 最后写 `DISP_MUTEX0 (0x14001020) = 1`，让寄存器在下一个 VSYNC 生效。
 * 同时把 `mblock-15-framebuffer` 中 `0x7cdb0000..0x7d6b0020` 的前缀和 `0x7e053fa0..0x7f000000` 的后缀清成不透明黑，避免 `LK` 的 OEM/Android 残影。
+* 纵向偏移还可以用 USB 命令 `yoff <rows>` 在线微调，不必每次重刷镜像。
 
 ### 5. 中间 OEM logo 透出、锁屏时间字体泛红
 
-* **根因**：`LK` 默认在 `OVL0` 上开了多图层合成（`OVL_SRC_CON` 多个 layer）和逐像素 Alpha（`OVL_L0_CON` bit 8 `AEN = 1`）。`PosterBoard` 还没生成壁纸时，iOS 画的背景像素是 `0x00000000`（Alpha = 0），硬件当成全透明，直接透出下层 `LK` 的 OEM logo；半透明的珊瑚红时钟字与底层混合后也会发暗发红。
-* **修复**：关 `AEN` 并只留 Layer 0（见上一条）；像素写入时强制 `Alpha = 0xFF`。
+* **根因**：`LK` 默认在 `OVL0` 上开了多图层合成（`L0` 底图 + `L3` 前景）和逐像素 Alpha（`OVL_L0_CON` bit 8 `AEN = 1`）。`PosterBoard` 还没生成壁纸时，iOS 画的背景像素是 `0x00000000`（Alpha = 0），硬件当成全透明，直接透出 `L0` 里 `LK` 的 OEM logo；半透明的珊瑚红时钟字与底层混合后也会发暗发红。
+* **修复**：不要关 `L3`（见上一条），只清 `L0` 底图并关它的 `AEN`；像素写入时强制 `Alpha = 0xFF`。
 
 ### 6. OSD 调试文字与 UI 互相闪烁
 
@@ -332,7 +333,8 @@
 * `1252.64s` 第一个 `SpringBoard` 等 `PosterBoard`/`installcoordinationd` 超时，被 `FrontBoard` 看门狗杀掉（`EX 27 SpringBoard 5 R2:5`）。
 * `1258s~1499s` `backboardd` 接管屏幕，在中央以约 10 FPS 画 Respring 菊花（`DISP COPY 0 9a3f80`、`DISP RET F11..F1312`）。
 * `1475.06s` `launchd` 拉起第二个 `SpringBoard`（`GO#2 238 SpringBoard`），它会重新画出锁屏。判断是否“真死”要看 `GO#2` 之后的 `S238/t/n` 是否继续推进，而不是看菊花本身。
-* **性能因素**：`LK` 默认把 A75 大核限制在 `1175 MHz / 0.8 V`，`SpringBoard`/`PosterBoard` 初始化慢，容易撞 `FrontBoard` 看门狗。`hakios-mt6768` 的做法是通过 `PWRAP (0x1000d000)` 抬 `Vproc11/12`、`VSRAM`，再把 `APMIXED (0x1000c000)` 的 `ARMPLL_L_CON1` 抬到 2000 MHz、`ARMPLL_LL_CON1` 抬到 1700 MHz。
+* **性能因素**：`LK` 默认把 A75 大核限制在 `1175 MHz / 0.8 V`，`SpringBoard`/`PosterBoard` 初始化慢，容易撞 `FrontBoard` 看门狗。
+* **不要直接写 APMIXED 的 PLL 寄存器**：日志里 `Boosted ARMPLL_LL=0x00000000` 说明写入把小核 PLL 关回了 26 MHz 晶振，`launchd` 光 `MMAP` 就跑了 600 秒还没进 Apple Logo。MT6768 的频点由 SSPM `dvfsp@00110c00` 接管，应当通过它请求频率，而不是改 `ARMPLL_*_CON1`。
 
 ### 8. FT8719 触摸：SPI 分段与 HID 注入
 
