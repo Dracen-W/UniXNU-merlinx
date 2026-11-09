@@ -20,8 +20,6 @@
   <a href="https://x.com/UniXNU_new"><img alt="X" src="https://img.shields.io/badge/X-@UniXNU__new-000000?logo=x&logoColor=white"></a>
 </p>
 
-## Redmi Note 9 (Merlinx) port
-
 # UniXNU
 
 > **Migration notice:** Update your device repository for shared SoC support and canonical component names. Follow the [migration guide](https://unixnu.com/porting/migration).
@@ -33,6 +31,34 @@ UniXNU provides shared build tools, ARM64 support, OS profiles and reusable comp
 **🎉 News:** Adreno740 and AdrenoMetal implement GPU acceleration for A740/SM8550. See the [Adreno 740 driver documentation](https://unixnu.com/drivers/adreno740).
 
 Documentation: [unixnu.com](https://unixnu.com). Start with [Port a device](https://unixnu.com/porting/) or [Build and boot](https://unixnu.com/building).
+
+## Redmi Note 9 (Merlinx) port
+
+UniXNU boots iPadOS 17.7.11 (21H461) on the Xiaomi Redmi Note 9 (merlinx, MT6768) from the p33 boot partition. The bootloader does not implement `fastboot boot`, so every image is written with `fastboot flash boot`.
+
+What works:
+
+* **Boot chain**: UEFI firmware, DarwinBoot, XNU with a 4 KiB user ABI, the iPadOS restore profile and a packed Data seed all start from p33.
+* **Storage**: NativeEmmc replaces the UEFI storage path; the SystemOS cryptex and the writable Data seed mount before `launchd`.
+* **Userland**: `launchd` reaches the full service graph, `lsd` completes its first LaunchServices build, and SpringBoard draws the Lock Screen clock and Dock.
+* **Display**: the legacy GOP provider reprograms `DISP_OVL0`/`DISP_OVL0_2L` to scan the exact XNU framebuffer, removing the one-frame vertical offset and the leftover LK splash; the OSD text stops after the boot frames.
+* **Touch**: the FocalTech FT8719 driver loads its Xinli firmware over SPI0 and injects contacts through `NativeHidInput` (`IOHIDDevice`).
+* **Diagnostics**: an EP0 MUSB log/command channel (VID `0x05AC`, PID `0x12A8`) streams the kernel ring, `ps`, fault records and display/touch commands; `scripts/merlinx_usb_log.py` is the host client.
+* **GPU (kernel)**: the Mali-G52 path completes M2/M3/M4/M6, reads `GPU_ID` and reports `MALI RC 0`.
+
+Still open: PosterBoard exits without a GPU, so the first SpringBoard can hit the FrontBoard watchdog before the replacement draws the Lock Screen again; userland Metal/PanVK, Wi-Fi/Bluetooth, audio and battery reporting are not implemented.
+
+Build and flash:
+
+```bash
+./unixnu firmware
+./unixnu kernel
+./unixnu payload --kernel <kernel.macho> --data-ramdisk <seed>.dbr --trust-cache <bundle>
+./unixnu bootimg
+fastboot flash boot out/merlinx-uefi-emmc-mali-*.img
+```
+
+The boot-chain and UI traps are collected in [bringup-quirks-and-pitfalls.md](bringup-quirks-and-pitfalls.md); the per-area status is recorded in [porting.toml](porting.toml).
 
 ## Repositories
 
