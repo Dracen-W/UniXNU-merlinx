@@ -94,7 +94,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -1235,7 +1235,17 @@
+@@ -1235,7 +1235,92 @@
  	mach_exception_data_type_t codes[2]  = {EXC_ARM_BREAKPOINT};
  	mach_msg_type_number_t     numcodes  = 2;
  
@@ -105,14 +105,89 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
 +		extern void native_musb_log_fault(const char *tag, int pid, const char *nm,
 +		    arm_saved_state_t *st, uint64_t pc, uint64_t lr, vm_offset_t fa, vm_prot_t ftype);
 +		proc_t bp_p = current_proc();
++		const char *bp_nm = bp_p ? proc_best_name(bp_p) : "?";
 +		native_musb_log_fault("UG-BRK", bp_p ? proc_getpid(bp_p) : 0,
-+		    bp_p ? proc_best_name(bp_p) : "?", state,
++		    bp_nm, state,
 +		    get_saved_state_pc(state), get_saved_state_lr(state), esr, 0);
++		if (ESR_EC(esr) == ESR_EC_BRK_AARCH64 && bp_nm &&
++		    (strncmp(bp_nm, "SpringBoard", 11) == 0 ||
++		     strncmp(bp_nm, "backboardd", 10) == 0 ||
++		     strncmp(bp_nm, "lsd", 3) == 0)) {
++			arm_saved_state64_t *ss = saved_state64(state);
++			task_t bp_task = current_task();
++			vm_map_t bp_map = bp_task ? get_task_map(bp_task) : VM_MAP_NULL;
++			if (ss && bp_map && ss->fp > ss->sp && (ss->fp & 7ULL) == 0 &&
++			    (ss->fp - ss->sp) <= 0x40000ULL) {
++				for (unsigned int uw = 0; uw < 4; uw++) {
++					uint64_t fpair[2] = {0, 0};
++					if (vm_map_read_user(bp_map, ss->fp, fpair, sizeof(fpair)) != KERN_SUCCESS)
++						break;
++					uint64_t ret_pc = fpair[1] & 0x0000007fffffffffULL;
++					if (ret_pc < 0x100000000ULL)
++						break;
++					if (ss->pc >= 0x100000000ULL) {
++						for (unsigned int back = 1; back <= 512; back++) {
++							uint64_t addr = ss->pc - (uint64_t)back * 4ULL;
++							uint32_t insn = 0, prev = 0;
++							if (vm_map_read_user(bp_map, addr, &insn, sizeof(insn)) != KERN_SUCCESS)
++								break;
++							if ((insn & 0xffc003ffU) != 0x910003fdU)
++								continue;
++							uint32_t fp_off = (insn >> 10) & 0xfffU;
++							if (fp_off > (ss->fp - ss->sp))
++								continue;
++							if (vm_map_read_user(bp_map, addr - 4ULL, &prev, sizeof(prev)) != KERN_SUCCESS)
++								break;
++							if ((prev & 0x7fffU) != 0x7bfdU)
++								continue;
++							uint64_t sp_base = ss->fp - (uint64_t)fp_off;
++							for (unsigned int k = 2; k <= 8; k++) {
++								uint32_t stp = 0;
++								if (vm_map_read_user(bp_map, addr - (uint64_t)k * 4ULL, &stp, sizeof(stp)) != KERN_SUCCESS)
++									break;
++								if (((stp & 0xffc003e0U) == 0xa90003e0U) ||
++								    ((stp & 0xffc003e0U) == 0xa98003e0U)) {
++									unsigned int rt1 = stp & 0x1fU;
++									unsigned int rt2 = (stp >> 10) & 0x1fU;
++									int32_t imm7 = (int32_t)((stp >> 15) & 0x7fU);
++									if (imm7 & 0x40)
++										imm7 -= 0x80;
++									int64_t off_b = ((stp & 0xffc003e0U) == 0xa98003e0U) ? 0LL : (int64_t)imm7 * 8LL;
++									uint64_t sv[2] = {0, 0};
++									if (vm_map_read_user(bp_map, (uint64_t)((int64_t)sp_base + off_b), sv, sizeof(sv)) == KERN_SUCCESS) {
++										if (rt1 >= 19 && rt1 <= 28)
++											ss->x[rt1] = sv[0];
++										if (rt2 >= 19 && rt2 <= 28)
++											ss->x[rt2] = sv[1];
++									}
++								}
++							}
++							break;
++						}
++					}
++					ss->sp = ss->fp + 16ULL;
++					ss->fp = fpair[0];
++					ss->lr = ret_pc;
++					ss->pc = ret_pc;
++					ss->x[0] = 0;
++					uint64_t slide = (bp_task && bp_task->shared_region) ? bp_task->shared_region->sr_slide : 0;
++					uint64_t ret_u = (ret_pc >= 0x180000000ULL && ret_pc >= slide) ? (ret_pc - slide) : ret_pc;
++					if ((ret_u >= 0x18f580000ULL && ret_u < 0x18f5d0000ULL) ||
++					    ss->fp <= ss->sp || (ss->fp - ss->sp) > 0x40000ULL)
++						break;
++				}
++				return;
++			} else if (ss && ss->lr != ss->pc && ss->lr >= 0x100000000ULL) {
++				ss->x[0] = 0;
++				ss->pc = ss->lr;
++				return;
++			}
++		}
 +	}
  #if __has_feature(ptrauth_calls)
  	if (ESR_EC(esr) == ESR_EC_BRK_AARCH64 &&
  	    brk_comment_is_ptrauth(ISS_BRK_COMMENT(esr))) {
-@@ -2905,7 +2915,47 @@
+@@ -2905,7 +2990,47 @@
  	    frames ? (unsigned long long)frames[11] : 0ULL);
  }
  
@@ -161,7 +236,7 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
  native_musb_cmd_append(const char *fmt, ...)
  {
  	uint32_t cur = merlinx_cmd_out_len;
-@@ -3142,7 +3192,14 @@
+@@ -3142,7 +3267,14 @@
  		    "  ring              Dump the 64-slot screen event ring + PS summary\n"
  		    "  kill <pid> [sig]  Send signal (default 9=SIGKILL) to PID\n"
  		    "  icblock <0|1>     Set iconservicesagent spawn block (currently %u)\n"
@@ -177,7 +252,7 @@ diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
  		    native_diag_block_iconservices);
  	} else if (strncmp(cmd, "ps", 2) == 0) {
  		native_musb_cmd_append("PID   THR  NAME                 XPC_TAG\n");
-@@ -3270,6 +3327,37 @@
+@@ -3270,6 +3402,37 @@
  		    "STATS: polls=%u resets=%u setups=%u cfg=%u\n",
  		    faddr, power, devctl, csr0, u2p_1c, u2p_68, u2p_6c,
  		    merlinx_usb_polls, merlinx_usb_resets, merlinx_usb_setups, merlinx_usb_config);
