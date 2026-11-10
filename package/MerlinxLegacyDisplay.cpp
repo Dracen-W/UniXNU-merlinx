@@ -742,10 +742,10 @@ static void merlinxFixupMtkOvl(bool wipeBackground)
 
 static void merlinxSetSpi0PinsMode2()
 {
-    mtkGpioSetMode(85U, 2U);
-    mtkGpioSetMode(86U, 2U);
-    mtkGpioSetMode(87U, 2U);
-    mtkGpioSetMode(88U, 2U);
+    mtkGpioSetMode(kGpioSpi0Miso, 2U);
+    mtkGpioSetMode(kGpioSpi0Cs,   2U);
+    mtkGpioSetMode(kGpioSpi0Mosi, 2U);
+    mtkGpioSetMode(kGpioSpi0Clk,  2U);
     mtkGpioSetMode(13U, 2U);
     mtkGpioSetMode(14U, 2U);
     mtkGpioSetMode(15U, 2U);
@@ -1177,14 +1177,12 @@ static bool merlinxInitTouchHardware()
         gSpi0Base = mapMmioWindow(kMtkSpi0BasePa, 0x1000ULL, &gSpi0Mem, &gSpi0Map);
     }
     if (!gGpioBase || !gSpi0Base) {
-        merlinx_usb_log_line("[FTS-HW] Failed to map GPIO or SPI0
-");
+        merlinx_usb_log_line("[FTS-HW] Failed to map GPIO or SPI0\n");
         return false;
     }
 
     merlinx_usb_log_line(
-        "[FTS-HW] Boot GPIO modes: 85..88=(%u,%u,%u,%u) 32..35=(%u,%u,%u,%u) 13..16=(%u,%u,%u,%u) RST92=%u(in=%d) IRQ1=%u(in=%d)
-",
+        "[FTS-HW] Boot GPIO modes: 85..88=(%u,%u,%u,%u) 32..35=(%u,%u,%u,%u) 13..16=(%u,%u,%u,%u) RST92=%u(in=%d) IRQ1=%u(in=%d)\n",
         mtkGpioGetMode(85), mtkGpioGetMode(86), mtkGpioGetMode(87), mtkGpioGetMode(88),
         mtkGpioGetMode(32), mtkGpioGetMode(33), mtkGpioGetMode(34), mtkGpioGetMode(35),
         mtkGpioGetMode(13), mtkGpioGetMode(14), mtkGpioGetMode(15), mtkGpioGetMode(16),
@@ -1251,8 +1249,7 @@ static bool merlinxInitTouchHardware()
             gVerifiedLargeCount = 4;
         }
         merlinx_usb_log_line(
-            "[FTS-HW] HW SPI0 Mode2 verified! bootId=0x%04x(st=0x%02x) large(pause=0x%04x,dma=0x%04x,cs85=0x%04x,cs86=0x%04x,bb85=0x%04x) sel=%u
-",
+            "[FTS-HW] HW SPI0 Mode2 verified! bootId=0x%04x(st=0x%02x) large(pause=0x%04x,dma=0x%04x,cs85=0x%04x,cs86=0x%04x,bb85=0x%04x) sel=%u\n",
             id0, st0, idPause, idDma, idCs85, idCs86, idBb85, gVerifiedLargeModes[0]);
     } else {
         uint16_t id1 = merlinxProbeBootIdSmallMode(1U, &st1);
@@ -1270,8 +1267,7 @@ static bool merlinxInitTouchHardware()
             merlinxSetSpi0PinsMode2();
         }
         merlinx_usb_log_line(
-            "[FTS-HW] SPI0 fallback probe: hw=0x%04x(st=0x%02x) bb85=0x%04x(st=0x%02x) bb86=0x%04x(st=0x%02x) -> smallMode=%u
-",
+            "[FTS-HW] SPI0 fallback probe: hw=0x%04x(st=0x%02x) bb85=0x%04x(st=0x%02x) bb86=0x%04x(st=0x%02x) -> smallMode=%u\n",
             id0, st0, id1, st1, id2, st2, gSpiSmallMode);
     }
 
@@ -1385,8 +1381,7 @@ extern "C" int fts_board_spi_transfer(
 
     if (gSpiTransferCalls <= 20U) {
         merlinx_usb_log_line(
-            "[FTS-SPI] #%u len=%u dly=%u tx=%02x,%02x,%02x rx=%02x,%02x,%02x,%02x,%02x rc=%d
-",
+            "[FTS-SPI] #%u len=%u dly=%u tx=%02x,%02x,%02x rx=%02x,%02x,%02x,%02x,%02x rc=%d\n",
             gSpiTransferCalls, static_cast<unsigned>(len), first_delay_us,
             (tx && len > 0) ? tx[0] : 0, (tx && len > 1) ? tx[1] : 0, (tx && len > 2) ? tx[2] : 0,
             (rx && len > 0) ? rx[0] : 0, (rx && len > 1) ? rx[1] : 0, (rx && len > 2) ? rx[2] : 0,
@@ -1423,8 +1418,7 @@ extern "C" void fts_board_reset(void *context, int asserted)
         gStage2ResetCount++;
         if (gStage2ResetCount >= 2U && gVerifiedLargeCount > 1U) {
             gActiveLargeIdx = (gStage2ResetCount - 1U) % gVerifiedLargeCount;
-            merlinx_usb_log_line("[FTS-HW] Stage 2 retry #%u: switching large mode to %u
-",
+            merlinx_usb_log_line("[FTS-HW] Stage 2 retry #%u: switching large mode to %u\n",
                 gStage2ResetCount, gVerifiedLargeModes[gActiveLargeIdx]);
         }
     }
