@@ -308,8 +308,6 @@ hid_header += '};\nstatic_assert(sizeof(IOHIDDevice)==0xd0,"Original device inst
 (OUT / 'OriginalHidDeviceABI.h').write_text(hid_header)
 
 fw_c = OUT / 'fts_firmware_blob.c'
-if (ROOT / 'package/FtsProtocol.c').is_file():
-    shutil.copy2(ROOT / 'package/FtsProtocol.c', FTS_DIR / 'FtsProtocol.c')
 generate_firmware_c(FTS_DIR / 'firmware/focaltech_ts_fw_xinli.bin', fw_c)
 
 run(['python3', ROOT / 'scripts/build-arm-driver.py', 'NativeLegacyDisplay'])
