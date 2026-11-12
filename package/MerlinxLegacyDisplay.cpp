@@ -783,7 +783,7 @@ static void merlinxSpiResetAndSetupHw()
 
 static bool merlinxSpiWaitComplete()
 {
-    for (uint32_t poll = 0; poll < 60000U; ++poll) {
+    for (uint32_t poll = 0; poll < 400000U; ++poll) {
         uint32_t st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
         if ((st0 & 0x3U) != 0U) {
             return true;
@@ -801,12 +801,15 @@ static bool merlinxSpiWaitComplete()
 static int merlinxSpiTransferSingleFifo(
     const uint8_t *tx,
     uint8_t *rx,
-    size_t len)
+    size_t len
+    bool resetHw = true)
 {
     if (!gSpi0Base || len == 0 || len > kSpiFifoSize) {
         return FTS_ERR_PARAM;
     }
-    merlinxSpiResetAndSetupHw();
+    if (resetHw) {
+        merlinxSpiResetAndSetupHw();
+    }
 
     uint32_t cfg1 = ((static_cast<uint32_t>(len - 1U) & 0x3FFU) << 16) | 2U;
     mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
@@ -859,11 +862,22 @@ static int merlinxSpiTransferPauseFifo(
     merlinxSpiResetAndSetupHw();
 
     size_t offset = 0;
+    if ((forceSplitFirst || firstDelayUs > 0U) && len > 1U) {
+        int rc0 = merlinxSpiTransferSingleFifo(tx, rx, 1U, false);
+        if (rc0 != FTS_OK) {
+            mtkGpioSetOut(kGpioSpi0Cs, true);
+            return rc0;
+        }
+        if (firstDelayUs > 0U) {
+            ODelay(firstDelayUs);
+        }
+        offset = 1;
+    }
+
+    const size_t loopStart = offset;
     while (offset < len) {
         size_t rem = len - offset;
-        size_t segLen = (offset == 0 && (forceSplitFirst || firstDelayUs > 0U) && len > 1U)
-            ? 1U
-            : ((rem > kSpiFifoSize) ? kSpiFifoSize : rem);
+        size_t segLen = (rem > kSpiFifoSize) ? kSpiFifoSize : rem;
         bool lastSeg = (offset + segLen >= len);
 
         uint32_t cfg1 = ((static_cast<uint32_t>(segLen - 1U) & 0x3FFU) << 16) | 2U;
@@ -884,7 +898,7 @@ static int merlinxSpiTransferPauseFifo(
         if (!lastSeg) {
             cmd |= kSpiCmdPauseEn;
         }
-        cmd |= (offset == 0) ? kSpiCmdAct : kSpiCmdResume;
+        cmd |= (offset == loopStart) ? kSpiCmdAct : kSpiCmdResume;
         mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
 
         if (!merlinxSpiWaitComplete()) {
@@ -902,9 +916,6 @@ static int merlinxSpiTransferPauseFifo(
                     }
                 }
             }
-        }
-        if (offset == 0 && firstDelayUs > 0U && len > 1U) {
-            IODelay(firstDelayUs);
         }
         offset += segLen;
     }
@@ -930,6 +941,7 @@ static int merlinxSpiTransferGpioCsFifo(
     mtkGpioSetDir(csPin, true);
     mtkGpioSetMode(csPin, 0U);
     IODelay(2);
+    merlinxSpiResetAndSetupHw();
 
     size_t offset = 0;
     while (offset < len) {
@@ -941,13 +953,15 @@ static int merlinxSpiTransferGpioCsFifo(
         int rc = merlinxSpiTransferSingleFifo(
             tx ? (tx + offset) : nullptr,
             rx ? (rx + offset) : nullptr,
-            segLen);
+            segLen,
+            false);
         if (rc != FTS_OK) {
             // Retry once on hardware SPI0 FIFO if a transient poll timeout occurred
             rc = merlinxSpiTransferSingleFifo(
                 tx ? (tx + offset) : nullptr,
                 rx ? (rx + offset) : nullptr,
-                segLen);
+                segLen,
+                true);
             if (rc != FTS_OK) {
                 mtkGpioSetOut(csPin, true);
                 return rc;
