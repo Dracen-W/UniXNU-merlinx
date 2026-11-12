@@ -747,10 +747,16 @@ static void merlinxFixupMtkOvl(bool wipeBackground)
 //   GPIO 86 = SPI0_CSB (CS,   Mode 0, dir=1 output high; held low across package framing)
 //   GPIO 87 = SPI0_MO  (MOSI, Mode 2, dir=1 output low)
 //   GPIO 88 = SPI0_CLK (SCLK, Mode 2, dir=1 output low)
-// Note: Do NOT set GPIO 13..16 to Mode 2 (alternate SPI0_A pad group), which caused
-// pad-mux contention on SPI0_MI.
+// Note: Bootloader leaves GPIO 13..16 in Mode 2 (alternate SPI0_A pad group), which
+// causes pad-mux contention on SPI0_MI. Explicitly return GPIO 13..16 to Mode 0 input
+// before enabling SPI0 on GPIO 85..88.
 static void merlinxSetSpi0PinsMode2()
 {
+    for (uint32_t pin = 13U; pin <= 16U; ++pin) {
+        mtkGpioSetDir(pin, false);
+        mtkGpioSetMode(pin, 0U);
+    }
+
     mtkGpioSetDir(kGpioSpi0Miso, false);
     mtkGpioSetOut(kGpioSpi0Cs,   true);
     mtkGpioSetDir(kGpioSpi0Cs,   true);
@@ -768,11 +774,25 @@ static void merlinxSetSpi0PinsMode2()
 // Per Linux drivers/spi/spi-mt65xx.c and hakios-mt6768/mtkloader/mtkspi.h:
 // SPI_CMD_RST resets SPI_CFG0 / SPI_CFG2, so SPI_PAD_SEL, SPI_CFG0, SPI_CFG2, and
 // SPI_CMD interrupt-enable + MSB-first bits must be programmed AFTER clearing SPI_CMD_RST.
+static void merlinxUngateSpi0Clocks()
+{
+    if (gTopckBase) {
+        mmioWrite32(gTopckBase, 0x068U, (3U << 24) | (1U << 31));
+        mmioWrite32(gTopckBase, 0x078U, (1U << 23));
+    }
+    if (gInfracfgBase) {
+        mmioWrite32(gInfracfgBase, 0x08CU, (1U << 21) | (1U << 27));
+        mmioWrite32(gInfracfgBase, 0x0A8U, (1U << 1) | (1U << 21));
+        mmioWrite32(gInfracfgBase, 0x0C4U, (1U << 1));
+    }
+}
+
 static void merlinxSpiResetAndSetupHw()
 {
     mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
-    IODelay(1);
+    IODelay(5);
     mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
+    (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
     mmioWrite32(gSpi0Base, kSpiPadSelReg, gSpiBootPadSel & 0x7U);
     // ~4.3 MHz SPI0 clock (SCK_HIGH=2, SCK_LOW=2, CS_HOLD=4, CS_SETUP=4)
     mmioWrite32(gSpi0Base, kSpiCfg0Reg, (4U << 16) | 4U);
@@ -793,6 +813,7 @@ static bool merlinxSpiWaitComplete()
         }
     }
     gSpiHwTimeouts++;
+    merlinxUngateSpi0Clocks();
     merlinxSpiResetAndSetupHw();
     return false;
 }
@@ -1119,15 +1140,7 @@ static bool merlinxInitTouchHardware()
         mtkGpioGetMode(kGpioTouchIrq), mtkGpioGetIn(kGpioTouchIrq));
 
     // Ungate SPI0 clocks in topckgen and infracfg_ao
-    if (gTopckBase) {
-        mmioWrite32(gTopckBase, 0x068U, (3U << 24) | (1U << 31));
-        mmioWrite32(gTopckBase, 0x078U, (1U << 23));
-    }
-    if (gInfracfgBase) {
-        mmioWrite32(gInfracfgBase, 0x08CU, (1U << 21) | (1U << 27));
-        mmioWrite32(gInfracfgBase, 0x0A8U, (1U << 1) | (1U << 21));
-        mmioWrite32(gInfracfgBase, 0x0C4U, (1U << 1));
-    }
+    merlinxUngateSpi0Clocks();
 
     // GPIO 92 = Touch Reset (mode 0, output high = released), GPIO 1 = Touch IRQ (mode 0, input)
     mtkGpioSetMode(kGpioTouchRst, 0U);
