@@ -801,7 +801,7 @@ static bool merlinxSpiWaitComplete()
 static int merlinxSpiTransferSingleFifo(
     const uint8_t *tx,
     uint8_t *rx,
-    size_t len
+    size_t len,
     bool resetHw = true)
 {
     if (!gSpi0Base || len == 0 || len > kSpiFifoSize) {
@@ -869,7 +869,7 @@ static int merlinxSpiTransferPauseFifo(
             return rc0;
         }
         if (firstDelayUs > 0U) {
-            ODelay(firstDelayUs);
+            IODelay(firstDelayUs);
         }
         offset = 1;
     }
@@ -1943,10 +1943,10 @@ extern "C" unsigned native_legacy_clients_dump(char *out,unsigned cap) {
         for(unsigned sel=0;sel<kSelectors && at+40<cap;++sel) {
             if(!s.selector_calls[sel])continue;
             if(!n)at+=snprintf(out+at,cap-at,"  sel");
-            at+=snprintf(out+at,cap-at," %u:%u/%u/%x",sel,s.selector_calls[sel],s.selector_fails[sel],s.selector_status[sel]);
-            if(++n%6==0)at+=snprintf(out+at,cap-at,"\n  sel");
+            at+=static_cast<unsigned>(snprintf(out+at,cap-at," %u:%u/%u/%x",sel,s.selector_calls[sel],s.selector_fails[sel],s.selector_status[sel]));
+            if(++n%6==0)at+=static_cast<unsigned>(snprintf(out+at,cap-at,"\n  sel"));
         }
-        if(n)at+=snprintf(out+at,cap-at,"\n");
+        if(n)at+=static_cast<unsigned>(snprintf(out+at,cap-at,"\n"));
     }
     return at;
 }
