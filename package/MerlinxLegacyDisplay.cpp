@@ -270,7 +270,6 @@ static uint32_t gVerifiedLargeModes[6] = {
 static uint32_t gVerifiedLargeCount = 4;
 static uint32_t gActiveLargeIdx = 0;
 static uint32_t gStage2ResetCount = 0;
-static bool gStage3SendCmd01 = false;
 static int gFtsProbeResult = -999;
 static bool gTouchWorkerStarted = false;
 static bool gHidMetaRegistered = false;
