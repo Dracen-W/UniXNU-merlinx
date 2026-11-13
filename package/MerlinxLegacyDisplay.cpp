@@ -744,19 +744,12 @@ static void merlinxFixupMtkOvl(bool wipeBackground)
 
 // Per merlinx.dts (gpio_init_default & spi0@1100a000):
 //   GPIO 85 = SPI0_MI  (MISO, Mode 2, dir=0 input)
-//   GPIO 86 = SPI0_CSB (CS,   Mode 0, dir=1 output high; held low across package framing)
+//   GPIO 86 = SPI0_CSB (CS,   Mode 0 GPIO active-low output, or Mode 2 HW CS)
 //   GPIO 87 = SPI0_MO  (MOSI, Mode 2, dir=1 output low)
 //   GPIO 88 = SPI0_CLK (SCLK, Mode 2, dir=1 output low)
-// Note: Bootloader leaves GPIO 13..16 in Mode 2 (alternate SPI0_A pad group), which
-// causes pad-mux contention on SPI0_MI. Explicitly return GPIO 13..16 to Mode 0 input
-// before enabling SPI0 on GPIO 85..88.
+// Do NOT touch GPIO 13..16 (which belong to NFC spi5@11015000 on merlinx).
 static void merlinxSetSpi0PinsMode2()
 {
-    for (uint32_t pin = 13U; pin <= 16U; ++pin) {
-        mtkGpioSetDir(pin, false);
-        mtkGpioSetMode(pin, 0U);
-    }
-
     mtkGpioSetDir(kGpioSpi0Miso, false);
     mtkGpioSetOut(kGpioSpi0Cs,   true);
     mtkGpioSetDir(kGpioSpi0Cs,   true);
@@ -772,8 +765,9 @@ static void merlinxSetSpi0PinsMode2()
 }
 
 // Per Linux drivers/spi/spi-mt65xx.c and hakios-mt6768/mtkloader/mtkspi.h:
-// SPI_CMD_RST resets SPI_CFG0 / SPI_CFG2, so SPI_PAD_SEL, SPI_CFG0, SPI_CFG2, and
-// SPI_CMD interrupt-enable + MSB-first bits must be programmed AFTER clearing SPI_CMD_RST.
+// SPI_CMD_RST resets the 32-bit word TX/RX FIFOs as well as SPI_CFG0 / SPI_CFG2,
+// so SPI_PAD_SEL, SPI_CFG0, SPI_CFG2, and SPI_CMD bits must be programmed AFTER
+// clearing SPI_CMD_RST.
 static void merlinxUngateSpi0Clocks()
 {
     if (gTopckBase) {
@@ -790,16 +784,25 @@ static void merlinxUngateSpi0Clocks()
 static void merlinxSpiResetAndSetupHw()
 {
     mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
-    IODelay(10);
+    IODelay(2);
     mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
     (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
     mmioWrite32(gSpi0Base, kSpiPadSelReg, gSpiBootPadSel & 0x7U);
-    // Conservative ~812 kHz @ 26 MHz (or ~3.4 MHz @ 109 MHz) for bring-up:
-    // SCK_HIGH=15, SCK_LOW=15, CS_HOLD=8, CS_SETUP=8
-    mmioWrite32(gSpi0Base, kSpiCfg0Reg, (8U << 16) | 8U);
+    // Conservative ~2 MHz / ~812 kHz SPI Mode 0 (CPOL=0, CPHA=0, TXMSBF=1, RXMSBF=1):
+    // SCK_HIGH=15, SCK_LOW=15, CS_HOLD=15, CS_SETUP=15
+    mmioWrite32(gSpi0Base, kSpiCfg0Reg, (15U << 16) | 15U);
     mmioWrite32(gSpi0Base, kSpiCfg2Reg, (15U << 16) | 15U);
     mmioWrite32(gSpi0Base, kSpiCmdReg,
         kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdFinishIe | kSpiCmdPauseIe);
+}
+
+static void merlinxSpiIdleHw()
+{
+    if (!gSpi0Base) {
+        return;
+    }
+    mmioWrite32(gSpi0Base, kSpiCmdReg,
+        kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdPauseEn);
 }
 
 static bool merlinxSpiWaitComplete()
@@ -820,6 +823,11 @@ static bool merlinxSpiWaitComplete()
 }
 
 // Single-segment hardware FIFO transfer (1..32 bytes).
+// CRITICAL (per Linux spi-mt65xx.c and ruby_spi3.c):
+// SPI_TX_DATA (0x10) is a 32-bit word register. Any transfer whose byte count is
+// not a multiple of 4 pushes padding bytes into the 32-bit word FIFO that remain
+// stranded if the next transfer does not pulse SPI_CMD_RST. Always reset the FIFO
+// before loading SPI_TX_DATA!
 static int merlinxSpiTransferSingleFifo(
     const uint8_t *tx,
     uint8_t *rx,
@@ -840,7 +848,7 @@ static int merlinxSpiTransferSingleFifo(
         IODelay(1);
     }
     (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
-    uint32_t cfg1 = ((static_cast<uint32_t>(len - 1U) & 0x3FFU) << 16) | 2U;
+    uint32_t cfg1 = ((static_cast<uint32_t>(len - 1U) & 0x3FFU) << 16) | 15U;
     mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
 
     size_t numWords = (len + 3U) / 4U;
@@ -857,6 +865,7 @@ static int merlinxSpiTransferSingleFifo(
     uint32_t cmd = kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdFinishIe | kSpiCmdPauseIe | kSpiCmdAct;
     mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
     if (!merlinxSpiWaitComplete()) {
+        merlinxSpiIdleHw();
         return FTS_ERR_TIMEOUT;
     }
 
@@ -871,11 +880,13 @@ static int merlinxSpiTransferSingleFifo(
             }
         }
     }
+    merlinxSpiIdleHw();
     return FTS_OK;
 }
 
-// Multi-segment hardware FIFO transfer using SPI_CMD_PAUSE_EN + SPI_CMD_RESUME
-// while honoring the mandatory FT8719 first_delay_us (30 us) gap after tx[0].
+// Multi-segment hardware FIFO transfer using SPI_CMD_PAUSE_EN + SPI_CMD_RESUME.
+// Every intermediate segment is 32 bytes (8 full 32-bit words), leaving zero
+// remainder bytes in the 32-bit word FIFO across pause/resume boundaries.
 static int merlinxSpiTransferPauseFifo(
     const uint8_t *tx,
     uint8_t *rx,
@@ -883,33 +894,24 @@ static int merlinxSpiTransferPauseFifo(
     unsigned firstDelayUs,
     bool forceSplitFirst)
 {
+    (void)firstDelayUs;
+    (void)forceSplitFirst;
     if (!gSpi0Base || len == 0) {
         return FTS_ERR_PARAM;
     }
     merlinxSpiResetAndSetupHw();
     mtkGpioSetOut(kGpioSpi0Cs, false);
+    mtkGpioSetDir(kGpioSpi0Cs, true);
+    mtkGpioSetMode(kGpioSpi0Cs, 0U);
     IODelay(2);
 
     size_t offset = 0;
-    if ((forceSplitFirst || firstDelayUs > 0U) && len > 1U) {
-        int rc0 = merlinxSpiTransferSingleFifo(tx, rx, 1U, false);
-        if (rc0 != FTS_OK) {
-            mtkGpioSetOut(kGpioSpi0Cs, true);
-            return rc0;
-        }
-        if (firstDelayUs > 0U) {
-            IODelay(firstDelayUs);
-        }
-        offset = 1;
-    }
-
-    const size_t loopStart = offset;
     while (offset < len) {
         size_t rem = len - offset;
         size_t segLen = (rem > kSpiFifoSize) ? kSpiFifoSize : rem;
         bool lastSeg = (offset + segLen >= len);
 
-        uint32_t cfg1 = ((static_cast<uint32_t>(segLen - 1U) & 0x3FFU) << 16) | 2U;
+        uint32_t cfg1 = ((static_cast<uint32_t>(segLen - 1U) & 0x3FFU) << 16) | 15U;
         mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
 
         size_t numWords = (segLen + 3U) / 4U;
@@ -927,10 +929,11 @@ static int merlinxSpiTransferPauseFifo(
         if (!lastSeg) {
             cmd |= kSpiCmdPauseEn;
         }
-        cmd |= (offset == loopStart) ? kSpiCmdAct : kSpiCmdResume;
+        cmd |= (offset == 0) ? kSpiCmdAct : kSpiCmdResume;
         mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
 
         if (!merlinxSpiWaitComplete()) {
+            merlinxSpiIdleHw();
             mtkGpioSetOut(kGpioSpi0Cs, true);
             return FTS_ERR_TIMEOUT;
         }
@@ -948,13 +951,19 @@ static int merlinxSpiTransferPauseFifo(
         }
         offset += segLen;
     }
+    merlinxSpiIdleHw();
     IODelay(2);
     mtkGpioSetOut(kGpioSpi0Cs, true);
     return FTS_OK;
 }
 
-// Multi-segment 32-byte hardware FIFO transfer holding csPin (GPIO 86) LOW in GPIO Mode 0
-// and inserting the mandatory 30 us FT8719 first_delay_us gap after tx[0].
+// Hardware FIFO transfer holding csPin (GPIO 86) LOW in GPIO Mode 0.
+// Per Linux FT8719P/focaltech_spi.c and drivers/spi/spi-mt65xx.c:
+// - Never split a package after tx[0] into a 1-byte FIFO transfer without resetting
+//   the FIFO, and for <= 32-byte packages, transfer the entire package in one
+//   continuous FIFO operation (matching Linux spi_sync() + mtk_spi_fifo_transfer()).
+// - For > 32-byte packages, each 32-byte chunk resets the FIFO (resetHw = true)
+//   while GPIO 86 stays continuously LOW.
 static int merlinxSpiTransferGpioCsFifo(
     const uint8_t *tx,
     uint8_t *rx,
@@ -963,10 +972,11 @@ static int merlinxSpiTransferGpioCsFifo(
     unsigned firstDelayUs,
     bool forceSplitFirst)
 {
+    (void)firstDelayUs;
+    (void)forceSplitFirst;
     if (!gSpi0Base || len == 0) {
         return FTS_ERR_PARAM;
     }
-    merlinxSpiResetAndSetupHw();
     mtkGpioSetOut(csPin, false);
     mtkGpioSetDir(csPin, true);
     mtkGpioSetMode(csPin, 0U);
@@ -975,17 +985,14 @@ static int merlinxSpiTransferGpioCsFifo(
     size_t offset = 0;
     while (offset < len) {
         size_t rem = len - offset;
-        size_t segLen = (offset == 0 && (forceSplitFirst || firstDelayUs > 0U) && len > 1U)
-            ? 1U
-            : ((rem > kSpiFifoSize) ? kSpiFifoSize : rem);
+        size_t segLen = (rem > kSpiFifoSize) ? kSpiFifoSize : rem;
 
         int rc = merlinxSpiTransferSingleFifo(
             tx ? (tx + offset) : nullptr,
             rx ? (rx + offset) : nullptr,
             segLen,
-            false);
+            true);
         if (rc != FTS_OK) {
-            // Retry once on hardware SPI0 FIFO if a transient poll timeout occurred
             rc = merlinxSpiTransferSingleFifo(
                 tx ? (tx + offset) : nullptr,
                 rx ? (rx + offset) : nullptr,
@@ -996,9 +1003,6 @@ static int merlinxSpiTransferGpioCsFifo(
                 return rc;
             }
         }
-        if (offset == 0 && firstDelayUs > 0U && len > 1U) {
-            IODelay(firstDelayUs);
-        }
         offset += segLen;
     }
 
@@ -1007,8 +1011,9 @@ static int merlinxSpiTransferGpioCsFifo(
     return FTS_OK;
 }
 
-// Hardware SPI0 DMA transfer with GPIO 86 manual CS hold + 30 us first-byte delay,
-// falling back to 32-byte hardware FIFO segments if DMA ever times out.
+// Hardware SPI0 DMA transfer (per Linux drivers/spi/spi-mt65xx.c) with GPIO 86 CS hold,
+// transferring the full package from offset 0 without a 1-byte FIFO split, and falling
+// back to 32-byte hardware FIFO chunks if DMA ever times out.
 static int merlinxSpiTransferDma(
     const uint8_t *tx,
     uint8_t *rx,
@@ -1016,7 +1021,7 @@ static int merlinxSpiTransferDma(
     unsigned firstDelayUs)
 {
     if (!gSpi0Base || !gCarveoutBase || len == 0 || len > 0x2000U) {
-        return merlinxSpiTransferGpioCsFifo(tx, rx, len, kGpioSpi0Cs, firstDelayUs, firstDelayUs > 0U);
+        return merlinxSpiTransferGpioCsFifo(tx, rx, len, kGpioSpi0Cs, firstDelayUs, false);
     }
     merlinxSpiResetAndSetupHw();
     mtkGpioSetOut(kGpioSpi0Cs, false);
@@ -1024,42 +1029,31 @@ static int merlinxSpiTransferDma(
     mtkGpioSetMode(kGpioSpi0Cs, 0U);
     IODelay(2);
 
-    size_t payloadOffset = 0;
-    if (firstDelayUs > 0U && len > 1U) {
-        int rc0 = merlinxSpiTransferSingleFifo(tx, rx, 1U, false);
-        if (rc0 != FTS_OK) {
-            mtkGpioSetOut(kGpioSpi0Cs, true);
-            return rc0;
-        }
-        IODelay(firstDelayUs);
-        payloadOffset = 1U;
-    }
-
-    size_t dmaLen = len - payloadOffset;
     volatile uint8_t *dmaTxVa = gCarveoutBase + kSpiDmaTxOff;
     volatile uint8_t *dmaRxVa = gCarveoutBase + kSpiDmaRxOff;
     uint32_t dmaTxPa = static_cast<uint32_t>(kMtkMblockFbBasePa + kSpiDmaTxOff);
     uint32_t dmaRxPa = static_cast<uint32_t>(kMtkMblockFbBasePa + kSpiDmaRxOff);
 
-    for (size_t i = 0; i < dmaLen; ++i) {
-        dmaTxVa[i] = tx ? tx[payloadOffset + i] : 0U;
+    size_t paddedLen = (len + 3U) & ~static_cast<size_t>(3U);
+    for (size_t i = 0; i < paddedLen; ++i) {
+        dmaTxVa[i] = (tx && i < len) ? tx[i] : 0U;
         dmaRxVa[i] = 0U;
     }
     __asm__ volatile("dsb sy" ::: "memory");
 
     size_t offset = 0;
-    while (offset < dmaLen) {
-        size_t rem = dmaLen - offset;
+    while (offset < len) {
+        size_t rem = len - offset;
         size_t pktSize = (rem >= kSpiDmaPacketSize) ? kSpiDmaPacketSize : rem;
         size_t pktLoop = (rem >= kSpiDmaPacketSize) ? (rem / kSpiDmaPacketSize) : 1U;
         if (pktLoop > 256U) {
             pktLoop = 256U;
         }
         size_t chunkBytes = pktSize * pktLoop;
-        bool lastChunk = (offset + chunkBytes >= dmaLen);
+        bool lastChunk = (offset + chunkBytes >= len);
 
         uint32_t cfg1 = ((static_cast<uint32_t>(pktSize - 1U) & 0x3FFU) << 16) |
-                        ((static_cast<uint32_t>(pktLoop - 1U) & 0xFFU) << 8) | 2U;
+                        ((static_cast<uint32_t>(pktLoop - 1U) & 0xFFU) << 8) | 15U;
         mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
         mmioWrite32(gSpi0Base, kSpiTxSrcReg, dmaTxPa + static_cast<uint32_t>(offset));
         mmioWrite32(gSpi0Base, kSpiRxDstReg, dmaRxPa + static_cast<uint32_t>(offset));
@@ -1073,18 +1067,19 @@ static int merlinxSpiTransferDma(
         mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
 
         if (!merlinxSpiWaitComplete()) {
+            merlinxSpiIdleHw();
             mtkGpioSetOut(kGpioSpi0Cs, true);
             IODelay(5);
-            return merlinxSpiTransferGpioCsFifo(tx, rx, len, kGpioSpi0Cs, firstDelayUs, firstDelayUs > 0U);
+            return merlinxSpiTransferGpioCsFifo(tx, rx, len, kGpioSpi0Cs, firstDelayUs, false);
         }
         offset += chunkBytes;
     }
 
-    mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
+    merlinxSpiIdleHw();
     __asm__ volatile("dsb sy" ::: "memory");
     if (rx) {
-        for (size_t i = 0; i < dmaLen; ++i) {
-            rx[payloadOffset + i] = dmaRxVa[i];
+        for (size_t i = 0; i < len; ++i) {
+            rx[i] = dmaRxVa[i];
         }
     }
 
@@ -1093,8 +1088,7 @@ static int merlinxSpiTransferDma(
     return FTS_OK;
 }
 
-// Pure GPIO bit-bang Mode 0 (CPOL=0, CPHA=0) on GPIO 85..88 for isolating
-// MT6768 HW SPI0 controller issues from FT8719 wiring/protocol issues.
+// Pure GPIO bit-bang Mode 0 (CPOL=0, CPHA=0) on GPIO 85..88 (optional diagnostic fallback via fts-spi-bb=1).
 static int merlinxSpiTransferBitbang(
     const uint8_t *tx,
     uint8_t *rx,
@@ -1150,19 +1144,18 @@ static int merlinxSpiTransferBitbang(
 static int merlinxSpiTransferByLargeMode(
     uint32_t largeMode,
     const uint8_t *tx,
+    const size_t len,
     uint8_t *rx,
-    size_t len,
-    unsigned firstDelayUs,
-    bool forceSplitFirst)
+    unsigned firstDelayUs)
 {
     switch (largeMode) {
     case kLargePauseFifo:
-        return merlinxSpiTransferPauseFifo(tx, rx, len, firstDelayUs, forceSplitFirst);
+        return merlinxSpiTransferPauseFifo(tx, rx, len, firstDelayUs, false);
     case kLargeDma:
         return merlinxSpiTransferDma(tx, rx, len, firstDelayUs);
     case kLargeCs86Fifo:
     default:
-        return merlinxSpiTransferGpioCsFifo(tx, rx, len, kGpioSpi0Cs, firstDelayUs, forceSplitFirst);
+        return merlinxSpiTransferGpioCsFifo(tx, rx, len, kGpioSpi0Cs, firstDelayUs, false);
     }
 }
 
@@ -1193,10 +1186,8 @@ static bool merlinxInitTouchHardware()
     }
 
     merlinx_usb_log_line(
-        "[FTS-HW] Boot GPIO modes: 85..88=(%u,%u,%u,%u) 32..35=(%u,%u,%u,%u) 13..16=(%u,%u,%u,%u) RST92=%u(in=%d) IRQ1=%u(in=%d)\n",
+        "[FTS-HW] Boot GPIO modes: 85..88=(%u,%u,%u,%u) RST92=%u(in=%d) IRQ1=%u(in=%d)\n",
         mtkGpioGetMode(85), mtkGpioGetMode(86), mtkGpioGetMode(87), mtkGpioGetMode(88),
-        mtkGpioGetMode(32), mtkGpioGetMode(33), mtkGpioGetMode(34), mtkGpioGetMode(35),
-        mtkGpioGetMode(13), mtkGpioGetMode(14), mtkGpioGetMode(15), mtkGpioGetMode(16),
         mtkGpioGetMode(kGpioTouchRst), mtkGpioGetIn(kGpioTouchRst),
         mtkGpioGetMode(kGpioTouchIrq), mtkGpioGetIn(kGpioTouchIrq));
 
@@ -1211,21 +1202,18 @@ static bool merlinxInitTouchHardware()
     mtkGpioSetMode(kGpioTouchIrq, 0U);
     mtkGpioSetDir(kGpioTouchIrq, false);
 
-    // Configure SPI0 pins per merlinx.dts:
-    // GPIO 85=MI(MISO, Mode 2), 86=CSB(CS, Mode 0 GPIO high), 87=MO(MOSI, Mode 2), 88=CLK(SCLK, Mode 2).
-    merlinxSetSpi0PinsMode2();
-
+    // Configure SPI0 pins per merlinx.dts (pad-select = 0, GPIO 85..88)
     gSpiBootPadSel = mmioRead32(gSpi0Base, kSpiPadSelReg) & 0x7U;
     merlinxSpiResetAndSetupHw();
+    merlinxSpiIdleHw();
+    merlinxSetSpi0PinsMode2();
 
-    // Always use Hardware SPI0 (gSpiSmallMode = 0) with GPIO 86 software CS + 32-byte FIFO segments
-    // as primary transport, and DMA / Pause-FIFO as secondary large-packet modes.
     uint32_t useBb = 0U;
     PE_parse_boot_argn("fts-spi-bb", &useBb, sizeof(useBb));
     gSpiSmallMode = (useBb != 0U) ? 1U : 0U;
-    gVerifiedLargeModes[0] = kLargeCs86Fifo;
-    gVerifiedLargeModes[1] = kLargeDma;
-    gVerifiedLargeModes[2] = kLargePauseFifo;
+    gVerifiedLargeModes[0] = kLargePauseFifo;
+    gVerifiedLargeModes[1] = kLargeCs86Fifo;
+    gVerifiedLargeModes[2] = kLargeDma;
     gVerifiedLargeCount = 3U;
     gActiveLargeIdx = 0U;
 
@@ -1264,31 +1252,6 @@ extern "C" volatile void *merlinx_get_active_scanout_va(volatile void *default_d
     return base;
 }
 
-static void merlinxSendTouchReadCmd01()
-{
-    const uint8_t pkgStatus[2] = {FTS_PACKAGE_STATUS, 0x00U};
-    const uint8_t cmd01[5]     = {FTS_PACKAGE_COMMAND, 0xA3U, 0x01U, 0x00U, 0x5AU};
-    uint8_t rx[5] = {};
-
-    for (unsigned i = 0; i < 6U; ++i) {
-        IODelay(150);
-        if (merlinxSpiTransferGpioCsFifo(pkgStatus, rx, sizeof(pkgStatus), kGpioSpi0Cs, 30U, true) == FTS_OK &&
-            (rx[1] & 0x80U) == 0U) {
-            break;
-        }
-    }
-    IODelay(150);
-    (void)merlinxSpiTransferGpioCsFifo(cmd01, rx, sizeof(cmd01), kGpioSpi0Cs, 30U, true);
-    for (unsigned i = 0; i < 6U; ++i) {
-        IODelay(150);
-        if (merlinxSpiTransferGpioCsFifo(pkgStatus, rx, sizeof(pkgStatus), kGpioSpi0Cs, 30U, true) == FTS_OK &&
-            (rx[1] & 0x80U) == 0U) {
-            break;
-        }
-    }
-    IODelay(150);
-}
-
 // FocalTechTouch submodule board transport contract
 extern "C" int fts_board_spi_transfer(
     void *context,
@@ -1302,24 +1265,6 @@ extern "C" int fts_board_spi_transfer(
         return FTS_OK;
     }
 
-    // Compatibility guard for older prebuilt FtsProtocol.c that sent a spurious 3F AA data package
-    // after 0x55 (FTS_CMD_START) in fts_boot_identify(): skip putting 3F AA on the wire.
-    if (fts_touch_stage_done == 0 && len == 2U && tx &&
-        tx[0] == FTS_PACKAGE_DATA && tx[1] == 0xAAU) {
-        if (rx) {
-            rx[0] = 0U;
-            rx[1] = 0U;
-        }
-        return FTS_OK;
-    }
-
-    static uint8_t sLastBootCmd = 0U;
-    static size_t sLastBootCmdLen = 0U;
-    if (tx && tx[0] == FTS_PACKAGE_COMMAND && len >= 3U) {
-        sLastBootCmd = tx[2];
-        sLastBootCmdLen = len - 2U;
-    }
-
     gSpiTransferCalls++;
     int rc = FTS_OK;
 
@@ -1327,68 +1272,13 @@ extern "C" int fts_board_spi_transfer(
         if (gSpiSmallMode != 0U) {
             rc = merlinxSpiTransferBitbang(tx, rx, len, first_delay_us);
         } else {
-            // Always hold GPIO 86 (CSB) low across tx[0] -> 30 us first_delay_us -> tx[1..len-1]!
             rc = merlinxSpiTransferGpioCsFifo(
-                tx, rx, len, kGpioSpi0Cs, first_delay_us, first_delay_us > 0U);
-        }
-
-        // If an older 1-byte 0x90 (FTS_CMD_READ_ID) command was issued in ROM boot mode and
-        // returned 0x0202, automatically issue the 4-byte in-cell Read ID command
-        // {0xC0, 0x84, 0x90, 0x00, 0x00, 0x00} (FTS_CMD_READ_ID_LEN_INCELL = 4 in FT8719P).
-        if (rc == FTS_OK && fts_touch_stage_done == 0 && len == 5U &&
-            tx && tx[0] == FTS_PACKAGE_DATA && sLastBootCmd == FTS_CMD_READ_ID &&
-            sLastBootCmdLen == 1U && rx && rx[1] == 0x02U && rx[2] == 0x02U) {
-            const uint8_t cmdIncellId[6] = {FTS_PACKAGE_COMMAND, 0x84U, FTS_CMD_READ_ID, 0x00U, 0x00U, 0x00U};
-            const uint8_t pkgStatus[2]   = {FTS_PACKAGE_STATUS, 0x00U};
-            uint8_t stRx[2] = {};
-            uint8_t dummyRx[6] = {};
-            IODelay(150);
-            (void)merlinxSpiTransferGpioCsFifo(cmdIncellId, dummyRx, sizeof(cmdIncellId), kGpioSpi0Cs, 30U, true);
-            for (unsigned p = 0; p < 6U; ++p) {
-                IODelay(150);
-                if (merlinxSpiTransferGpioCsFifo(pkgStatus, stRx, sizeof(pkgStatus), kGpioSpi0Cs, 30U, true) == FTS_OK &&
-                    (stRx[1] & 0x80U) == 0U) {
-                    break;
-                }
-            }
-            IODelay(150);
-            rc = merlinxSpiTransferGpioCsFifo(tx, rx, len, kGpioSpi0Cs, first_delay_us, true);
-            if (rc == FTS_OK && gSpiSmallMode == 0U && rx && rx[1] == 0x02U && rx[2] == 0x02U) {
-                uint8_t bbRx[5] = {};
-                IODelay(150);
-                (void)merlinxSpiTransferBitbang(cmdIncellId, dummyRx, sizeof(cmdIncellId), 30U);
-                IODelay(150);
-                if (merlinxSpiTransferBitbang(tx, bbRx, len, first_delay_us) == FTS_OK) {
-                    merlinx_usb_log_line(
-                        "[FTS-BB] 0x90 fallback rx=%02x,%02x,%02x,%02x,%02x\n",
-                        bbRx[0], bbRx[1], bbRx[2], bbRx[3], bbRx[4]);
-                    if (bbRx[1] == 0x87U) {
-                        memcpy(rx, bbRx, len);
-                        gSpiSmallMode = 1U;
-                    }
-                }
-            }
+                tx, rx, len, kGpioSpi0Cs, first_delay_us, false);
         }
     } else {
         gSpiDmaCalls++;
         uint32_t largeMode = gVerifiedLargeModes[gActiveLargeIdx % gVerifiedLargeCount];
-
-        if (fts_touch_stage_done == 3 && len == 93U && tx && tx[0] == FTS_PACKAGE_DATA && gStage3SendCmd01) {
-            merlinxSendTouchReadCmd01();
-        }
-        rc = merlinxSpiTransferByLargeMode(largeMode, tx, rx, len, first_delay_us, first_delay_us > 0U);
-
-        // In Stage 3 (touch report loop), if a bare 0x3F read returned all zeros while IRQ1 is asserted low,
-        // issue the vendor 0x01 touch read command (C0 A3 01 00 5A) and re-read the 93-byte data package.
-        if (rc == FTS_OK && fts_touch_stage_done == 3 && len == 93U &&
-            tx && tx[0] == FTS_PACKAGE_DATA && rx && (rx[1] & 0xF0U) != 0x90U &&
-            !gStage3SendCmd01 && mtkGpioGetIn(kGpioTouchIrq) == 0) {
-            merlinxSendTouchReadCmd01();
-            rc = merlinxSpiTransferByLargeMode(largeMode, tx, rx, len, first_delay_us, first_delay_us > 0U);
-            if (rc == FTS_OK && (rx[1] & 0xF0U) == 0x90U) {
-                gStage3SendCmd01 = true;
-            }
-        }
+        rc = merlinxSpiTransferByLargeMode(largeMode, tx, len, rx, first_delay_us);
     }
 
     if (gSpiTransferCalls <= 32U || (fts_touch_stage_done == 1U && gSpiDmaCalls <= 16U)) {
@@ -1414,8 +1304,6 @@ extern "C" void fts_board_delay_ms(void *context, unsigned ms)
     if (ms == 0) {
         return;
     }
-    // Use microsecond IODelay for <= 15 ms so the 2 ms reset pulse and 8 ms
-    // post-reset ROM bootloader unlock window are never overshot by IOSleep().
     if (ms <= 15U) {
         IODelay(ms * 1000U);
     } else {
@@ -1441,16 +1329,16 @@ extern "C" void fts_board_reset(void *context, int asserted)
 extern "C" int fts_board_irq_wait(void *context, unsigned timeout_ms)
 {
     (void)context;
-    unsigned waitedUs = 0;
-    unsigned limitUs = (timeout_ms == 0 || timeout_ms > 12U) ? 10000U : (timeout_ms * 1000U);
-    while (waitedUs < limitUs) {
+    unsigned waitedMs = 0;
+    unsigned limitMs = (timeout_ms == 0) ? 100U : timeout_ms;
+    while (waitedMs < limitMs) {
         if (mtkGpioGetIn(kGpioTouchIrq) == 0) {
             return FTS_OK;
         }
         IOSleep(2);
-        waitedUs += 2000U;
+        waitedMs += 2U;
     }
-    return FTS_OK;
+    return FTS_ERR_TIMEOUT;
 }
 
 extern "C" void native_hid_input_observed(unsigned stage, int status)
@@ -2040,10 +1928,10 @@ extern "C" unsigned native_legacy_clients_dump(char *out,unsigned cap) {
         for(unsigned sel=0;sel<kSelectors && at+40<cap;++sel) {
             if(!s.selector_calls[sel])continue;
             if(!n)at+=snprintf(out+at,cap-at,"  sel");
-            at+=static_cast<unsigned>(snprintf(out+at,cap-at," %u:%u/%u/%x",sel,s.selector_calls[sel],s.selector_fails[sel],s.selector_status[sel]));
-            if(++n%6==0)at+=static_cast<unsigned>(snprintf(out+at,cap-at,"\n  sel"));
+            at+=snprintf(out+at,cap-at," %u:%u/%u/%x",sel,s.selector_calls[sel],s.selector_fails[sel],s.selector_status[sel]);
+            if(++n%6==0)at+=snprintf(out+at,cap-at,"\n  sel");
         }
-        if(n)at+=static_cast<unsigned>(snprintf(out+at,cap-at,"\n"));
+        if(n)at+=snprintf(out+at,cap-at,"\n");
     }
     return at;
 }
