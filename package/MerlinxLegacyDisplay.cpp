@@ -829,9 +829,11 @@ static void merlinxSpiIdleHw()
 }
 
 // Wait for FINISH (bit 0) or PAUSE (bit 1) in SPI_STATUS0.
-// A 32-byte FIFO segment at ~5 MHz takes ~52 us on the wire. If a RESUME pulse
-// raced with PAUSE state entry and SPI_STATUS1 bit 0 is still idle/paused after
-// ~150 us, re-assert `cmd` in place so a 129-segment firmware chunk never stalls.
+// A 32-byte FIFO segment at ~4.96 MHz takes ~51.6 us on the wire (~260 polls).
+// Never re-write SPI_CMD near the 52 us completion window (which would re-shift
+// stale FIFO bytes if the segment finishes between reading STATUS0 and STATUS1).
+// Only check for a stalled RESUME at poll == 1536 (~300 us), and re-verify
+// STATUS0 == 0 after reading STATUS1 before touching SPI_CMD.
 static bool merlinxSpiWaitComplete(uint32_t cmd)
 {
     for (uint32_t poll = 0; poll < 4000U; ++poll) {
@@ -839,8 +841,12 @@ static bool merlinxSpiWaitComplete(uint32_t cmd)
         if ((st0 & 0x3U) != 0U) {
             return true;
         }
-        if ((poll == 256U || poll == 1024U) &&
+        if (poll == 1536U &&
             (mmioRead32(gSpi0Base, kSpiStatus1Reg) & 1U) != 0U) {
+            st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
+            if ((st0 & 0x3U) != 0U) {
+                return true;
+            }
             mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
         }
         if ((poll & 7U) == 7U) {
@@ -878,7 +884,6 @@ static int merlinxSpiTransferHwGpioCs(
             }
             IODelay(1);
         }
-        (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
 
         size_t rem = len - offset;
         size_t segLen = (offset == 0 && firstDelayUs > 0U && len > 1U)
@@ -1162,14 +1167,20 @@ extern "C" int fts_board_spi_transfer(
 
     if (fts_touch_stage_done != gLastLoggedStage) {
         gLastLoggedStage = fts_touch_stage_done;
-        if (gSpiModeLogBudget < 20U) {
-            gSpiModeLogBudget = 20U;
+        if (gSpiModeLogBudget < 64U) {
+            gSpiModeLogBudget = 64U;
+        }
+    }
+    uint32_t chunkIdxInAttempt = (gSpiDmaCalls > 0U) ? ((gSpiDmaCalls - 1U) % 16U + 1U) : 0U;
+    if (fts_touch_stage_done == 1U && len > kSpiFifoSize && chunkIdxInAttempt == 16U) {
+        if (gSpiModeLogBudget < 32U) {
+            gSpiModeLogBudget = 32U;
         }
     }
     // During Stage 2 firmware download, log the first 2 chunks and then save
     // log budget for the final chunk, ECC check (0xCC/0xCE/0xCD), and app start (0x08).
     bool skipMidChunkLog = (fts_touch_stage_done == 1U &&
-                            gSpiDmaCalls > 2U && gSpiDmaCalls < 16U &&
+                            chunkIdxInAttempt >= 2U && chunkIdxInAttempt < 16U &&
                             rc == FTS_OK);
     if (gSpiModeLogBudget > 0U && !skipMidChunkLog) {
         gSpiModeLogBudget--;
