@@ -175,9 +175,7 @@ static constexpr uint32_t kSpiCmdRxmsbf       = (1U << 13);
 static constexpr uint32_t kSpiCmdFinishIe     = (1U << 16);
 static constexpr uint32_t kSpiCmdPauseIe      = (1U << 17);
 static constexpr uint32_t kSpiFifoSize        = 32U;
-static constexpr uint32_t kSpiDmaPacketSize   [[maybe_unused]] = 1024U;
-static constexpr uint64_t kSpiDmaTxOff        [[maybe_unused]] = kMtkMblockFbSize - 0x4000ULL;
-static constexpr uint64_t kSpiDmaRxOff        [[maybe_unused]] = kMtkMblockFbSize - 0x2000ULL;
+static constexpr uint32_t kSpiHalfTicks       = 10U; // 109.2 MHz / (2 * 11) = ~4.96 MHz (< 8 MHz max)
 
 static constexpr uint32_t kGpioTouchIrq       = 1U;
 static constexpr uint32_t kGpioSpi0Miso       = 85U;
@@ -260,10 +258,11 @@ static uint32_t gSpiHwTimeouts = 0;
 static uint32_t gSpiDmaCalls = 0;
 static uint32_t gSpiBootResetInjected = 0;
 static uint32_t gSpiBootPadSel = 0;
-static uint32_t gSpiSmallMode = 0; // 0 = HW SPI0 + GPIO 86 CS, 2 = GPIO bit-bang
+static uint32_t gSpiSmallMode = 0; // 0 = HW SPI0 Mode 1, 2 = GPIO bit-bang (only via fts-spi-bb=1)
 static uint32_t gSpiModeLogBudget = 32;
 static uint32_t gLastLoggedStage = 0;
 static uint32_t gStage2ResetCount = 0;
+static bool gStage3NeedsCmd01 = false;
 static int gFtsProbeResult = -999;
 static bool gTouchWorkerStarted = false;
 static bool gHidMetaRegistered = false;
@@ -807,8 +806,8 @@ static void merlinxSpiResetAndSetupHw()
     mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
     (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
     mmioWrite32(gSpi0Base, kSpiPadSelReg, gSpiBootPadSel & 0x7U);
-    mmioWrite32(gSpi0Base, kSpiCfg0Reg, (27U << 16) | 27U);
-    mmioWrite32(gSpi0Base, kSpiCfg2Reg, (27U << 16) | 27U);
+    mmioWrite32(gSpi0Base, kSpiCfg0Reg, (kSpiHalfTicks << 16) | kSpiHalfTicks);
+    mmioWrite32(gSpi0Base, kSpiCfg2Reg, (kSpiHalfTicks << 16) | kSpiHalfTicks);
     mmioWrite32(gSpi0Base, kSpiCmdReg,
         kSpiCmdCpha | kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdFinishIe | kSpiCmdPauseIe);
 }
@@ -820,16 +819,29 @@ static void merlinxSpiIdleHw()
     }
     mmioWrite32(gSpi0Base, kSpiCmdReg, kSpiCmdRst);
     IODelay(1);
+    mmioWrite32(gSpi0Base, kSpiCmdReg, 0U);
+    (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
+    mmioWrite32(gSpi0Base, kSpiPadSelReg, gSpiBootPadSel & 0x7U);
+    mmioWrite32(gSpi0Base, kSpiCfg0Reg, (kSpiHalfTicks << 16) | kSpiHalfTicks);
+    mmioWrite32(gSpi0Base, kSpiCfg2Reg, (kSpiHalfTicks << 16) | kSpiHalfTicks);
     mmioWrite32(gSpi0Base, kSpiCmdReg,
         kSpiCmdCpha | kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdFinishIe | kSpiCmdPauseIe);
 }
 
-static bool merlinxSpiWaitComplete()
+// Wait for FINISH (bit 0) or PAUSE (bit 1) in SPI_STATUS0.
+// A 32-byte FIFO segment at ~5 MHz takes ~52 us on the wire. If a RESUME pulse
+// raced with PAUSE state entry and SPI_STATUS1 bit 0 is still idle/paused after
+// ~150 us, re-assert `cmd` in place so a 129-segment firmware chunk never stalls.
+static bool merlinxSpiWaitComplete(uint32_t cmd)
 {
-    for (uint32_t poll = 0; poll < 400000U; ++poll) {
+    for (uint32_t poll = 0; poll < 4000U; ++poll) {
         uint32_t st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
         if ((st0 & 0x3U) != 0U) {
             return true;
+        }
+        if ((poll == 256U || poll == 1024U) &&
+            (mmioRead32(gSpi0Base, kSpiStatus1Reg) & 1U) != 0U) {
+            mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
         }
         if ((poll & 7U) == 7U) {
             IODelay(1);
@@ -854,26 +866,27 @@ static int merlinxSpiTransferHwGpioCs(
         return FTS_ERR_PARAM;
     }
     merlinxSpiResetAndSetupHw();
-    for (uint32_t spin = 0; spin < 1000U; ++spin) {
-        if ((mmioRead32(gSpi0Base, kSpiStatus1Reg) & 1U) != 0U) {
-            break;
-        }
-        IODelay(1);
-    }
-    (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
 
     constexpr uint32_t kBaseCmd =
         kSpiCmdCpha | kSpiCmdTxmsbf | kSpiCmdRxmsbf | kSpiCmdFinishIe | kSpiCmdPauseIe;
 
     size_t offset = 0;
     while (offset < len) {
+        for (uint32_t spin = 0; spin < 500U; ++spin) {
+            if ((mmioRead32(gSpi0Base, kSpiStatus1Reg) & 1U) != 0U) {
+                break;
+            }
+            IODelay(1);
+        }
+        (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
+
         size_t rem = len - offset;
         size_t segLen = (offset == 0 && firstDelayUs > 0U && len > 1U)
             ? 1U
             : ((rem > kSpiFifoSize) ? kSpiFifoSize : rem);
         bool lastSeg = (offset + segLen >= len);
 
-        uint32_t cfg1 = ((static_cast<uint32_t>(segLen - 1U) & 0x3FFU) << 16) | 27U;
+        uint32_t cfg1 = ((static_cast<uint32_t>(segLen - 1U) & 0x3FFU) << 16) | kSpiHalfTicks;
         mmioWrite32(gSpi0Base, kSpiCfg1Reg, cfg1);
 
         size_t numWords = (segLen + 3U) / 4U;
@@ -894,7 +907,7 @@ static int merlinxSpiTransferHwGpioCs(
         cmd |= (offset == 0) ? kSpiCmdAct : kSpiCmdResume;
         mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
 
-        if (!merlinxSpiWaitComplete()) {
+        if (!merlinxSpiWaitComplete(cmd)) {
             merlinxSpiIdleHw();
             return FTS_ERR_TIMEOUT;
         }
@@ -921,7 +934,7 @@ static int merlinxSpiTransferHwGpioCs(
     return FTS_OK;
 }
 
-// Pure GPIO bit-bang Mode 1 (CPOL=0, CPHA=1) on GPIO 85..88 with 30 us first-byte delay.
+// Pure GPIO bit-bang Mode 1 (CPOL=0, CPHA=1) on GPIO 85..88 (diagnostic only when fts-spi-bb=1).
 static int merlinxSpiTransferBitbang(
     const uint8_t *tx,
     uint8_t *rx,
@@ -1069,6 +1082,29 @@ extern "C" volatile void *merlinx_get_active_scanout_va(volatile void *default_d
     return base;
 }
 
+static int merlinxStage3SendTouchCmd01(unsigned first_delay_us)
+{
+    static const uint8_t kCmd01[3] = { FTS_PACKAGE_COMMAND, FTS_CTRL_READ | 1U, 0x01U };
+    uint8_t cmdRx[3] = { 0, 0, 0 };
+    int rc = merlinxSpiTransferHwGpioCs(kCmd01, cmdRx, sizeof(kCmd01), first_delay_us);
+    if (rc != FTS_OK) {
+        return rc;
+    }
+    IODelay(FTS_CS_HIGH_DELAY_US);
+    for (unsigned poll = 0; poll < 8U; ++poll) {
+        static const uint8_t kStTx[2] = { FTS_PACKAGE_STATUS, 0U };
+        uint8_t stRx[2] = { 0, 0 };
+        if (merlinxSpiTransferHwGpioCs(kStTx, stRx, sizeof(kStTx), first_delay_us) == FTS_OK) {
+            IODelay(FTS_CS_HIGH_DELAY_US);
+            if ((stRx[1] & 0x80U) == 0U) {
+                break;
+            }
+        }
+        IODelay(50);
+    }
+    return FTS_OK;
+}
+
 // FocalTechTouch submodule board transport contract
 extern "C" int fts_board_spi_transfer(
     void *context,
@@ -1086,17 +1122,56 @@ extern "C" int fts_board_spi_transfer(
     if (len > kSpiFifoSize) {
         gSpiDmaCalls++;
     }
-    int rc = (gSpiSmallMode == 2U)
-        ? merlinxSpiTransferBitbang(tx, rx, len, first_delay_us)
-        : merlinxSpiTransferHwGpioCs(tx, rx, len, first_delay_us);
+
+    bool isStage3TouchRead = (fts_touch_stage_done >= 3U &&
+                              len == (1U + FTS_TOUCH_FRAME_LEN + 2U) &&
+                              tx && tx[0] == FTS_PACKAGE_DATA &&
+                              gSpiSmallMode != 2U);
+    if (isStage3TouchRead && gStage3NeedsCmd01) {
+        (void)merlinxStage3SendTouchCmd01(first_delay_us);
+    }
+
+    int rc = FTS_ERR_TIMEOUT;
+    if (gSpiSmallMode == 2U) {
+        rc = merlinxSpiTransferBitbang(tx, rx, len, first_delay_us);
+    } else {
+        unsigned maxTries = (len <= kSpiFifoSize) ? 3U : 2U;
+        for (unsigned attempt = 0; attempt < maxTries; ++attempt) {
+            rc = merlinxSpiTransferHwGpioCs(tx, rx, len, first_delay_us);
+            if (rc == FTS_OK) {
+                break;
+            }
+            IODelay(150);
+        }
+    }
+
+    // In FT8719P/focaltech_core.c (fts_read_touchdata), reading the 90-byte
+    // touch report requires sending command 0x01 (FTS_CMD_READ_TOUCHDATA)
+    // before the 0x3F data read. If a bare 0x3F read did not return a 0x9x
+    // touch header while IRQ1 is low, issue 0x01 and re-read the data package.
+    if (rc == FTS_OK && isStage3TouchRead && !gStage3NeedsCmd01 &&
+        rx && (rx[1] & 0xF0U) != 0x90U && mtkGpioGetIn(kGpioTouchIrq) == 0) {
+        if (merlinxStage3SendTouchCmd01(first_delay_us) == FTS_OK &&
+            merlinxSpiTransferHwGpioCs(tx, rx, len, first_delay_us) == FTS_OK) {
+            if ((rx[1] & 0xF0U) == 0x90U) {
+                gStage3NeedsCmd01 = true;
+                merlinx_usb_log_line("[FTS-HW] Stage 3 enabled 0x01 touch read command prefix\n");
+            }
+        }
+    }
 
     if (fts_touch_stage_done != gLastLoggedStage) {
         gLastLoggedStage = fts_touch_stage_done;
-        if (gSpiModeLogBudget < 12U) {
-            gSpiModeLogBudget = 12U;
+        if (gSpiModeLogBudget < 20U) {
+            gSpiModeLogBudget = 20U;
         }
     }
-    if (gSpiModeLogBudget > 0U) {
+    // During Stage 2 firmware download, log the first 2 chunks and then save
+    // log budget for the final chunk, ECC check (0xCC/0xCE/0xCD), and app start (0x08).
+    bool skipMidChunkLog = (fts_touch_stage_done == 1U &&
+                            gSpiDmaCalls > 2U && gSpiDmaCalls < 16U &&
+                            rc == FTS_OK);
+    if (gSpiModeLogBudget > 0U && !skipMidChunkLog) {
         gSpiModeLogBudget--;
         merlinx_usb_log_line(
             "[FTS-SPI] #%u stg=%u mode=%u len=%u dly=%u tx=%02x,%02x,%02x rx=%02x,%02x,%02x,%02x,%02x rc=%d\n",
@@ -1133,20 +1208,19 @@ extern "C" void fts_board_reset(void *context, int asserted)
     if (asserted != 0) {
         if (fts_touch_stage_done == 0U) {
             gSpiBootResetInjected++;
-            // Each fts_enter_boot() performs 4 resets; after 2 HW SPI0 attempts,
-            // fall back to pure GPIO bit-bang on attempts 3 and 4.
-            if (gSpiBootResetInjected == 3U && gSpiSmallMode != 2U) {
-                gSpiSmallMode = 2U;
-                gSpiModeLogBudget = 16U;
-                merlinx_usb_log_line("[FTS-HW] Stage 1 retry: switching SPI0 to GPIO bit-bang\n");
-            }
         } else if (fts_touch_stage_done == 1U) {
             gStage2ResetCount++;
-            if (gStage2ResetCount == 2U && gSpiSmallMode != 2U) {
-                gSpiSmallMode = 2U;
-                gSpiModeLogBudget = 16U;
-                merlinx_usb_log_line("[FTS-HW] Stage 2 retry: switching SPI0 to GPIO bit-bang\n");
+            if (gStage2ResetCount >= 2U) {
+                gSpiModeLogBudget = 20U;
+                merlinx_usb_log_line("[FTS-HW] Stage 2 retry #%u on HW SPI0\n", gStage2ResetCount);
             }
+        }
+        // Always keep HW SPI0 clocks ungated and pins in Mode 2 across resets
+        // (never switch to GPIO bit-bang, which reads 0x00 on MT6768 SPI0 pads).
+        if (gSpiSmallMode != 2U) {
+            merlinxUngateSpi0Clocks();
+            merlinxSpiResetAndSetupHw();
+            merlinxSetSpi0PinsMode2(true);
         }
     }
     // asserted=1 drives active-low reset GPIO 92 low; asserted=0 releases it high.
@@ -1222,11 +1296,14 @@ extern "C" bool native_hid_input_requested(void)
 
 static void merlinxStartHidAndTouchThread(void *, wait_result_t)
 {
-    IOSleep(300);
-
+    // Initialize SPI0 and start the FT8719 touch probe IMMEDIATELY (before
+    // launchd spawns and saturates eMMC I/O with dyld_shared_cache reads).
     if (!merlinxInitTouchHardware()) {
         return;
     }
+
+    gFtsProbeResult = fts_touch_probe(nullptr);
+    merlinx_usb_log_line("[FTS-HW] fts_touch_probe() => %d\n", gFtsProbeResult);
 
     int rcFam = OSKextLoadKextWithIdentifier("com.apple.iokit.IOHIDFamily");
     int rcDrv = OSKextLoadKextWithIdentifier("com.apple.iokit.IOHIDEventDriver");
@@ -1262,9 +1339,6 @@ static void merlinxStartHidAndTouchThread(void *, wait_result_t)
         }
     }
     OSSafeReleaseNULL(hidResource);
-
-    gFtsProbeResult = fts_touch_probe(nullptr);
-    merlinx_usb_log_line("[FTS-HW] fts_touch_probe() => %d\n", gFtsProbeResult);
 
     uint32_t ticks = 0;
     for (;;) {
@@ -1534,9 +1608,9 @@ extern "C" unsigned native_legacy_swap_timeline(char *out,unsigned cap) {
     for(uint32_t i=first;i<total && at+90<cap;++i) {
         const SwapEvent &e=swapEvents[i%64];
         uint64_t previous=i>first?swapEvents[(i-1)%64].submitted:e.submitted;
-        at+=snprintf(out+at,cap-at,"W%u t=%llu.%03llus +%llums offer=%lldms done=%lldms\n",e.number,(unsigned long long)(e.submitted/1000000),
+        at+=static_cast<unsigned>(snprintf(out+at,cap-at,"W%u t=%llu.%03llus +%llums offer=%lldms done=%lldms\n",e.number,(unsigned long long)(e.submitted/1000000),
             (unsigned long long)((e.submitted/1000)%1000),(unsigned long long)((e.submitted-previous)/1000),
-            e.offered?(long long)((e.offered-e.submitted)/1000):-1LL,e.done?(long long)((e.done-e.submitted)/1000):-1LL);
+            e.offered?(long long)((e.offered-e.submitted)/1000):-1LL,e.done?(long long)((e.done-e.submitted)/1000):-1LL));
     }
     return at;
 }
@@ -1567,10 +1641,10 @@ void native_legacy_vsync_observed(unsigned event,unsigned hz) {
     }
 }
 extern "C" unsigned native_legacy_prepare_report(char *out,unsigned cap) {
-    return snprintf(out,cap,"prepare calls=%u failures=%u retried=%u max_attempts=%u waited_ms=%llu vsync hz=%u sent=%llu arms=%llu idle=%llu late=%llu start=%llu refresh=%llu",
+    return static_cast<unsigned>(snprintf(out,cap,"prepare calls=%u failures=%u retried=%u max_attempts=%u waited_ms=%llu vsync hz=%u sent=%llu arms=%llu idle=%llu late=%llu start=%llu refresh=%llu",
         native_legacy_prepare_calls,native_legacy_prepare_failures,native_legacy_prepare_retried,native_legacy_prepare_max_attempts,
         (unsigned long long)(native_legacy_prepare_wait_us/1000),vsyncHz,(unsigned long long)vsyncEvents[1],(unsigned long long)vsyncEvents[0],
-        (unsigned long long)vsyncEvents[2],(unsigned long long)vsyncEvents[3],(unsigned long long)vsyncEvents[4],(unsigned long long)vsyncEvents[5]);
+        (unsigned long long)vsyncEvents[2],(unsigned long long)vsyncEvents[3],(unsigned long long)vsyncEvents[4],(unsigned long long)vsyncEvents[5]));
 }
 void native_legacy_swap_validation_observed(bool accepted,unsigned reason,const void *request,const void *surface) {
     if(accepted) {
