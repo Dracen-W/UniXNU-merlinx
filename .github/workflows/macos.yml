@@ -205,14 +205,37 @@ jobs:
           fi
           if [ -n "$gpu_addon_url" ]; then
             curl -fsSL --retry 3 "$gpu_addon_url" -o "$RUNNER_TEMP/gpu.addon"
+            if [ -f "$RUNNER_TEMP/trustcache" ]; then
+              python3 - "$RUNNER_TEMP/gpu.addon" "$RUNNER_TEMP/trustcache" <<'PY'
+              import re, struct, subprocess, sys, tempfile, zlib
+              from pathlib import Path
+              addon = Path(sys.argv[1]).read_bytes()
+              tc_path = Path(sys.argv[2])
+              if addon[:8] == b'NGPUADD2':
+                  count = struct.unpack_from('<I', addon, 8)[0]
+                  off, cdhashes = 24, []
+                  with tempfile.TemporaryDirectory() as tmp:
+                      for i in range(count):
+                          nlen, mode, ulen, clen = struct.unpack_from('<IIQQ', addon, off)
+                          off += 24 + ((nlen + 7) & ~7)
+                          data = zlib.decompress(addon[off:off + clen])
+                          off += (clen + 7) & ~7
+                          if len(data) >= 4 and struct.unpack_from('<I', data)[0] == 0xfeedfacf:
+                              p = Path(tmp) / f'bin_{i}'
+                              p.write_bytes(data)
+                              res = subprocess.run(['codesign', '--display', '--verbose=4', str(p)], capture_output=True, text=True)
+                              m = re.search(r'^CDHash=([a-f0-9]{40})$', res.stderr, re.M)
+                              if m:
+                                  cdhashes.append(m[1])
+                  if cdhashes:
+                      subprocess.run(['python3', 'scripts/trust-append-module.py', str(tc_path), str(tc_path), *cdhashes], check=True)
+              PY
+            fi
           fi
           if [ -n "$data_seed_url" ]; then
             curl -fsSL --retry 3 "$data_seed_url" -o "$RUNNER_TEMP/data.dbr"
             if [ -n "$GROW_GIB" ]; then
-              # seed-data-grow.py imports drivers/DarwinBoot/Test and keeps its scratch image in build/.
-              git submodule update --init --depth 1 drivers/DarwinBoot
-              mkdir -p build
-              python3 scripts/seed-data-grow.py --gib "$GROW_GIB" "$RUNNER_TEMP/data.dbr" "$RUNNER_TEMP/data-grow.dbr"
+              python3 scripts/grow-dbrdisk-inplace.py --gib "$GROW_GIB" "$RUNNER_TEMP/data.dbr" "$RUNNER_TEMP/data-grow.dbr"
               mv "$RUNNER_TEMP/data-grow.dbr" "$RUNNER_TEMP/data.dbr"
             fi
           fi
@@ -250,7 +273,7 @@ jobs:
         run: |
           args=()
           if [ -f "$RUNNER_TEMP/trustcache" ]; then
-            if [ "$OWNER_TRUST_CACHE" = true ]; then
+            if [ "$OWNER_TRUST_CACHE" = true ] || [ -f "$RUNNER_TEMP/gpu.addon" ]; then
               args+=(--owner-trust-cache "$RUNNER_TEMP/trustcache")
             else
               args+=(--trust-cache "$RUNNER_TEMP/trustcache")

@@ -2,7 +2,7 @@ diff --git a/iokit/KernelConfigTables.cpp b/iokit/KernelConfigTables.cpp
 index f6030da..a34dc1d 100644
 --- a/iokit/KernelConfigTables.cpp
 +++ b/iokit/KernelConfigTables.cpp
-@@ -96,4 +96,14 @@ const char * gIOKernelConfigTables =
+@@ -96,4 +96,13 @@ const char * gIOKernelConfigTables =
      "     'IOProbeScore'    = 500:32;"
      "   }"
  #endif
@@ -14,6 +14,5 @@ index f6030da..a34dc1d 100644
 +    "     'MetalPluginName'           = 'NativeMaliMetal';"
 +    "     'MetalPluginClassName'      = 'NativeMaliMetalDevice';"
 +    "     'NativeSandboxGrantProcess' = '*';"
-+    "     'IOCompatibilityProperties' = {'IOClass' = 'IOAcceleratorES';};"
 +    "   }"
      ")";
