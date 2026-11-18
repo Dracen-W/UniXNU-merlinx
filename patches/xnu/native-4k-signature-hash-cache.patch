@@ -76,7 +76,7 @@
  
  	/*
  	 * The vnode_lock, linked list traversal, and marking of the memory object as
-@@ -5726,6 +5749,146 @@
+@@ -5726,6 +5749,150 @@
  
  unsigned long cs_validate_page_no_hash = 0;
  unsigned long cs_validate_page_bad_hash = 0;
@@ -223,7 +223,7 @@
  static boolean_t
  cs_validate_hash(
  	struct cs_blob          *blobs,
-@@ -5749,6 +5912,7 @@
+@@ -5749,6 +5916,7 @@
  	off_t                   codeLimit = 0;
  	const char              *lower_bound, *upper_bound;
  	vm_offset_t             kaddr, blob_addr;
@@ -231,7 +231,7 @@
  
  	/* retrieve the expected hash */
  	found_hash = FALSE;
-@@ -5784,15 +5948,31 @@
+@@ -5784,15 +5952,39 @@
  			if (hashtype->cs_digest_size > sizeof(actual_hash)) {
  				panic("hash size too large");
  			}
@@ -271,7 +271,7 @@
  			if (hash != NULL) {
  				bcopy(hash, expected_hash, hashtype->cs_size);
  				found_hash = TRUE;
-@@ -5822,7 +6002,7 @@
+@@ -5822,7 +6014,7 @@
  	} else {
  		*tainted = 0;
  

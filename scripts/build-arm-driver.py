@@ -73,7 +73,7 @@ if component == 'NativeEmmc':
     text = source.read_text()
     text = text.replace(
         'constexpr uint32_t kTransferBlocks = 128;',
-        'constexpr uint32_t kTransferBlocks = 256;',
+        'constexpr uint32_t kTransferBlocks = 2048;',
         1,
     )
     old_pio_loop = """  uint32_t got = 0;
@@ -192,6 +192,9 @@ if component == 'NativeEmmc':
 }"""
     if old_poll_pause in text:
         text = text.replace(old_poll_pause, new_poll_pause, 1)
+    text = text.replace('constexpr uint32_t kTransferBlocks = 512;', 'constexpr uint32_t kTransferBlocks = 2048;', 1)
+    text = text.replace('constexpr unsigned kSpinPolls = 128;', 'constexpr unsigned kSpinPolls = 4096;', 1)
+    text = text.replace('SDC_STS_BUSY << 1', 'SDC_STS_BUSY | (SDC_STS_BUSY << 1)', 1)
     source = out / 'NativeEmmc.cpp'
     source.write_text(text)
 destination = out / (component + '.o')

@@ -21,7 +21,10 @@ index e7d6592..f940ab2 100644
 +		return false;
 +	}
 +	proc_selfname(name, sizeof(name));
-+	for (const char * at = list->getCStringNoCopy(); *at;) {
++	if (list->isEqualTo("*")) {
+		return true;
+	}
+	for (const char * at = list->getCStringNoCopy(); *at;) {
 +		size_t length = 0;
 +		while (at[length] && at[length] != ',') {
 +			++length;

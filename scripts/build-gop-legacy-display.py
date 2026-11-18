@@ -234,6 +234,7 @@ static inline uint64_t merlinx_opaque_copy_diff(volatile void *destination,
     volatile void *activeDst = merlinx_get_active_scanout_va(destination);
     uintptr_t dst=(uintptr_t)activeDst, src=(uintptr_t)source;
     if (!shadow || ((uintptr_t)shadow&7) || (dst&7) || (destinationStride&7) || (width&1)) return UINT64_MAX;
+    if (native_legacy_frame_count <= 2) valid = 0;
     uint64_t stored=0;
     const uint32_t words=width/2;
     for (uint32_t row=0;row<height;++row) {
