@@ -829,25 +829,23 @@ static void merlinxSpiIdleHw()
 }
 
 // Wait for FINISH (bit 0) or PAUSE (bit 1) in SPI_STATUS0.
-// A 32-byte FIFO segment at ~4.96 MHz takes ~51.6 us on the wire (~260 polls).
-// Never re-write SPI_CMD near the 52 us completion window (which would re-shift
-// stale FIFO bytes if the segment finishes between reading STATUS0 and STATUS1).
-// Only check for a stalled RESUME at poll == 1536 (~300 us), and re-verify
-// STATUS0 == 0 after reading STATUS1 before touching SPI_CMD.
+// A <=28-byte FIFO segment at ~4.96 MHz takes <=45.2 us on the wire (~225 polls).
+// Never re-write SPI_CMD when SPI_STATUS1 bit 0 is already 1 (IDLE), which would
+// re-shift stale FIFO bytes onto MOSI and corrupt PRAM! Instead, if poll >= 256
+// (>65 us) and SPI_STATUS1 bit 0 is 1 (IDLE), the segment has already finished
+// shifting on the wire even if SPI_STATUS0 missed latching PAUSE_INT_STATUS.
 static bool merlinxSpiWaitComplete(uint32_t cmd)
 {
+    (void)cmd;
     for (uint32_t poll = 0; poll < 4000U; ++poll) {
         uint32_t st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
         if ((st0 & 0x3U) != 0U) {
             return true;
         }
-        if (poll == 1536U &&
+        if (poll >= 256U &&
             (mmioRead32(gSpi0Base, kSpiStatus1Reg) & 1U) != 0U) {
-            st0 = mmioRead32(gSpi0Base, kSpiStatus0Reg);
-            if ((st0 & 0x3U) != 0U) {
-                return true;
-            }
-            mmioWrite32(gSpi0Base, kSpiCmdReg, cmd);
+            (void)mmioRead32(gSpi0Base, kSpiStatus0Reg);
+            return true;
         }
         if ((poll & 7U) == 7U) {
             IODelay(1);
@@ -885,10 +883,14 @@ static int merlinxSpiTransferHwGpioCs(
             IODelay(1);
         }
 
+        // Segment 0 writes 1 word (4 bytes) to the 8-word (32-byte) hardware FIFO
+        // and shifts 1 byte, so cap subsequent PAUSE/RESUME segments to 28 bytes
+        // (7 words) to guarantee 1 + 7 = 8 words never overflows the 8-word FIFO.
+        constexpr size_t kSpiResumeFifoSize = 28U;
         size_t rem = len - offset;
         size_t segLen = (offset == 0 && firstDelayUs > 0U && len > 1U)
             ? 1U
-            : ((rem > kSpiFifoSize) ? kSpiFifoSize : rem);
+            : ((rem > kSpiResumeFifoSize) ? kSpiResumeFifoSize : rem);
         bool lastSeg = (offset + segLen >= len);
 
         uint32_t cfg1 = ((static_cast<uint32_t>(segLen - 1U) & 0x3FFU) << 16) | kSpiHalfTicks;
@@ -1124,7 +1126,7 @@ extern "C" int fts_board_spi_transfer(
     }
 
     gSpiTransferCalls++;
-    if (len > kSpiFifoSize) {
+    if (len > 12U) {
         gSpiDmaCalls++;
     }
 
@@ -1171,16 +1173,18 @@ extern "C" int fts_board_spi_transfer(
             gSpiModeLogBudget = 64U;
         }
     }
-    uint32_t chunkIdxInAttempt = (gSpiDmaCalls > 0U) ? ((gSpiDmaCalls - 1U) % 16U + 1U) : 0U;
-    if (fts_touch_stage_done == 1U && len > kSpiFifoSize && chunkIdxInAttempt == 16U) {
+    uint32_t chunkIdxInAttempt = gSpiDmaCalls;
+    if (len == 9U) {
+        gSpiDmaCalls = 0U;
+        chunkIdxInAttempt = 0U;
         if (gSpiModeLogBudget < 32U) {
             gSpiModeLogBudget = 32U;
         }
     }
-    // During Stage 2 firmware download, log the first 2 chunks and then save
-    // log budget for the final chunk, ECC check (0xCC/0xCE/0xCD), and app start (0x08).
+    // During Stage 2 firmware download, log the first chunk and then save
+    // log budget for ECC check (0xCC/0xCE/0xCD) and app start (0x08).
     bool skipMidChunkLog = (fts_touch_stage_done == 1U &&
-                            chunkIdxInAttempt >= 2U && chunkIdxInAttempt < 16U &&
+                            chunkIdxInAttempt >= 2U &&
                             rc == FTS_OK);
     if (gSpiModeLogBudget > 0U && !skipMidChunkLog) {
         gSpiModeLogBudget--;
