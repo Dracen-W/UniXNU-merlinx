@@ -2,7 +2,7 @@ diff --git a/osfmk/vm/vm_fault.c b/osfmk/vm/vm_fault.c
 index 5184390..6f852df 100644
 --- a/osfmk/vm/vm_fault.c
 +++ b/osfmk/vm/vm_fault.c
-@@ -3996,9 +3996,12 @@ vm_fault(
+@@ -3996,9 +3996,10 @@ vm_fault(
  	pmap_t          caller_pmap,
  	vm_map_offset_t caller_pmap_addr)
  {

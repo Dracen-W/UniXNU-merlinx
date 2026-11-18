@@ -91,7 +91,7 @@
 +
  void
  bsd_init(void)
-@@ -698,6 +776,27 @@
+@@ -698,6 +783,27 @@
  	/* Initialize the file systems. */
  	bsd_init_kprintf("calling vfsinit\n");
  	vfsinit();

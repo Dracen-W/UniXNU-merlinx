@@ -3,7 +3,7 @@ new file mode 100644
 index 00000000..850a6973
 --- /dev/null
 +++ b/EXTERNAL_HEADERS/CoreEntitlements/V2/API.h
-@@ -0,0 +1,12 @@
+@@ -0,0 +0,12 @@
 +/*
 + * Public stand-in for the CoreEntitlements V2 interface. The kernel only
 + * stores the registered implementation pointer and passes context pointers
@@ -21,7 +21,7 @@ new file mode 100644
 index 00000000..81dd1000
 --- /dev/null
 +++ b/EXTERNAL_HEADERS/CoreEntitlements/V2/Kernel.h
-@@ -0,0 +1,6 @@
+@@ -0,0 +0,6 @@
 +#ifndef CORE_ENTITLEMENTS_V2_KERNEL_H
 +#define CORE_ENTITLEMENTS_V2_KERNEL_H
 +

@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..86a48e9
 --- /dev/null
 +++ b/bsd/kern/source_pthread_bootstrap.c
-@@ -0,0 +1,23 @@
+@@ -0,0 +0,23 @@
 +/* SPDX-License-Identifier: BSD-2-Clause-Patent */
 +#include <kern/startup.h>
 +#include <kern/debug.h>

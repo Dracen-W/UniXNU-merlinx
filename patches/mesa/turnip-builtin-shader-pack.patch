@@ -31,7 +31,7 @@ new file mode 100644
 index 0000000..1251f35
 --- /dev/null
 +++ b/src/freedreno/vulkan/tu_builtin_cache.cc
-@@ -0,0 +1,259 @@
+@@ -0,0 +0,259 @@
 +/* SPDX-License-Identifier: MIT */
 +/* Driver-owned, build-time embedded builtin variants. This is not a general
 + * untrusted shader import API. Pack generation must use this exact compiler
@@ -296,7 +296,7 @@ new file mode 100644
 index 0000000..74e97e6
 --- /dev/null
 +++ b/src/freedreno/vulkan/tu_builtin_cache.h
-@@ -0,0 +1,8 @@
+@@ -0,0 +0,8 @@
 +/* SPDX-License-Identifier: MIT */
 +#ifndef TU_BUILTIN_CACHE_H
 +#define TU_BUILTIN_CACHE_H

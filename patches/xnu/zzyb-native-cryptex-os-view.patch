@@ -372,7 +372,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
  }
  static void
  native_gpu_addon_prepare(proc_t p, user_addr_t scratch)
-@@ -7596,4 +7951,9 @@
+@@ -7596,4 +7959,9 @@
  {
 +	native_data_dirs_seed(p, scratch);
 +	native_cryptex_os_view(p, scratch);

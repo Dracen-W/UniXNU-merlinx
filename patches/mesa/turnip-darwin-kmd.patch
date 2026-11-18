@@ -241,7 +241,7 @@ index 4c2bf6a..a8ccd76 100644
     bool implicit_sync : 1;
     bool never_unmap : 1;
     bool cached_non_coherent : 1;
-@@ -140,6 +147,9 @@ struct tu_knl {
+@@ -140,6 +150,9 @@ struct tu_knl {
                         const char *name);
     VkResult (*bo_init_dmabuf)(struct tu_device *dev, struct tu_bo **out_bo,
                                uint64_t size, enum tu_bo_alloc_flags flags, int prime_fd);
@@ -251,7 +251,7 @@ index 4c2bf6a..a8ccd76 100644
     int (*bo_export_dmabuf)(struct tu_device *dev, struct tu_bo *bo);
     VkResult (*bo_alloc_lazy)(struct tu_device *dev, struct tu_bo *bo);
     VkResult (*bo_map)(struct tu_device *dev, struct tu_bo *bo, void *placed_addr);
-@@ -221,6 +231,9 @@ tu_bo_init_dmabuf(struct tu_device *dev,
+@@ -221,6 +234,9 @@ tu_bo_init_dmabuf(struct tu_device *dev,
  int
  tu_bo_export_dmabuf(struct tu_device *dev, struct tu_bo *bo);
  
@@ -261,7 +261,7 @@ index 4c2bf6a..a8ccd76 100644
  void
  tu_bo_finish(struct tu_device *dev, struct tu_bo *bo);
  
-@@ -262,6 +275,7 @@ void tu_sparse_vma_finish(struct tu_device *device,
+@@ -262,6 +278,7 @@ void tu_sparse_vma_finish(struct tu_device *device,
                            struct tu_sparse_vma *vma);
  
  VkResult tu_knl_kgsl_load(struct tu_instance *instance, int fd);
@@ -274,7 +274,7 @@ new file mode 100644
 index 0000000..b03c6ee
 --- /dev/null
 +++ b/src/freedreno/vulkan/tu_knl_darwin.cc
-@@ -0,0 +1,1609 @@
+@@ -0,0 +0,1609 @@
 +/*
 + * Native Darwin kernel backend for Turnip: talks to the NativeAdreno IOKit user client (NativeAdrenoABI.h, version 1).
 + * Modelled on tu_knl_kgsl.cc (no libdrm) and tu_knl_drm_msm.cc (the client chooses GPU addresses).

@@ -3,7 +3,7 @@ new file mode 100644
 index 00000000..b1674966
 --- /dev/null
 +++ b/config/MASTER.arm64.bcm2837
-@@ -0,0 +1,132 @@
+@@ -0,0 +0,132 @@
 +#
 +# Mach Operating System
 +# Copyright (c) 1986 Carnegie-Mellon University
@@ -181,7 +181,7 @@ new file mode 100644
 index 00000000..d0cd08cb
 --- /dev/null
 +++ b/pexpert/pexpert/arm64/BCM2837.h
-@@ -0,0 +1,25 @@
+@@ -0,0 +0,25 @@
 +/*
 + * Copyright (c) 2016 Apple Inc. All rights reserved.
 + */

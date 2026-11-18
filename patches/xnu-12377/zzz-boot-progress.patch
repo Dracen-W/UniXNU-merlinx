@@ -293,7 +293,7 @@ new file mode 100644
 index 00000000..92f70b4a
 --- /dev/null
 +++ b/osfmk/kern/boot_progress.h
-@@ -0,0 +1,34 @@
+@@ -0,0 +0,34 @@
 +// SPDX-License-Identifier: MIT
 +#ifndef XNU_BOOT_PROGRESS_H
 +#define XNU_BOOT_PROGRESS_H

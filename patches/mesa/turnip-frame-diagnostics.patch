@@ -1,7 +1,7 @@
 diff --git a/src/freedreno/vulkan/tu_frame_diagnostic.h b/src/freedreno/vulkan/tu_frame_diagnostic.h
 --- /dev/null
 +++ b/src/freedreno/vulkan/tu_frame_diagnostic.h
-@@ -0,0 +1,16 @@
+@@ -0,0 +0,16 @@
 +/* SPDX-License-Identifier: MIT */
 +#pragma once
 +#include <stdint.h>

@@ -433,7 +433,7 @@ new file mode 100644
 index 0000000..5cf8959
 --- /dev/null
 +++ b/libkern/image4/image4_v2.c
-@@ -0,0 +1,23 @@
+@@ -0,0 +0,23 @@
 +/*
 + * Registration point of the libImage4_V2 interface (Darwin 26 KPI).
 + *

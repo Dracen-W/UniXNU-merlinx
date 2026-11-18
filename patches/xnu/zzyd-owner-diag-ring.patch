@@ -118,7 +118,7 @@ index 450b923..de1fd9f 100644
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -9024,6 +9068,14 @@ done:
+@@ -9024,6 +9077,14 @@ done:
  			    "'%s' with cdhash %s\n", p->p_name, cdhash_string);
  		}
  	} else {

@@ -16,7 +16,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	}
  	if (!vinfo.v_baseaddr || vinfo.v_depth != 32 || vinfo.v_width < 512 || vinfo.v_height < 600)
  		return;
-@@ -7390,11 +7398,75 @@ native_gop_draw_span(uint32_t x0, uint32_t x1, uint32_t y, unsigned scale, uint3
+@@ -7390,11 +7396,75 @@ native_gop_draw_span(uint32_t x0, uint32_t x1, uint32_t y, unsigned scale, uint3
  	}
  }
  

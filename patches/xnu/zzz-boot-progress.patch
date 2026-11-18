@@ -222,7 +222,7 @@
 +#endif
  #endif
  #if CONFIG_MEMORYSTATUS
-@@ -7891,6 +7899,7 @@
+@@ -7891,6 +7906,7 @@
  	 * approve of exec, kill and return immediately.
  	 */
  	if (imgp->ip_mac_return != 0) {
@@ -230,7 +230,7 @@
  		KERNEL_DEBUG_CONSTANT(BSDDBG_CODE(DBG_BSD_PROC, BSD_PROC_EXITREASON_CREATE) | DBG_FUNC_NONE,
  		    proc_getpid(p), OS_REASON_EXEC, EXEC_EXIT_REASON_SECURITY_POLICY, 0, 0);
  		signature_failure_reason = os_reason_create(OS_REASON_EXEC, EXEC_EXIT_REASON_SECURITY_POLICY);
-@@ -8053,7 +8062,9 @@
+@@ -8053,7 +8069,9 @@
  		 * state.
  		 */
  
@@ -263,7 +263,7 @@
  	    task_is_jit_exception_fatal(get_threadtask(thread))) {
  		extern int exit_with_jit_exception(proc_t p);
  		exit_with_jit_exception(current_proc());
-@@ -2111,6 +2112,7 @@
+@@ -2111,6 +2114,7 @@
  
  
  	sleh_interrupt_handler_prologue(state, DBG_INTR_TYPE_OTHER);
@@ -273,7 +273,7 @@
  	PE_handle_ext_interrupt();
 --- /dev/null
 +++ b/osfmk/kern/boot_progress.h
-@@ -0,0 +1,34 @@
+@@ -0,0 +0,34 @@
 +// SPDX-License-Identifier: MIT
 +#ifndef XNU_BOOT_PROGRESS_H
 +#define XNU_BOOT_PROGRESS_H
