@@ -290,7 +290,8 @@ static volatile uint8_t *mapMmioWindow(
     uint64_t physAddr,
     uint64_t length,
     IODeviceMemory **outMem,
-    IOMemoryMap **outMap)
+    IOMemoryMap **outMap,
+    IOOptionBits cacheMode = kIOMapInhibitCache)
 {
     if (!outMem || !outMap) {
         return nullptr;
@@ -304,7 +305,7 @@ static volatile uint8_t *mapMmioWindow(
     if (!mem) {
         return nullptr;
     }
-    IOMemoryMap *map = mem->map(kIOMapAnywhere | kIOMapInhibitCache);
+    IOMemoryMap *map = mem->map(kIOMapAnywhere | cacheMode);
     if (!map || !map->getVirtualAddress()) {
         OSSafeReleaseNULL(map);
         mem->release();
@@ -521,15 +522,18 @@ static void merlinxBoostCpuClocks(bool forceReport)
         (cpufreqMode >= 3U) ? 76U : 0U,
         &gLastA55Mhz);
 
-    // 3. CCI interconnect (CCIPLL_CON1 = 0x22C): raise to 1187 MHz (posdiv_sel=1, VCO=2374 MHz) once VPROC12 is raised
+    // 3. CCI interconnect (CCIPLL_CON1 = 0x22C): raise to 1187 MHz (posdiv_sel=1, VCO=2374 MHz) once VPROC12 is raised.
+    // Bootloader leaves CCIPLL_CON1 at 0x821f9d89 (posdiv_sel=2, posdiv=4 -> 821 MHz), so accept posdiv_sel in {1, 2}
+    // and switch posdiv_sel to 1 (posdiv=2) with DDS=0x16d3b1 (1187 MHz).
     uint32_t cciCon1 = mmioRead32(gApmixedBase, kCcipllCon1);
     uint32_t cciBeforeMhz = merlinxPllMhz(cciCon1);
+    uint32_t cciPosdivSel = (cciCon1 >> 24) & 7U;
     gLastCciMhz = cciBeforeMhz;
-    if (okLit && cpufreqMode >= 3U && ((cciCon1 >> 24) & 7U) == 1U &&
+    if (okLit && cpufreqMode >= 3U && (cciPosdivSel == 1U || cciPosdivSel == 2U) &&
         cciBeforeMhz >= 700U && cciBeforeMhz < 1150U) {
         uint32_t cciDds = merlinxPllDds(1187U * 2U);
         mmioWrite32(gApmixedBase, kCcipllCon1,
-            (cciCon1 & ~0x3FFFFFU) | cciDds | (1U << 31));
+            (cciCon1 & ~((7U << 24) | 0x3FFFFFU)) | (1U << 24) | cciDds | (1U << 31));
         IODelay(20);
         cciCon1 = mmioRead32(gApmixedBase, kCcipllCon1);
         gLastCciMhz = merlinxPllMhz(cciCon1);
@@ -629,7 +633,7 @@ static void merlinxFixupMtkOvl(bool wipeBackground)
 {
     if (!gCarveoutBase) {
         gCarveoutBase = mapMmioWindow(
-            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap);
+            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap, kIOMapWriteCombineCache);
     }
     if (!gDispsysBase) {
         gDispsysBase = mapMmioWindow(
@@ -1001,7 +1005,7 @@ static bool merlinxInitTouchHardware()
 {
     if (!gCarveoutBase) {
         gCarveoutBase = mapMmioWindow(
-            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap);
+            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap, kIOMapWriteCombineCache);
     }
     if (!gGpioBase) {
         gGpioBase = mapMmioWindow(kMtkGpioBasePa, 0x1000ULL, &gGpioMem, &gGpioMap);
@@ -1393,7 +1397,7 @@ static void gopPaint(const char *why, bool full) {
     }
     IODeviceMemory *memory = IODeviceMemory::withRange(video.v_baseAddr,
         (IOByteCount)video.v_rowBytes * video.v_height);
-    IOMemoryMap *mapping = memory ? memory->map(kIOMapAnywhere | kIOMapInhibitCache) : nullptr;
+    IOMemoryMap *mapping = memory ? memory->map(kIOMapAnywhere | kIOMapWriteCombineCache) : nullptr;
     if (memory) memory->release();
     if (!mapping || !mapping->getVirtualAddress()) {
         dline(21, "GOP NOMAP %s", why);
