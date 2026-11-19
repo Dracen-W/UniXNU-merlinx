@@ -2,7 +2,7 @@ diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
 index 34c921b..fbf0dd4 100644
 --- a/bsd/vfs/vfs_syscalls.c
 +++ b/bsd/vfs/vfs_syscalls.c
-@@ -5121,6 +5121,20 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
+@@ -5121,6 +5121,29 @@ openat_internal(vfs_context_t ctx, user_addr_t path, int flags, int mode,
  	return error;
  }
  
@@ -11,10 +11,19 @@ index 34c921b..fbf0dd4 100644
 +static void
 +native_launchd_open_result(user_addr_t path, enum uio_seg segflg, int error)
 +{
-+	if (segflg == UIO_SYSSPACE || vfs_context_proc(vfs_context_current())->p_pid != 1) return;
++	if (segflg == UIO_SYSSPACE) return;
++	proc_t curp = vfs_context_proc(vfs_context_current());
++	if (!curp) return;
++	if (curp->p_pid != 1 && error != ENOENT) return;
 +	char trace_path[128], trace_text[160];
 +	size_t trace_len = 0;
 +	if (copyinstr(path, trace_path, sizeof(trace_path), &trace_len) != 0 || !trace_len) return;
++	if (curp->p_pid != 1) {
++		if (strncmp(trace_path, "/NativeMali/", 12) != 0) return;
++		snprintf(trace_text, sizeof(trace_text), "MALI %d %s %s", curp->p_pid, curp->p_comm, trace_path + 12);
++		native_gop_text(100, trace_text);
++		return;
++	}
 +	const char *base = strrchr(trace_path, '/');
 +	snprintf(trace_text, sizeof(trace_text), "%s %d", base ? base + 1 : trace_path, error);
 +	native_gop_text(10, trace_text);
@@ -23,7 +32,7 @@ index 34c921b..fbf0dd4 100644
  int
  open(proc_t p, struct open_args *uap, int32_t *retval)
  {
-@@ -5132,16 +5146,20 @@ int
+@@ -5132,16 +5155,20 @@ int
  open_nocancel(__unused proc_t p, struct open_nocancel_args *uap,
      int32_t *retval)
  {
