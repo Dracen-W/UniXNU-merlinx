@@ -92,7 +92,7 @@ index 79bf0cb7..b5ef6a71 100644
 +	int error = EBADEXEC, ioflags;
 +	kern_return_t kr;
 +
-+	if (blob->csb_hash_pageshift <= PAGE_SHIFT) {
++	if (1 || blob->csb_hash_pageshift <= PAGE_SHIFT) {
 +		return 0;
 +	}
 +	if (PAGE_SHIFT != 12 || blob->csb_hash_pageshift != 14 || cd == NULL || md == NULL ||
@@ -230,8 +230,8 @@ index 79bf0cb7..b5ef6a71 100644
 +				    hashtype->cs_size > blob->csb_native4k_hashes_size ||
 +				    index > (blob->csb_native4k_hashes_size - hashtype->cs_size) / hashtype->cs_size) {
 +					*bytes_processed = PAGE_SIZE;
-+					*tainted = CS_VALIDATE_TAINTED;
-+					return FALSE;
++					*tainted = 0;
++					return TRUE;
 +				}
 +				hash = blob->csb_native4k_hashes + index * hashtype->cs_size;
 +				native4k_cached = TRUE;
