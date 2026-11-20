@@ -138,6 +138,13 @@ static constexpr uint32_t kPwrapFsmWfVldclr   = 6U;
 static constexpr uint32_t kArmpllLCon1        = 0x020cU; // ARMPLL_L (Cortex-A75 big cores, VPROC11)
 static constexpr uint32_t kArmpllLLCon1       = 0x021cU; // ARMPLL_LL (Cortex-A55 little cores, VPROC12)
 static constexpr uint32_t kCcipllCon1         = 0x022cU; // CCIPLL (cache-coherent interconnect)
+static constexpr uint32_t kGpupllCon0         = 0x0248U; // MFGPLL / GPUPLL CON0 (bit 0 = EN)
+static constexpr uint32_t kGpupllCon1         = 0x024cU; // MFGPLL / GPUPLL CON1 (PCW_CHG | POSDIV | DDS)
+static constexpr uint32_t kGpupllPwrCon0      = 0x0254U; // MFGPLL / GPUPLL PWR_CON0 (bit 0 = PWR_ON, bit 1 = ISO)
+static constexpr uint32_t kMt6358VgpuDbg0     = 0x151eU; // VGPU actual step (bits 6:0)
+static constexpr uint32_t kMt6358VgpuElr0     = 0x1526U; // VGPU target step (bits 6:0)
+static constexpr uint32_t kMt6358VsramGpuDbg0 = 0x1be2U; // VSRAM_GPU actual step (bits 14:8)
+static constexpr uint32_t kMt6358VsramCon3    = 0x1bf4U; // VSRAM_GPU target step (bits 6:0)
 
 static constexpr uint32_t kMt6358Vproc11Dbg0  = 0x139eU;
 static constexpr uint32_t kMt6358Vproc11Elr0  = 0x13a6U;
@@ -541,6 +548,83 @@ static void merlinxBoostCpuClocks(bool forceReport)
     merlinx_usb_log_line(
         "[CPUFREQ] CCIPLL: before=%u MHz after=%u MHz (CON1=0x%08x)\n",
         cciBeforeMhz, gLastCciMhz, cciCon1);
+
+    // 4. Mali-G52 GPU (MFGPLL/GPUPLL_CON1 = 0x24C, VGPU = 0x1526, VSRAM_GPU = 0x1BF4):
+    // Raise to 850 MHz (posdiv_sel=2 -> /4, VCO=3400 MHz) at VGPU=850 mV (step 56),
+    // VSRAM_GPU=950 mV (step 72) — safely above MediaTek's 796 MHz / 780 mV OPP and
+    // within MT6768's 950-1000 MHz ceiling.
+    {
+        uint32_t gpuCon0 = mmioRead32(gApmixedBase, kGpupllCon0);
+        uint32_t gpuCon1 = mmioRead32(gApmixedBase, kGpupllCon1);
+        uint32_t gpuPwr  = mmioRead32(gApmixedBase, kGpupllPwrCon0);
+        uint32_t gpuBeforeMhz = merlinxPllMhz(gpuCon1);
+        uint32_t vgpuDbg = 0, vsramDbg = 0, vgpuElr = 0, vsramCon = 0;
+        bool pmicOk = merlinxPmicRead(kMt6358VgpuDbg0, &vgpuDbg) &&
+                      merlinxPmicRead(kMt6358VsramGpuDbg0, &vsramDbg) &&
+                      merlinxPmicRead(kMt6358VgpuElr0, &vgpuElr) &&
+                      merlinxPmicRead(kMt6358VsramCon3, &vsramCon);
+        if (pmicOk) {
+            uint32_t vgpuStep = vgpuDbg & 0x7FU;
+            uint32_t vsramStep = (vsramDbg >> 8) & 0x7FU;
+            merlinx_usb_log_line(
+                "[GPUFREQ] Mali before: %u MHz (CON0=0x%08x CON1=0x%08x PWR=0x%08x) VGPU=%u (%u mV) VSRAM=%u (%u mV)\n",
+                gpuBeforeMhz, gpuCon0, gpuCon1, gpuPwr,
+                vgpuStep, 500U + (vgpuStep * 25U) / 4U,
+                vsramStep, 500U + (vsramStep * 25U) / 4U);
+
+            const uint32_t targetVgpuStep = 56U;  // 850 mV
+            const uint32_t targetVsramStep = 72U; // 950 mV (100 mV over VGPU)
+            const uint32_t targetGpuMhz = 850U;
+            if (cpufreqMode >= 2U && vgpuStep >= 8U && vgpuStep <= 72U) {
+                bool voltOk = true;
+                if (vsramStep < targetVsramStep) {
+                    voltOk = merlinxPmicWrite(kMt6358VsramCon3,
+                        (vsramCon & ~0x7FU) | targetVsramStep);
+                }
+                if (voltOk && vgpuStep < targetVgpuStep) {
+                    voltOk = merlinxPmicWrite(kMt6358VgpuElr0,
+                        (vgpuElr & ~0x7FU) | targetVgpuStep);
+                }
+                if (voltOk) {
+                    IODelay(1000);
+                    uint32_t rbVgpu = 0, rbVsram = 0;
+                    (void)merlinxPmicRead(kMt6358VgpuDbg0, &rbVgpu);
+                    (void)merlinxPmicRead(kMt6358VsramGpuDbg0, &rbVsram);
+                    uint32_t curVgpu = rbVgpu & 0x7FU;
+                    uint32_t curVsram = (rbVsram >> 8) & 0x7FU;
+                    if (curVgpu >= targetVgpuStep && curVsram >= targetVsramStep) {
+                        if ((gpuPwr & 1U) == 0U) {
+                            mmioWrite32(gApmixedBase, kGpupllPwrCon0, gpuPwr | 1U);
+                            IODelay(2);
+                            mmioWrite32(gApmixedBase, kGpupllPwrCon0, (gpuPwr | 1U) & ~2U);
+                            IODelay(2);
+                        }
+                        uint32_t gpuDds = merlinxPllDds(targetGpuMhz * 4U);
+                        mmioWrite32(gApmixedBase, kGpupllCon1,
+                            0x80000000U | (2U << 24) | (gpuDds & 0x3FFFFFU));
+                        if ((gpuCon0 & 1U) == 0U) {
+                            mmioWrite32(gApmixedBase, kGpupllCon0, gpuCon0 | 1U);
+                        }
+                        IODelay(20);
+                        uint32_t afterCon1 = mmioRead32(gApmixedBase, kGpupllCon1);
+                        uint32_t afterMhz = merlinxPllMhz(afterCon1);
+                        merlinx_usb_log_line(
+                            "[GPUFREQ] Mali after:  %u MHz (CON1=0x%08x) VGPU=%u (%u mV) VSRAM=%u (%u mV)\n",
+                            afterMhz, afterCon1,
+                            curVgpu, 500U + (curVgpu * 25U) / 4U,
+                            curVsram, 500U + (curVsram * 25U) / 4U);
+                    } else {
+                        merlinx_usb_log_line(
+                            "[GPUFREQ] Mali voltage readback mismatch (VGPU=%u VSRAM=%u); keeping %u MHz\n",
+                            curVgpu, curVsram, gpuBeforeMhz);
+                    }
+                }
+            }
+        } else {
+            merlinx_usb_log_line("[GPUFREQ] Mali PMIC read failed (CON1=0x%08x %u MHz)\n",
+                gpuCon1, gpuBeforeMhz);
+        }
+    }
 
     if (okBig || okLit) {
         gCpuClocksBoosted = true;
