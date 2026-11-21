@@ -1,14 +1,26 @@
-diff --git a/osfmk/arm64/cpu.c b/osfmk/arm64/cpu.c
-index 1111111..2222222 100644
---- a/osfmk/arm64/cpu.c
-+++ b/osfmk/arm64/cpu.c
-@@ -880,6 +880,9 @@ cpu_start(int cpu)
- 		configure_coresight_registers(cpu_data_ptr);
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index a688021..b799132 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -2150,8 +2150,22 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	arm_vm_physmap_init(args);
+ 	set_mmu_ttb_alternate(cpu_ttep & TTBR_BADDR_MASK);
  
- 		flush_dcache((vm_offset_t)&CpuDataEntries[cpu], sizeof(cpu_data_entry_t), FALSE);
- 		flush_dcache((vm_offset_t)cpu_data_ptr, sizeof(cpu_data_t), FALSE);
-+		flush_dcache((vm_offset_t)&cpu_ttep, sizeof(cpu_ttep), FALSE);
-+		flush_dcache((vm_offset_t)&sysreg_restore, sizeof(sysreg_restore), FALSE);
+ #if XNU_MONITOR
+ 	ml_enable_monitor();
+ #endif
++	{
++		/* Publish cpu_ttep and sysreg_restore to PoC for MMU-off secondary CPUs. */
++		uintptr_t _va;
++		for (_va = ((uintptr_t)&cpu_ttep) & ~(uintptr_t)63;
++		    _va < (uintptr_t)&cpu_ttep + sizeof(cpu_ttep); _va += 64) {
++			__asm__ volatile ("dc cvac, %0" :: "r"(_va) : "memory");
++		}
++		for (_va = ((uintptr_t)&sysreg_restore) & ~(uintptr_t)63;
++		    _va < (uintptr_t)&sysreg_restore + sizeof(sysreg_restore); _va += 64) {
++			__asm__ volatile ("dc cvac, %0" :: "r"(_va) : "memory");
++		}
 +		__builtin_arm_dsb(DSB_SY);
++	}
  
- #if defined(KERNEL_INTEGRITY_CTRR)
+ 	set_mmu_ttb(invalid_ttep & TTBR_BADDR_MASK);
