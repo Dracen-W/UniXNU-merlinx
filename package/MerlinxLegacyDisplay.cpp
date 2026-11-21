@@ -62,7 +62,6 @@ void merlinx_hid_get_stats(
 extern volatile uint32_t native_legacy_retired_frames;
 volatile void *merlinx_get_active_scanout_va(volatile void *default_dst);
 void merlinx_clean_scanout_range(const volatile void *va, size_t bytes);
-void clean_dcache64(addr64_t addr, unsigned count, int phys);
 }
 
 static volatile uint32_t gInUsbCmd = 0;
@@ -708,9 +707,7 @@ static void merlinxFillCarveoutRangeBlack(uint64_t startPa, uint64_t endPa)
     for (size_t i = 0; i < words; ++i) {
         p64[i] = 0xFF000000FF000000ULL;
     }
-    clean_dcache64(static_cast<addr64_t>(kMtkMblockFbBasePa + startOff),
-                   static_cast<unsigned>(endOff - startOff), 1);
-    __asm__ volatile("dsb sy" ::: "memory");
+    merlinx_clean_scanout_range(gCarveoutBase + startOff, static_cast<size_t>(endOff - startOff));
 }
 
 // Inspect MT6768 DISP_OVL0 (0x1400b000) without disabling active layers (SRC=0x9 has L0 + L3 enabled!).
@@ -1197,8 +1194,19 @@ extern "C" void merlinx_clean_scanout_range(const volatile void *va, size_t byte
     if (bytes > maxLen) {
         bytes = maxLen;
     }
-    const addr64_t phys = static_cast<addr64_t>(kMtkMblockFbBasePa + (addr - base));
-    clean_dcache64(phys, static_cast<unsigned>(bytes), 1);
+    /* Clean directly by wired kernel VA (`dc cvac`): the MT6768 mblock FB
+     * carveout (0x7cdb0000..0x7f000000) is outside XNU's phystokv() linear
+     * direct map, so clean_dcache64(phys, ..., 1) triggers an EL1 fault. */
+    uint64_t ctr = 0;
+    __asm__ volatile("mrs %0, ctr_el0" : "=r"(ctr));
+    const uintptr_t line = static_cast<uintptr_t>(4u) << ((ctr >> 16) & 0xFu);
+    const uintptr_t step = (line >= 16u && line <= 256u) ? line : 64u;
+    const uintptr_t begin = addr & ~(step - 1u);
+    const uintptr_t end = (addr + bytes + step - 1u) & ~(step - 1u);
+    __asm__ volatile("dsb ishst" ::: "memory");
+    for (uintptr_t p = begin; p < end; p += step) {
+        __asm__ volatile("dc cvac, %0" :: "r"(p) : "memory");
+    }
     __asm__ volatile("dsb sy" ::: "memory");
 }
 
