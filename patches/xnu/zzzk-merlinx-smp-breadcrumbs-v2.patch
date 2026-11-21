@@ -1,0 +1,80 @@
+diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
+index c10c645..704720b 100644
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -2649,6 +2649,8 @@ extern volatile uint32_t armcpu_smp_step[8] __attribute__((weak));
+ extern volatile uint32_t armcpu_smp_fail[8] __attribute__((weak));
+ extern volatile int32_t armcpu_smp_psci_rc[8] __attribute__((weak));
+ extern volatile uint32_t armcpu_cpu_init_completed __attribute__((weak));
++extern volatile uint64_t merlinx_smp_crumb[8][4];
++volatile uint64_t merlinx_smp_crumb[8][4] __attribute__((aligned(64))) = {{0}};
+ extern unsigned int armcpu_stats_row(unsigned int index, char *buf, size_t size) __attribute__((weak));
+ 
+ struct merlinx_smp_sample {
+@@ -2827,6 +2829,22 @@ struct merlinx_smp_sample {
+ 			native_musb_cmd_append("%s\n", row);
+ 		}
+ 	}
++	{
++		uintptr_t _va;
++		for (_va = (uintptr_t)merlinx_smp_crumb;
++		    _va < (uintptr_t)merlinx_smp_crumb + sizeof(merlinx_smp_crumb);
++		    _va += 64) {
++			__asm__ volatile ("dc civac, %0" :: "r"(_va) : "memory");
++		}
++		__builtin_arm_dsb(DSB_SY);
++		native_musb_cmd_append("[smp-crumb]");
++		for (unsigned int i = 0; i < 8; i++) {
++			native_musb_cmd_append(" s%u:st=%llu/m=%llx/el=%llx/cd=%llx",
++			    i, merlinx_smp_crumb[i][0], merlinx_smp_crumb[i][1],
++			    merlinx_smp_crumb[i][2], merlinx_smp_crumb[i][3]);
++		}
++		native_musb_cmd_append("\n");
++	}
+ }
+ 
+ static void
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+index 12068a0..8d94df4 100644
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -145,6 +145,19 @@
+ 	adrp	x19, EXT(ResetHandlerData)@page			// Get address of the reset handler data
+ 	add		x19, x19, EXT(ResetHandlerData)@pageoff
+ 	mrs		x15, MPIDR_EL1						// Load MPIDR to get CPU number
++	lsr		x9, x15, #8
++	orr		x9, x9, x15
++	and		x9, x9, #7
++	lsl		x9, x9, #5
++	adrp	x10, EXT(merlinx_smp_crumb)@page
++	add		x10, x10, EXT(merlinx_smp_crumb)@pageoff
++	add		x10, x10, x9
++	mov		x11, #1
++	str		x11, [x10, #0]
++	str		x15, [x10, #8]
++	mrs		x11, CurrentEL
++	str		x11, [x10, #16]
++	dsb		sy
+ #if HAS_CLUSTER || defined(BCM2837)
+ 	and		x0, x15, #0xFFFF					// CPU number in Affinity0, cluster ID in Affinity1 (SM8550 numbers cores in Affinity1)
+ #else
+@@ -789,6 +802,19 @@
+ 
+ 	APPLY_TUNABLES x12, x13, x14
+ #endif
++	mrs		x12, MPIDR_EL1
++	lsr		x13, x12, #8
++	orr		x13, x13, x12
++	and		x13, x13, #7
++	lsl		x13, x13, #5
++	adrp	x14, EXT(merlinx_smp_crumb)@page
++	add		x14, x14, EXT(merlinx_smp_crumb)@pageoff
++	add		x14, x14, x13
++	mov		x13, #2
++	str		x13, [x14, #0]
++	str		x12, [x14, #8]
++	str		x21, [x14, #24]
++	dsb		sy
+ 
+ #if HAS_CLUSTER && !NO_CPU_OVRD
+ 	// Unmask external IRQs if we're restarting from non-retention WFI

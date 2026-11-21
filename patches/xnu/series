@@ -82,3 +82,4 @@ zzzg-musb-build-fixes.patch
 zzzh-merlinx-osd-and-usb-cmds.patch
 zzzi-merlinx-debug-stall-smp.patch
 zzzj-merlinx-smp-flush-ttep.patch
+zzzk-merlinx-smp-breadcrumbs-v2.patch
