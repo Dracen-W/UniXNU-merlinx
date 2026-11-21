@@ -171,6 +171,7 @@ static_assert(sizeof(IOMobileFramebufferLegacy)==0x18a0,"Actual original instanc
 // and bound per-frame diagnostic scans after the first 2 frames to eliminate CPU stalls.
 extern "C" volatile uint32_t native_legacy_frame_count;
 extern "C" volatile void *merlinx_get_active_scanout_va(volatile void *default_dst);
+extern "C" void merlinx_clean_scanout_range(const volatile void *va, size_t bytes);
 
 static inline int merlinx_fast_frame_scan(const void *source, uint64_t sourceBytes,
     uint64_t sourceStride, uint32_t width, uint32_t height, uint64_t out[5]) {
@@ -206,21 +207,20 @@ static inline int merlinx_opaque_copy_pixels(volatile void *destination,
         const unsigned char *in=(const unsigned char *)(src+row*sourceStride);
         uint32_t column=0;
         if (wide) {
-            /* Non-volatile 64-byte contiguous stores let clang emit ARM64 STP bursts
-             * that coalesce cleanly in the kIOMapWriteCombineCache scanout buffer. */
             uint64_t *out64=(uint64_t *)out;
             for (;column+16<=width;column+=16) {
-                __builtin_prefetch(in+(uint64_t)column*4+256, 0, 0);
-                uint64_t v[8];
-                __builtin_memcpy(v, in+(uint64_t)column*4, 64);
-                out64[column/2+0] = v[0] | alphaMask;
-                out64[column/2+1] = v[1] | alphaMask;
-                out64[column/2+2] = v[2] | alphaMask;
-                out64[column/2+3] = v[3] | alphaMask;
-                out64[column/2+4] = v[4] | alphaMask;
-                out64[column/2+5] = v[5] | alphaMask;
-                out64[column/2+6] = v[6] | alphaMask;
-                out64[column/2+7] = v[7] | alphaMask;
+                const unsigned char *p = in + (uint64_t)column * 4;
+                __builtin_prefetch(p + 256, 0, 0);
+                uint64_t v0,v1,v2,v3,v4,v5,v6,v7;
+                __builtin_memcpy(&v0,p+0,8);  __builtin_memcpy(&v1,p+8,8);
+                __builtin_memcpy(&v2,p+16,8); __builtin_memcpy(&v3,p+24,8);
+                __builtin_memcpy(&v4,p+32,8); __builtin_memcpy(&v5,p+40,8);
+                __builtin_memcpy(&v6,p+48,8); __builtin_memcpy(&v7,p+56,8);
+                uint64_t *d64 = out64 + (column >> 1);
+                d64[0]=v0|alphaMask; d64[1]=v1|alphaMask;
+                d64[2]=v2|alphaMask; d64[3]=v3|alphaMask;
+                d64[4]=v4|alphaMask; d64[5]=v5|alphaMask;
+                d64[6]=v6|alphaMask; d64[7]=v7|alphaMask;
             }
         }
         for (;column<width;++column) {
@@ -229,7 +229,7 @@ static inline int merlinx_opaque_copy_pixels(volatile void *destination,
             out[column]=value | 0xFF000000U;
         }
     }
-    __asm__ volatile("dsb st" ::: "memory");
+    merlinx_clean_scanout_range(activeDst, (size_t)height * (size_t)destinationStride);
     return 1;
 }
 
@@ -244,39 +244,55 @@ static inline uint64_t merlinx_opaque_copy_diff(volatile void *destination,
     if (!shadow || ((uintptr_t)shadow&7) || (dst&7) || (destinationStride&7) || (width&1)) return UINT64_MAX;
     if (native_legacy_frame_count <= 2) valid = 0;
     uint64_t stored=0;
+    uint32_t firstDirtyRow = height;
+    uint32_t lastDirtyRow = 0;
     const uint32_t words=width/2;
     const uint64_t alphaMask = 0xFF000000FF000000ULL;
     for (uint32_t row=0;row<height;++row) {
-        /* Keep Write-Combining scanout stores strictly contiguous (64 bytes at a time)
-         * and separated from normal WB shadow writes so WC burst coalescing is not broken. */
         uint64_t *out=(uint64_t *)(dst+row*destinationStride);
         const unsigned char *in=(const unsigned char *)(src+row*sourceStride);
         uint64_t *old=(uint64_t *)((unsigned char *)shadow+(uint64_t)row*width*4);
         uint32_t w=0;
+        uint64_t rowStored=0;
         for (;w+8<=words;w+=8) {
-            __builtin_prefetch(in+(uint64_t)w*8+256, 0, 0);
-            uint64_t v[8];
-            __builtin_memcpy(v,in+(uint64_t)w*8,64);
-            v[0] |= alphaMask; v[1] |= alphaMask; v[2] |= alphaMask; v[3] |= alphaMask;
-            v[4] |= alphaMask; v[5] |= alphaMask; v[6] |= alphaMask; v[7] |= alphaMask;
-            if (valid && !((v[0]^old[w])|(v[1]^old[w+1])|(v[2]^old[w+2])|(v[3]^old[w+3])|
-                           (v[4]^old[w+4])|(v[5]^old[w+5])|(v[6]^old[w+6])|(v[7]^old[w+7]))) continue;
-            out[w+0]=v[0]; out[w+1]=v[1]; out[w+2]=v[2]; out[w+3]=v[3];
-            out[w+4]=v[4]; out[w+5]=v[5]; out[w+6]=v[6]; out[w+7]=v[7];
-            old[w+0]=v[0]; old[w+1]=v[1]; old[w+2]=v[2]; old[w+3]=v[3];
-            old[w+4]=v[4]; old[w+5]=v[5]; old[w+6]=v[6]; old[w+7]=v[7];
-            stored+=64;
+            const unsigned char *p = in + (uint64_t)w * 8;
+            __builtin_prefetch(p + 256, 0, 0);
+            uint64_t v0,v1,v2,v3,v4,v5,v6,v7;
+            __builtin_memcpy(&v0,p+0,8);  __builtin_memcpy(&v1,p+8,8);
+            __builtin_memcpy(&v2,p+16,8); __builtin_memcpy(&v3,p+24,8);
+            __builtin_memcpy(&v4,p+32,8); __builtin_memcpy(&v5,p+40,8);
+            __builtin_memcpy(&v6,p+48,8); __builtin_memcpy(&v7,p+56,8);
+            v0|=alphaMask; v1|=alphaMask; v2|=alphaMask; v3|=alphaMask;
+            v4|=alphaMask; v5|=alphaMask; v6|=alphaMask; v7|=alphaMask;
+            if (valid && !((v0^old[w])|(v1^old[w+1])|(v2^old[w+2])|(v3^old[w+3])|
+                           (v4^old[w+4])|(v5^old[w+5])|(v6^old[w+6])|(v7^old[w+7]))) continue;
+            uint64_t *d = out + w;
+            d[0]=v0; d[1]=v1; d[2]=v2; d[3]=v3;
+            d[4]=v4; d[5]=v5; d[6]=v6; d[7]=v7;
+            uint64_t *s = old + w;
+            s[0]=v0; s[1]=v1; s[2]=v2; s[3]=v3;
+            s[4]=v4; s[5]=v5; s[6]=v6; s[7]=v7;
+            rowStored+=64;
         }
         for (;w<words;++w) {
             uint64_t v;
             __builtin_memcpy(&v,in+(uint64_t)w*8,8);
             v |= alphaMask;
             if (valid && v==old[w]) continue;
-            out[w]=v;old[w]=v;stored+=8;
+            out[w]=v; old[w]=v; rowStored+=8;
+        }
+        if (rowStored) {
+            if (row < firstDirtyRow) firstDirtyRow = row;
+            lastDirtyRow = row;
+            stored += rowStored;
         }
     }
     if (stored) {
-        __asm__ volatile("dsb st" ::: "memory");
+        const volatile uint8_t *dirtyStart =
+            (const volatile uint8_t *)activeDst + (size_t)firstDirtyRow * (size_t)destinationStride;
+        const size_t dirtyBytes =
+            (size_t)(lastDirtyRow - firstDirtyRow + 1u) * (size_t)destinationStride;
+        merlinx_clean_scanout_range(dirtyStart, dirtyBytes);
     }
     return stored;
 }

@@ -61,6 +61,8 @@ void merlinx_hid_get_stats(
     uint8_t *outLastFlags);
 extern volatile uint32_t native_legacy_retired_frames;
 volatile void *merlinx_get_active_scanout_va(volatile void *default_dst);
+void merlinx_clean_scanout_range(const volatile void *va, size_t bytes);
+void clean_dcache64(addr64_t addr, unsigned count, int phys);
 }
 
 static volatile uint32_t gInUsbCmd = 0;
@@ -706,6 +708,8 @@ static void merlinxFillCarveoutRangeBlack(uint64_t startPa, uint64_t endPa)
     for (size_t i = 0; i < words; ++i) {
         p64[i] = 0xFF000000FF000000ULL;
     }
+    clean_dcache64(static_cast<addr64_t>(kMtkMblockFbBasePa + startOff),
+                   static_cast<unsigned>(endOff - startOff), 1);
     __asm__ volatile("dsb sy" ::: "memory");
 }
 
@@ -717,7 +721,7 @@ static void merlinxFixupMtkOvl(bool wipeBackground)
 {
     if (!gCarveoutBase) {
         gCarveoutBase = mapMmioWindow(
-            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap, kIOMapWriteCombineCache);
+            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap, kIOMapCopybackCache);
     }
     if (!gDispsysBase) {
         gDispsysBase = mapMmioWindow(
@@ -1089,7 +1093,7 @@ static bool merlinxInitTouchHardware()
 {
     if (!gCarveoutBase) {
         gCarveoutBase = mapMmioWindow(
-            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap, kIOMapWriteCombineCache);
+            kMtkMblockFbBasePa, kMtkMblockFbSize, &gCarveoutMem, &gCarveoutMap, kIOMapCopybackCache);
     }
     if (!gGpioBase) {
         gGpioBase = mapMmioWindow(kMtkGpioBasePa, 0x1000ULL, &gGpioMem, &gGpioMap);
@@ -1175,6 +1179,27 @@ extern "C" volatile void *merlinx_get_active_scanout_va(volatile void *default_d
         }
     }
     return base;
+}
+
+extern "C" void merlinx_clean_scanout_range(const volatile void *va, size_t bytes)
+{
+    if (!va || bytes == 0 || !gCarveoutBase) {
+        __asm__ volatile("dsb st" ::: "memory");
+        return;
+    }
+    const uintptr_t addr = reinterpret_cast<uintptr_t>(va);
+    const uintptr_t base = reinterpret_cast<uintptr_t>(gCarveoutBase);
+    if (addr < base || addr >= base + kMtkMblockFbSize) {
+        __asm__ volatile("dsb st" ::: "memory");
+        return;
+    }
+    size_t maxLen = static_cast<size_t>((base + kMtkMblockFbSize) - addr);
+    if (bytes > maxLen) {
+        bytes = maxLen;
+    }
+    const addr64_t phys = static_cast<addr64_t>(kMtkMblockFbBasePa + (addr - base));
+    clean_dcache64(phys, static_cast<unsigned>(bytes), 1);
+    __asm__ volatile("dsb sy" ::: "memory");
 }
 
 static int merlinxStage3SendTouchCmd01(unsigned first_delay_us)
