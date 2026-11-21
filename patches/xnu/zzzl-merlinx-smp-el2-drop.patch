@@ -1,44 +1,45 @@
 diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
-index acbaa1a..ab44a81 100644
+index acbaa1a..2895e36 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -145,6 +145,40 @@
+@@ -145,6 +145,41 @@
  	adrp	x19, EXT(ResetHandlerData)@page			// Get address of the reset handler data
  	add		x19, x19, EXT(ResetHandlerData)@pageoff
  	mrs		x15, MPIDR_EL1						// Load MPIDR to get CPU number
 +	// MT6768 TF-A PSCI CPU_ON enters secondary cores at EL2; drop to EL1h before XNU init
 +	mrs		x9, CurrentEL
 +	cmp		x9, #8
-+	b.ne	1f
++	b.ne	L_merlinx_el1_entry
 +	mrs		x9, MPIDR_EL1
-+	msr		VMPIDR_EL2, x9
++	msr		S3_4_C0_C0_5, x9						// VMPIDR_EL2
 +	mrs		x9, MIDR_EL1
-+	msr		VPIDR_EL2, x9
-+	movz	x9, #0x8000, lsl #16					// HCR_EL2.RW = 1 (AArch64 EL1)
-+	msr		HCR_EL2, x9
-+	mov		x9, #3									// CNTHCTL_EL2: EL1PCTEN | EL1PCEN
-+	msr		CNTHCTL_EL2, x9
-+	msr		CNTVOFF_EL2, xzr
-+	mov		x9, #0x33ff								// CPTR_EL2: do not trap FP/SIMD
-+	msr		CPTR_EL2, x9
-+	msr		MDCR_EL2, xzr
-+	msr		HSTR_EL2, xzr
-+	msr		VTTBR_EL2, xzr
++	msr		S3_4_C0_C0_0, x9						// VPIDR_EL2
++	mov		x9, #0
++	movk	x9, #0x8000, lsl #16					// HCR_EL2.RW = 1 (AArch64 EL1)
++	msr		S3_4_C1_C1_0, x9						// HCR_EL2
++	mov		x9, #3									// EL1PCTEN | EL1PCEN
++	msr		S3_4_C14_C1_0, x9						// CNTHCTL_EL2
++	msr		S3_4_C14_C0_3, xzr						// CNTVOFF_EL2
++	mov		x9, #0x33ff								// do not trap FP/SIMD
++	msr		S3_4_C1_C1_2, x9						// CPTR_EL2
++	msr		S3_4_C1_C1_1, xzr						// MDCR_EL2
++	msr		S3_4_C1_C1_3, xzr						// HSTR_EL2
++	msr		S3_4_C2_C1_0, xzr						// VTTBR_EL2
 +	mrs		x9, S3_4_C12_C9_5						// ICC_SRE_EL2
 +	orr		x9, x9, #9								// SRE | Enable for EL1 GICv3 sysregs
 +	msr		S3_4_C12_C9_5, x9
 +	isb
 +	msr		S3_4_C12_C11_0, xzr						// ICH_HCR_EL2 = 0
-+	movz	x9, #0x30d0, lsl #16
-+	movk	x9, #0x0800
++	mov		x9, #0x0800
++	movk	x9, #0x30d0, lsl #16
 +	msr		SCTLR_EL1, x9
 +	mov		x9, #0x3c5								// DAIF masked, EL1h
-+	msr		SPSR_EL2, x9
-+	adr		x9, 1f
-+	msr		ELR_EL2, x9
++	msr		S3_4_C4_C0_0, x9						// SPSR_EL2
++	adr		x9, L_merlinx_el1_entry
++	msr		S3_4_C4_C0_1, x9						// ELR_EL2
 +	isb
 +	eret
-+1:
++L_merlinx_el1_entry:
 +	mrs		x15, MPIDR_EL1						// Reload MPIDR_EL1 in EL1
  	lsr		x9, x15, #8
  	orr		x9, x9, x15
