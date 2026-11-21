@@ -83,3 +83,4 @@ zzzh-merlinx-osd-and-usb-cmds.patch
 zzzi-merlinx-debug-stall-smp.patch
 zzzj-merlinx-smp-flush-ttep.patch
 zzzk-merlinx-smp-breadcrumbs.patch
+zzzl-merlinx-smp-el2-drop.patch
