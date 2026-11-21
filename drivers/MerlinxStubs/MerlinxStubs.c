@@ -74,3 +74,34 @@ native_verified_block_manifest_sha384(dev_t device, const char *uuid, unsigned c
 	for (i = 0; i < 48; i++) digest[i] = 0;
 	return 1;
 }
+
+/* Weak link stubs for optional upstream GopFramebuffer (b0d812d5) and ArmCpu (5f370269)
+ * weak_import hooks. Static XNU kernel linking rejects unresolved weak_import symbols. */
+__attribute__((weak)) _Bool
+native_adreno_fences(unsigned int *submitted, unsigned int *retired)
+{
+	(void)submitted; (void)retired;
+	return 0;
+}
+
+__attribute__((weak)) _Bool
+native_adreno_fences_detail(unsigned int *a, unsigned int *b, unsigned int *c)
+{
+	(void)a; (void)b; (void)c;
+	return 0;
+}
+
+__attribute__((weak)) int
+native_gpu_trace_enabled(void)
+{
+	return 0;
+}
+
+__attribute__((weak)) void
+native_gpu_trace_record(unsigned int event, unsigned int pid,
+    const unsigned long long *values, unsigned int count)
+{
+	(void)event; (void)pid; (void)values; (void)count;
+}
+
+__attribute__((weak)) void (*arm64_platform_sleep_hook)(int boot_cpu) = 0;
