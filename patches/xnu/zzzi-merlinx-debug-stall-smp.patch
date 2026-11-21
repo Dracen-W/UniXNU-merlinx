@@ -1,3 +1,5 @@
+diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
+index 07e77db..9075b67 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
 @@ -68,6 +68,9 @@
@@ -10,7 +12,7 @@
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2617,6 +2620,7 @@
+@@ -2617,6 +2620,7 @@ static unsigned int native_diag_focus_slot;
  static boolean_t native_diag_focus_chrono;
  static boolean_t native_diag_focus_configured;
  static thread_call_t native_diag_focus_call;
@@ -18,36 +20,15 @@
  
  static void
  native_diag_focus_configure(void)
-@@ -2630,6 +2634,9 @@
- 		if (native_diag_focus_same(native_diag_focus[i], "launchd"))
- 			native_diag_focus_pid[i] = 1;
- 	}
-+	if (!native_diag_focus[3][0]) {
-+		strlcpy(native_diag_focus[3], "Preferences", sizeof(native_diag_focus[3]));
-+	}
- 	native_diag_focus_chrono = PE_parse_boot_argn("boot-ui-chrono", &chrono, sizeof(chrono)) && chrono != 0;
- 	native_diag_focus_configured = TRUE;
- }
-@@ -2676,6 +2683,8 @@
- 		role = 'C';
- 	else if (name[0] == 'i' || name[0] == 'I')
- 		role = 'I';
-+	else if (name[0] == 'p' || name[0] == 'P')
-+		role = 'P';
- 	if (native_diag_focus_chrono) {
- 		uint64_t ns = 0;
- 		absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
-@@ -2814,7 +2823,8 @@
+@@ -2819,6 +2823,7 @@ release_proc:
  reschedule:
  	native_diag_process_summary();
  	native_gop_redraw_ring();
--	clock_interval_to_deadline(4, (uint32_t)NSEC_PER_SEC, &deadline);
 +	native_diag_smp_tick();
-+	clock_interval_to_deadline(2, (uint32_t)NSEC_PER_SEC, &deadline);
+ 	clock_interval_to_deadline(2, (uint32_t)NSEC_PER_SEC, &deadline);
  	thread_call_enter_delayed(native_diag_focus_call, deadline);
  }
- 
-@@ -3065,6 +3075,193 @@
+@@ -3070,6 +3075,193 @@ native_musb_cmd_append(const char *fmt, ...)
  	}
  }
  
@@ -241,7 +222,7 @@
  static void
  native_musb_dump_proc_bt(proc_t p, boolean_t mirror_to_ring)
  {
-@@ -3290,7 +3487,8 @@
+@@ -3295,7 +3487,8 @@ native_musb_exec_command(const char *cmd)
  		    "  tap <x> <y>       Inject touch tap at pixel (x, y) in 1080x2340\n"
  		    "  swipe <x1> <y1> <x2> <y2>  Inject touch swipe gesture\n"
  		    "  home              Inject Home button + bottom-edge unlock swipe\n"
@@ -251,7 +232,7 @@
  		    native_diag_block_iconservices);
  	} else if (strncmp(cmd, "ps", 2) == 0) {
  		native_musb_cmd_append("PID   THR  NAME                 XPC_TAG\n");
-@@ -3449,6 +3647,8 @@
+@@ -3454,6 +3647,8 @@ native_musb_exec_command(const char *cmd)
  	} else if (strncmp(cmd, "cpufreq", 7) == 0) {
  		if (merlinx_usb_cmd_cpufreq)
  			merlinx_usb_cmd_cpufreq();
