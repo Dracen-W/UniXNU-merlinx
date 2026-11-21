@@ -1,17 +1,17 @@
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
-index c10c645..704720b 100644
+index 4910ce4..2e4cc1e 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -2649,6 +2649,8 @@ extern volatile uint32_t armcpu_smp_step[8] __attribute__((weak));
- extern volatile uint32_t armcpu_smp_fail[8] __attribute__((weak));
- extern volatile int32_t armcpu_smp_psci_rc[8] __attribute__((weak));
+@@ -3087,6 +3087,8 @@ extern volatile uint32_t armcpu_core_timer[8] __attribute__((weak));
+ extern volatile uint32_t armcpu_core_sgi[8] __attribute__((weak));
  extern volatile uint32_t armcpu_cpu_init_completed __attribute__((weak));
+ extern unsigned armcpu_stats_row(unsigned index, char *row, unsigned size) __attribute__((weak));
 +extern volatile uint64_t merlinx_smp_crumb[8][4];
 +volatile uint64_t merlinx_smp_crumb[8][4] __attribute__((aligned(64))) = {{0}};
- extern unsigned int armcpu_stats_row(unsigned int index, char *buf, size_t size) __attribute__((weak));
  
- struct merlinx_smp_sample {
-@@ -2827,6 +2829,22 @@ struct merlinx_smp_sample {
+ #define MERLINX_SMP_MAX_CPUS 8U
+ 
+@@ -3257,6 +3259,25 @@ native_musb_cmd_smp(void)
  			native_musb_cmd_append("%s\n", row);
  		}
  	}
@@ -22,12 +22,15 @@ index c10c645..704720b 100644
 +		    _va += 64) {
 +			__asm__ volatile ("dc civac, %0" :: "r"(_va) : "memory");
 +		}
-+		__builtin_arm_dsb(DSB_SY);
++		__asm__ volatile ("dsb sy" ::: "memory");
 +		native_musb_cmd_append("[smp-crumb]");
-+		for (unsigned int i = 0; i < 8; i++) {
++		for (unsigned int _ci = 0; _ci < 8U; _ci++) {
 +			native_musb_cmd_append(" s%u:st=%llu/m=%llx/el=%llx/cd=%llx",
-+			    i, merlinx_smp_crumb[i][0], merlinx_smp_crumb[i][1],
-+			    merlinx_smp_crumb[i][2], merlinx_smp_crumb[i][3]);
++			    _ci,
++			    (unsigned long long)merlinx_smp_crumb[_ci][0],
++			    (unsigned long long)merlinx_smp_crumb[_ci][1],
++			    (unsigned long long)merlinx_smp_crumb[_ci][2],
++			    (unsigned long long)merlinx_smp_crumb[_ci][3]);
 +		}
 +		native_musb_cmd_append("\n");
 +	}
@@ -35,7 +38,7 @@ index c10c645..704720b 100644
  
  static void
 diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
-index 12068a0..8d94df4 100644
+index cc96ee9..acbaa1a 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
 @@ -145,6 +145,19 @@
@@ -58,7 +61,7 @@ index 12068a0..8d94df4 100644
  #if HAS_CLUSTER || defined(BCM2837)
  	and		x0, x15, #0xFFFF					// CPU number in Affinity0, cluster ID in Affinity1 (SM8550 numbers cores in Affinity1)
  #else
-@@ -789,6 +802,19 @@
+@@ -792,6 +805,19 @@
  
  	APPLY_TUNABLES x12, x13, x14
  #endif
