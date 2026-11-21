@@ -566,7 +566,7 @@ index 31bad41..d0e815e 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2475,3 +2481,1273 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
+@@ -2475,3 +2481,1278 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
  SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
  
  #endif
@@ -618,6 +618,9 @@ index 31bad41..d0e815e 100644
 +		if (native_diag_focus_same(native_diag_focus[i], "launchd"))
 +			native_diag_focus_pid[i] = 1;
 +	}
++	if (!native_diag_focus[3][0]) {
++		strlcpy(native_diag_focus[3], "Preferences", sizeof(native_diag_focus[3]));
++	}
 +	native_diag_focus_chrono = PE_parse_boot_argn("boot-ui-chrono", &chrono, sizeof(chrono)) && chrono != 0;
 +	native_diag_focus_configured = TRUE;
 +}
@@ -664,6 +667,8 @@ index 31bad41..d0e815e 100644
 +		role = 'C';
 +	else if (name[0] == 'i' || name[0] == 'I')
 +		role = 'I';
++	else if (name[0] == 'p' || name[0] == 'P')
++		role = 'P';
 +	if (native_diag_focus_chrono) {
 +		uint64_t ns = 0;
 +		absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
@@ -802,7 +807,7 @@ index 31bad41..d0e815e 100644
 +reschedule:
 +	native_diag_process_summary();
 +	native_gop_redraw_ring();
-+	clock_interval_to_deadline(4, (uint32_t)NSEC_PER_SEC, &deadline);
++	clock_interval_to_deadline(2, (uint32_t)NSEC_PER_SEC, &deadline);
 +	thread_call_enter_delayed(native_diag_focus_call, deadline);
 +}
 +
