@@ -200,20 +200,27 @@ static inline int merlinx_opaque_copy_pixels(volatile void *destination,
     volatile void *activeDst = merlinx_get_active_scanout_va(destination);
     uintptr_t dst=(uintptr_t)activeDst, src=(uintptr_t)source;
     int wide=!(dst&7) && !(destinationStride&7);
+    const uint64_t alphaMask = 0xFF000000FF000000ULL;
     for (uint32_t row=0;row<height;++row) {
-        volatile uint32_t *out=(volatile uint32_t *)(dst+row*destinationStride);
+        uint32_t *out=(uint32_t *)(dst+row*destinationStride);
         const unsigned char *in=(const unsigned char *)(src+row*sourceStride);
         uint32_t column=0;
         if (wide) {
-            volatile uint64_t *out64=(volatile uint64_t *)out;
-            for (;column+8<=width;column+=8) {
-                uint64_t a,b,c,d;
-                __builtin_memcpy(&a,in+(uint64_t)column*4,8);__builtin_memcpy(&b,in+(uint64_t)column*4+8,8);
-                __builtin_memcpy(&c,in+(uint64_t)column*4+16,8);__builtin_memcpy(&d,in+(uint64_t)column*4+24,8);
-                out64[column/2]=a | 0xFF000000FF000000ULL;
-                out64[column/2+1]=b | 0xFF000000FF000000ULL;
-                out64[column/2+2]=c | 0xFF000000FF000000ULL;
-                out64[column/2+3]=d | 0xFF000000FF000000ULL;
+            /* Non-volatile 64-byte contiguous stores let clang emit ARM64 STP bursts
+             * that coalesce cleanly in the kIOMapWriteCombineCache scanout buffer. */
+            uint64_t *out64=(uint64_t *)out;
+            for (;column+16<=width;column+=16) {
+                __builtin_prefetch(in+(uint64_t)column*4+256, 0, 0);
+                uint64_t v[8];
+                __builtin_memcpy(v, in+(uint64_t)column*4, 64);
+                out64[column/2+0] = v[0] | alphaMask;
+                out64[column/2+1] = v[1] | alphaMask;
+                out64[column/2+2] = v[2] | alphaMask;
+                out64[column/2+3] = v[3] | alphaMask;
+                out64[column/2+4] = v[4] | alphaMask;
+                out64[column/2+5] = v[5] | alphaMask;
+                out64[column/2+6] = v[6] | alphaMask;
+                out64[column/2+7] = v[7] | alphaMask;
             }
         }
         for (;column<width;++column) {
@@ -222,6 +229,7 @@ static inline int merlinx_opaque_copy_pixels(volatile void *destination,
             out[column]=value | 0xFF000000U;
         }
     }
+    __asm__ volatile("dsb st" ::: "memory");
     return 1;
 }
 
@@ -237,27 +245,38 @@ static inline uint64_t merlinx_opaque_copy_diff(volatile void *destination,
     if (native_legacy_frame_count <= 2) valid = 0;
     uint64_t stored=0;
     const uint32_t words=width/2;
+    const uint64_t alphaMask = 0xFF000000FF000000ULL;
     for (uint32_t row=0;row<height;++row) {
-        volatile uint64_t *out=(volatile uint64_t *)(dst+row*destinationStride);
+        /* Keep Write-Combining scanout stores strictly contiguous (64 bytes at a time)
+         * and separated from normal WB shadow writes so WC burst coalescing is not broken. */
+        uint64_t *out=(uint64_t *)(dst+row*destinationStride);
         const unsigned char *in=(const unsigned char *)(src+row*sourceStride);
         uint64_t *old=(uint64_t *)((unsigned char *)shadow+(uint64_t)row*width*4);
         uint32_t w=0;
         for (;w+8<=words;w+=8) {
+            __builtin_prefetch(in+(uint64_t)w*8+256, 0, 0);
             uint64_t v[8];
             __builtin_memcpy(v,in+(uint64_t)w*8,64);
-            for (unsigned i=0;i<8;++i) v[i] |= 0xFF000000FF000000ULL;
+            v[0] |= alphaMask; v[1] |= alphaMask; v[2] |= alphaMask; v[3] |= alphaMask;
+            v[4] |= alphaMask; v[5] |= alphaMask; v[6] |= alphaMask; v[7] |= alphaMask;
             if (valid && !((v[0]^old[w])|(v[1]^old[w+1])|(v[2]^old[w+2])|(v[3]^old[w+3])|
                            (v[4]^old[w+4])|(v[5]^old[w+5])|(v[6]^old[w+6])|(v[7]^old[w+7]))) continue;
-            for (unsigned i=0;i<8;++i){out[w+i]=v[i];old[w+i]=v[i];}
+            out[w+0]=v[0]; out[w+1]=v[1]; out[w+2]=v[2]; out[w+3]=v[3];
+            out[w+4]=v[4]; out[w+5]=v[5]; out[w+6]=v[6]; out[w+7]=v[7];
+            old[w+0]=v[0]; old[w+1]=v[1]; old[w+2]=v[2]; old[w+3]=v[3];
+            old[w+4]=v[4]; old[w+5]=v[5]; old[w+6]=v[6]; old[w+7]=v[7];
             stored+=64;
         }
         for (;w<words;++w) {
             uint64_t v;
             __builtin_memcpy(&v,in+(uint64_t)w*8,8);
-            v |= 0xFF000000FF000000ULL;
+            v |= alphaMask;
             if (valid && v==old[w]) continue;
             out[w]=v;old[w]=v;stored+=8;
         }
+    }
+    if (stored) {
+        __asm__ volatile("dsb st" ::: "memory");
     }
     return stored;
 }
