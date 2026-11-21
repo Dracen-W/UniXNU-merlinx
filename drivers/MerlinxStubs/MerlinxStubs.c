@@ -37,6 +37,22 @@ native_ufs_store_write(unsigned long long block, unsigned int count, const void 
 }
 
 int
+native_ufs_store_write_cached(unsigned long long block, unsigned int count, const void *data)
+{
+	(void)block; (void)count; (void)data;
+	return 0;
+}
+
+/* Weak fallback for RamBlock >= 00a6e5dd's optional boot-payload-release=1 hook.
+ * Returns false so the loader seed is left untouched unless XNU provides the real symbol. */
+__attribute__((weak)) _Bool
+ml_static_mfree_prepare(unsigned long vaddr, unsigned long size)
+{
+	(void)vaddr; (void)size;
+	return 0;
+}
+
+int
 native_ufs_store_sync(void)
 {
 	return 0;
