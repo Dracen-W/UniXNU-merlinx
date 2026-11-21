@@ -1,0 +1,271 @@
+# RamBlock build-time patch for UniXNU-merlinx (upstream RamBlock >= 00a6e5dd)
+#
+# Why this patch exists:
+#   1. Upstream RamBlock forces disks > 2 GiB (e.g. merlinx's 120 GiB volatile
+#      scratch-data.img) onto SeedDisk (isBig = true), which assumes a read-write
+#      persistent UFS store (native_ufs_store_mode() == 2) and rejects all writes
+#      with kIOReturnNotReady when no persistent store is present.
+#   2. Upstream RamSparseDisk uses a flat pointer array pages[pageIndex], which
+#      would need 240 MiB of metadata for a 120 GiB disk. The previous .o binary
+#      patch masked pageIndex to 19 bits (2 GiB modulo wrap), causing silent
+#      block aliasing and APFS obj_checksum_verify / SIGBUS (R2:a) corruption
+#      once APFS allocated blocks past 2 GiB.
+#
+# What this patch does:
+#   - Replaces RamSparseDisk's flat array with a 262,144-slot (4 MiB) 64-bit
+#     open-addressing hash table keyed by full 64-bit pageIndex (zero aliasing
+#     across any disk size up to 1 TiB, ~1 GiB resident 4K page capacity).
+#   - Routes > 2 GiB disks through RamSparseDisk whenever no read-write UFS
+#     persistent store is present, while preserving upstream SeedDisk + direct
+#     mode unchanged if native_ufs_store_mode() == 2.
+#   - Computes SHNGSEED2 (size + nonzero packed extents only) for > 2 GiB
+#     sparse seeds so boot does not stall hashing 31M zero pages.
+#
+diff --git a/NativeRamBlock.cpp b/NativeRamBlock.cpp
+index 070c60b..32347b2 100644
+--- a/NativeRamBlock.cpp
++++ b/NativeRamBlock.cpp
+@@ -217,7 +217,7 @@ public:
+     if (storeAttached) { IOLockUnlock(gate); return; }
+     storeAttached = true;
+     unsigned mode = &native_ufs_store_mode ? native_ufs_store_mode() : 0;
+-    if (mode && (sparse.pages || isBig) && &native_ufs_store_open && &native_ufs_store_read && &native_ufs_store_write &&
++    if (mode && (sparse.slots || isBig) && &native_ufs_store_open && &native_ufs_store_read && &native_ufs_store_write &&
+         &native_ufs_store_sync && &native_ufs_store_gpt_check) {
+       uint64_t pages = (isBig ? big.bytes : sparse.bytes) / 4096, first = 0;
+       const char *why = "";
+@@ -257,13 +257,15 @@ public:
+             NativeRamBlock *self;
+             bool operator()(uint64_t i, const uint8_t *page) {
+               if (i >= self->sparse.bytes / 4096) return false;
+-              if (!self->sparse.pages[i]) {
+-                uint8_t *fresh = static_cast<uint8_t *>(IOMallocZero(4096));
+-                if (!fresh) return false;
+-                self->sparse.pages[i] = fresh;
++              uint8_t *slot = self->sparse.find(i);
++              if (!slot) {
++                if (self->sparse.resident / 4096 >= self->sparse.capacity - 1) return false;
++                slot = static_cast<uint8_t *>(IOMallocZero(4096));
++                if (!slot) return false;
++                if (!self->sparse.insert(i, slot)) { IOFree(slot, 4096); return false; }
+                 self->sparse.resident += 4096;
+               }
+-              memcpy(self->sparse.pages[i], page, 4096);
++              memcpy(slot, page, 4096);
+               __atomic_fetch_add(&native_data_persist_loaded, 1, __ATOMIC_RELAXED);
+               return true;
+             }
+@@ -311,11 +313,11 @@ public:
+     IOLockUnlock(gate);
+   }
+ 
+-  bool available() const { return online && (memory || sparse.pages || isBig) && capacity; }
++  bool available() const { return online && (memory || sparse.slots || isBig) && capacity; }
+   bool seedInfo(uint64_t *base,uint64_t *bytes,uint8_t hash[32]) {
+     if(!gate || !base || !bytes || !hash)return false;
+     IOLockLock(gate);bool ready=available();
+-    if(ready){*base=(sparse.pages||isBig)?0:reinterpret_cast<uint64_t>(memory);*bytes=capacity*512;memcpy(hash,seedHash,32);}
++    if(ready){*base=(sparse.slots||isBig)?0:reinterpret_cast<uint64_t>(memory);*bytes=capacity*512;memcpy(hash,seedHash,32);}
+     IOLockUnlock(gate);return ready;
+   }
+   bool start(IOService *) override;
+@@ -376,7 +378,8 @@ bool NativeRamBlock::start(IOService *provider)
+   if(packedInput){
+     if(!ramPackedLayout(memory,bytes,&logical))return false;
+     struct ImportOps {uint8_t *allocate(){return static_cast<uint8_t *>(IOMallocZero(4096));}} ops;
+-    if(logical>0x80000000ULL){
++    const bool wantDirectBig=(logical>0x80000000ULL)&&(&native_ufs_store_mode && native_ufs_store_mode()==2);
++    if(wantDirectBig){
+       uint64_t nonzero=0;
+       if(!seedCountNonzero(memory,bytes,&nonzero))return false;
+       big.bytes=logical;big.capacity=nonzero;
+@@ -386,7 +389,8 @@ bool NativeRamBlock::start(IOService *provider)
+       isBig=true;sparse.bytes=logical;
+     }else{
+       sparse.bytes=logical;
+-      sparse.pages=static_cast<uint8_t **>(IOMallocZero((logical/4096)*sizeof(uint8_t *)));
++      sparse.capacity=ramSparseSlotCount(logical);
++      sparse.slots=static_cast<RamSparseSlot *>(IOMallocZero(sparse.capacity*sizeof(RamSparseSlot)));
+       if(!ramSparseImport(sparse,memory,bytes,ops))return false;
+     }
+   }
+@@ -398,9 +402,32 @@ bool NativeRamBlock::start(IOService *provider)
+                  [](SHA256_CTX &c,uint8_t *out){SHA256_Final(out,&c);},seedHash);
+     memory=nullptr;
+   }else{
+-  if(sparse.pages){
+-    static const uint8_t zero[4096]={};
+-    for(uint64_t i=0;i<logical/4096;++i)SHA256_Update(&context,sparse.pages[i]?sparse.pages[i]:zero,4096);
++  if(sparse.slots){
++    if(logical>0x80000000ULL){
++      uint8_t head[17]={'S','H','N','G','S','E','E','D','2'};
++      for(unsigned k=0;k<8;++k)head[9+k]=static_cast<uint8_t>(logical>>(8*k));
++      SHA256_Update(&context,head,17);
++      uint64_t count=ramU64(memory+24),cursor=32+count*16;
++      for(uint64_t e=0;e<count;++e){
++        uint64_t at=ramU64(memory+32+e*16),len=ramU64(memory+40+e*16);
++        for(uint64_t j=0;j<len;j+=4096){
++          const uint8_t *src=memory+cursor+j;uint8_t any=0;
++          for(unsigned k=0;k<4096;++k)any|=src[k];
++          if(!any)continue;
++          uint64_t idx=(at+j)/4096;uint8_t le[8];
++          for(unsigned k=0;k<8;++k)le[k]=static_cast<uint8_t>(idx>>(8*k));
++          SHA256_Update(&context,le,8);
++          SHA256_Update(&context,src,4096);
++        }
++        cursor+=len;
++      }
++    }else{
++      static const uint8_t zero[4096]={};
++      for(uint64_t i=0;i<logical/4096;++i){
++        const uint8_t *p=sparse.find(i);
++        SHA256_Update(&context,p?p:zero,4096);
++      }
++    }
+     memory=nullptr;
+   }else SHA256_Update(&context, memory, bytes);
+   SHA256_Final(seedHash, &context);
+@@ -416,8 +443,8 @@ bool NativeRamBlock::start(IOService *provider)
+   }
+   memcpy(native_ram_block_seed_sha256,seedHash,32);
+   native_ram_block_bytes = logical;
+-  native_ram_block_sparse=(sparse.pages||isBig)?1:0;
+-  native_ram_block_resident_bytes=isBig?big.resident:sparse.pages?sparse.resident:logical;
++  native_ram_block_sparse=(sparse.slots||isBig)?1:0;
++  native_ram_block_resident_bytes=isBig?big.resident:sparse.slots?sparse.resident:logical;
+   // The medium is memory or, with the persistent store, flash: neither seeks. IOMediaBSDClient answers DKIOCISSOLIDSTATE from this
+   // dictionary, found from any media above this device; without it XNU treats the disk as rotating (the swap thresholds of a hard
+   // disk when the swap files live here, throttle periods, read-ahead and page-in cluster sizes, the mount's MNTK_SSD).
+@@ -494,7 +521,7 @@ IOReturn NativeRamBlock::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 blo
+     }
+     IOLockUnlock(gate);return kIOReturnNotReady;
+   }
+-  if(sparse.pages||isBig){
++  if(sparse.slots||isBig){
+     struct Operations {
+       IOMemoryDescriptor *buffer;
+       uint8_t *allocate(){return static_cast<uint8_t *>(IOMallocZero(4096));}
+@@ -510,7 +537,7 @@ IOReturn NativeRamBlock::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 blo
+       uint64_t firstPage=block*512/4096,lastPage=(block*512+bytes-1)/4096;
+       for(uint64_t i=firstPage;i<=lastPage && overlay.active;){
+         uint32_t n=0;
+-        while(n<kStagePages && i+n<=lastPage && sparse.pages[i+n]){memcpy(stage+(uint64_t)n*persist::kBlock,sparse.pages[i+n],persist::kBlock);++n;}
++        while(n<kStagePages && i+n<=lastPage){uint8_t *p=sparse.find(i+n);if(!p)break;memcpy(stage+(uint64_t)n*persist::kBlock,p,persist::kBlock);++n;}
+         if(!n || !overlay.writeRun(store,i,n,stage)){persistFailed();break;}
+         __atomic_fetch_add(&native_data_persist_writes,n,__ATOMIC_RELAXED);
+         __atomic_fetch_add(&native_data_persist_syncs,1,__ATOMIC_RELAXED);   // one run = one durable commit
+@@ -621,9 +648,9 @@ void NativeRamBlock::free()
+   if (bitLock) { IOLockFree(bitLock); bitLock = nullptr; }
+   if (flushMutex) { IOLockFree(flushMutex); flushMutex = nullptr; }
+   if (flushRw) { IORWLockFree(flushRw); flushRw = nullptr; }
+-  if(sparse.pages){
+-    for(uint64_t i=0;i<sparse.bytes/4096;++i)if(sparse.pages[i])IOFree(sparse.pages[i],4096);
+-    IOFree(sparse.pages,(sparse.bytes/4096)*sizeof(uint8_t *));sparse={};
++  if(sparse.slots){
++    for(uint64_t i=0;i<sparse.capacity;++i)if(sparse.slots[i].key && sparse.slots[i].page)IOFree(sparse.slots[i].page,4096);
++    IOFree(sparse.slots,sparse.capacity*sizeof(RamSparseSlot));sparse={};
+   }
+   // Dense boot allocation and packed input remain owned until reboot.
+   IOBlockStorageDevice::free();
+diff --git a/SparseDisk.h b/SparseDisk.h
+index 20cd248..b5e9f58 100644
+--- a/SparseDisk.h
++++ b/SparseDisk.h
+@@ -3,10 +3,52 @@
+ #include <stdint.h>
+ #include <stddef.h>
+ #include <string.h>
++struct RamSparseSlot {
++  uint64_t key;    // pageIndex + 1 (0 = empty)
++  uint8_t *page;
++};
++static uint64_t ramSparseSlotCount(uint64_t logicalBytes) {
++  uint64_t pages = logicalBytes / 4096;
++  if (pages >= 131072) return 262144; // 4 MiB table, up to ~1 GiB resident 4K pages across any 64-bit disk size
++  uint64_t cap = 64;
++  while (cap < pages * 2) cap <<= 1;
++  return cap;
++}
+ struct RamSparseDisk {
+-  uint8_t **pages;
++  RamSparseSlot *slots;
++  uint64_t capacity;
+   uint64_t bytes, resident;
+-  const uint8_t *find(uint64_t i) const { return pages ? pages[i] : nullptr; }
++  static uint64_t hash(uint64_t i) {
++    uint64_t h = (i + 1) * 0x9e3779b97f4a7c15ULL;
++    return h ^ (h >> 32);
++  }
++  uint8_t *find(uint64_t i) const {
++    if (!slots || !capacity) return nullptr;
++    uint64_t mask = capacity - 1, key = i + 1;
++    uint64_t pos = hash(i) & mask;
++    for (uint64_t probe = 0; probe < capacity; ++probe) {
++      uint64_t k = slots[pos].key;
++      if (k == key) return slots[pos].page;
++      if (k == 0) return nullptr;
++      pos = (pos + 1) & mask;
++    }
++    return nullptr;
++  }
++  bool insert(uint64_t i, uint8_t *page) {
++    if (!slots || !capacity || !page) return false;
++    uint64_t mask = capacity - 1, key = i + 1;
++    uint64_t pos = hash(i) & mask;
++    for (uint64_t probe = 0; probe < capacity; ++probe) {
++      uint64_t k = slots[pos].key;
++      if (k == 0 || k == key) {
++        slots[pos].key = key;
++        slots[pos].page = page;
++        return true;
++      }
++      pos = (pos + 1) & mask;
++    }
++    return false;
++  }
+ };
+ static uint32_t ramU32(const uint8_t *p){uint32_t v;memcpy(&v,p,4);return v;}
+ static uint64_t ramU64(const uint8_t *p){uint64_t v;memcpy(&v,p,8);return v;}
+@@ -24,7 +66,7 @@ static bool ramPackedLayout(const uint8_t *p,uint64_t n,uint64_t *logical) {
+   *logical=size;return true;
+ }
+ template<class Ops> static bool ramSparseImport(RamSparseDisk &d,const uint8_t *p,uint64_t n,Ops &ops) {
+-  uint64_t size=0;if(!d.pages || !ramPackedLayout(p,n,&size) || d.bytes!=size || d.resident)return false;
++  uint64_t size=0;if(!d.slots || !d.capacity || !ramPackedLayout(p,n,&size) || d.bytes!=size || d.resident)return false;
+   uint64_t count=ramU64(p+24),cursor=32+count*16;
+   for(uint64_t i=0;i<count;++i){
+     uint64_t at=ramU64(p+32+i*16),len=ramU64(p+40+i*16);
+@@ -32,8 +74,11 @@ template<class Ops> static bool ramSparseImport(RamSparseDisk &d,const uint8_t *
+       const uint8_t *src=p+cursor+j;uint8_t any=0;
+       for(unsigned k=0;k<4096;++k)any|=src[k];
+       if(!any)continue;
++      if(d.resident/4096 >= d.capacity - 1)return false;
+       uint8_t *page=ops.allocate();if(!page)return false;
+-      memcpy(page,src,4096);d.pages[(at+j)/4096]=page;d.resident+=4096;
++      memcpy(page,src,4096);
++      if(!d.insert((at+j)/4096,page))return false;
++      d.resident+=4096;
+     }
+     cursor+=len;
+   }
+@@ -43,15 +88,17 @@ template<class Ops> static bool ramSparseImport(RamSparseDisk &d,const uint8_t *
+ // zero-initialized allocation. Short copies preserve truthful byte counts.
+ template<class Ops> static uint64_t ramSparseIO(RamSparseDisk &d,bool write,uint64_t offset,uint64_t length,Ops &ops,bool &noMemory) {
+   static const uint8_t zero[4096]={};noMemory=false;
+-  if(!d.pages || !length || offset>d.bytes || length>d.bytes-offset)return 0;
++  if(!d.slots || !d.capacity || !length || offset>d.bytes || length>d.bytes-offset)return 0;
+   uint64_t done=0;
+   while(done<length){
+     uint64_t at=offset+done,index=at/4096,skip=at&4095,n=4096-skip;
+     if(n>length-done)n=length-done;
+-    uint8_t *page=d.pages[index];
++    uint8_t *page=d.find(index);
+     if(write && !page){
++      if(d.resident/4096 >= d.capacity - 1){noMemory=true;break;}
+       page=ops.allocate();if(!page){noMemory=true;break;}
+-      d.pages[index]=page;d.resident+=4096;
++      if(!d.insert(index,page)){noMemory=true;break;}
++      d.resident+=4096;
+     }
+     uint64_t actual=write?ops.read(done,page+skip,n):ops.copy(done,(page?page:zero)+skip,n);
+     if(actual>n)break;

@@ -4,6 +4,7 @@ import argparse
 import json
 import tomllib
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -197,6 +198,31 @@ if component == 'NativeEmmc':
     text = text.replace('SDC_STS_BUSY << 1', 'SDC_STS_BUSY | (SDC_STS_BUSY << 1)', 1)
     source = out / 'NativeEmmc.cpp'
     source.write_text(text)
+if component == 'NativeRamBlock':
+    # Stage a fresh build-time copy of drivers/RamBlock into build/ram-block/src/
+    # and apply patches/ramblock/sparse-hash64.patch before compiling.
+    # This keeps the upstream RamBlock submodule working tree 100% clean,
+    # stays idempotent across repeated incremental builds, and replaces the
+    # legacy NativeRamBlock.o binary-patch hack (which wrapped page indices at
+    # 2 GiB / 19 bits and caused APFS block aliasing on 120 GiB scratch-data.img).
+    ramblock_patch = ROOT / 'patches/ramblock/sparse-hash64.patch'
+    if not ramblock_patch.is_file():
+        raise SystemExit(f'Missing required RamBlock build-time patch: {ramblock_patch}')
+    stage_dir = out / 'src'
+    if stage_dir.exists():
+        shutil.rmtree(stage_dir)
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    for src_file in sorted(source.parent.iterdir()):
+        if src_file.is_file() and src_file.suffix in ('.cpp', '.h'):
+            shutil.copy2(src_file, stage_dir / src_file.name)
+    # Use POSIX `patch` rather than `git apply` because build/ lives inside the
+    # parent git repo; --batch --forward fails loudly if a future upstream sync
+    # introduces a context conflict.
+    subprocess.run(
+        ['patch', '-d', str(stage_dir), '-p1', '--batch', '--forward', '-i', str(ramblock_patch)],
+        check=True,
+    )
+    source = stage_dir / filename
 destination = out / (component + '.o')
 arguments = record['arguments']
 command = []
@@ -242,28 +268,6 @@ result = subprocess.run(command, cwd=record['directory'], stdout=subprocess.PIPE
 (out / 'compile.log').write_text(result.stdout)
 if result.returncode:
     raise SystemExit(result.stdout[-3500:])
-if component == 'NativeRamBlock':
-    # Adapt NativeRamBlock for 120 GiB RamSparseDisk mode with a 524,288-slot (2 GiB physical page window)
-    # sparse pointer table and skip the 31M-page zero-hash loop at boot.
-    import struct as _struct
-    _obj = bytearray(destination.read_bytes())
-    for _old, _new in (
-        (_struct.pack('<III', 0x320107E8, 0xEB0802DF, 0x54000503),
-         _struct.pack('<III', 0x320107E8, 0xEB0802DF, 0x14000028)),
-        (_struct.pack('<II', 0x927D4D01, 0x52800082),
-         _struct.pack('<II', 0x52A00801, 0x52800082)),
-        (_struct.pack('<III', 0xF14006DF, 0x54000203, 0xD2800014),
-         _struct.pack('<III', 0xF14006DF, 0x14000010, 0xD2800014)),
-        (_struct.pack('<III', 0xD349FD29, 0x927DCD29, 0xF8296916),
-         _struct.pack('<III', 0xD349FD29, 0x927D4929, 0xF8296916)),
-        (_struct.pack('<III', 0x8B170269, 0xD34CFD34, 0x92402D3A),
-         _struct.pack('<III', 0x8B170269, 0xD34C7934, 0x92402D3A)),
-        (_struct.pack('<IIIIII', 0xD34CFD09, 0x1400000F, 0xD2800015, 0x14000005, 0x910006B5, 0xD34CFD09),
-         _struct.pack('<IIIIII', 0x52A00109, 0x1400000F, 0xD2800015, 0x14000005, 0x910006B5, 0x52A00109)),
-    ):
-        if _obj.count(_old) == 1:
-            _obj = _obj.replace(_old, _new, 1)
-    destination.write_bytes(_obj)
 check_object(destination.read_bytes(), component)
 archive = out / ('lib' + identifier + '.a')
 archive.unlink(missing_ok=True)
