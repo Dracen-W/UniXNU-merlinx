@@ -202,7 +202,7 @@ def main():
                                                 GIC_DIST - ARMIO_BASE, GIC_DIST_SIZE,
                                                 GIC_REDIST - ARMIO_BASE, GIC_REDIST_SIZE)),
                             ('redistributor-stride', struct.pack('<Q', 0x20000))]),
-                            # The length for MT6768 is 0x20000
+                            # The GIC-500 length for MT6768 is 0x20000
               # The original backboardd counts display pipes/instances under
               # /arm-io and refuses to publish a main display when they are
               # absent. Keep these nodes property-only: the actual scanout is
