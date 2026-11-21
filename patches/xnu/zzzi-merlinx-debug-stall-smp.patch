@@ -1,0 +1,262 @@
+--- a/osfmk/arm64/sleh.c
++++ b/osfmk/arm64/sleh.c
+@@ -68,6 +68,9 @@
+ #include <mach/arm/thread_status.h>
+ #include <arm64/proc_reg.h>
+ #include <stdarg.h>
++#include <mach/processor.h>
++#include <mach/processor_info.h>
++#include <kern/processor.h>
+ 
+ #include <sys/errno.h>
+ #include <sys/kdebug.h>
+@@ -2617,6 +2620,7 @@
+ static boolean_t native_diag_focus_chrono;
+ static boolean_t native_diag_focus_configured;
+ static thread_call_t native_diag_focus_call;
++static void native_diag_smp_tick(void);
+ 
+ static void
+ native_diag_focus_configure(void)
+@@ -2630,6 +2634,9 @@
+ 		if (native_diag_focus_same(native_diag_focus[i], "launchd"))
+ 			native_diag_focus_pid[i] = 1;
+ 	}
++	if (!native_diag_focus[3][0]) {
++		strlcpy(native_diag_focus[3], "Preferences", sizeof(native_diag_focus[3]));
++	}
+ 	native_diag_focus_chrono = PE_parse_boot_argn("boot-ui-chrono", &chrono, sizeof(chrono)) && chrono != 0;
+ 	native_diag_focus_configured = TRUE;
+ }
+@@ -2676,6 +2683,8 @@
+ 		role = 'C';
+ 	else if (name[0] == 'i' || name[0] == 'I')
+ 		role = 'I';
++	else if (name[0] == 'p' || name[0] == 'P')
++		role = 'P';
+ 	if (native_diag_focus_chrono) {
+ 		uint64_t ns = 0;
+ 		absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
+@@ -2814,7 +2823,8 @@
+ reschedule:
+ 	native_diag_process_summary();
+ 	native_gop_redraw_ring();
+-	clock_interval_to_deadline(4, (uint32_t)NSEC_PER_SEC, &deadline);
++	native_diag_smp_tick();
++	clock_interval_to_deadline(2, (uint32_t)NSEC_PER_SEC, &deadline);
+ 	thread_call_enter_delayed(native_diag_focus_call, deadline);
+ }
+ 
+@@ -3065,6 +3075,193 @@
+ 	}
+ }
+ 
++/* ---------------------------------------------------------------------------------------------------------
++ * SMP online + per-core load diagnostics (periodic USB ring summary + `smp` USB command).
++ * Uses XNU processor_info(PROCESSOR_CPU_LOAD_INFO / PROCESSOR_BASIC_INFO) + cpu_datap(i)->cpu_stat,
++ * plus optional weak ArmCpu telemetry symbols if linked into the kernel.
++ * --------------------------------------------------------------------------------------------------------- */
++extern volatile uint32_t armcpu_smp_requested __attribute__((weak));
++extern volatile uint32_t armcpu_smp_running __attribute__((weak));
++extern volatile uint32_t armcpu_smp_conduit __attribute__((weak));
++extern volatile uint32_t armcpu_smp_step[8] __attribute__((weak));
++extern volatile uint32_t armcpu_smp_fail[8] __attribute__((weak));
++extern volatile int32_t armcpu_smp_psci_rc[8] __attribute__((weak));
++extern volatile uint32_t armcpu_core_timer[8] __attribute__((weak));
++extern volatile uint32_t armcpu_core_sgi[8] __attribute__((weak));
++extern volatile uint32_t armcpu_cpu_init_completed __attribute__((weak));
++extern unsigned armcpu_stats_row(unsigned index, char *row, unsigned size) __attribute__((weak));
++
++#define MERLINX_SMP_MAX_CPUS 8U
++
++struct merlinx_smp_sample {
++	boolean_t valid;
++	uint32_t ticks_u[MERLINX_SMP_MAX_CPUS];
++	uint32_t ticks_s[MERLINX_SMP_MAX_CPUS];
++	uint32_t ticks_i[MERLINX_SMP_MAX_CPUS];
++	uint64_t ipi[MERLINX_SMP_MAX_CPUS];
++};
++
++static struct merlinx_smp_sample merlinx_smp_tick_prev;
++static struct merlinx_smp_sample merlinx_smp_cmd_prev;
++static uint32_t merlinx_smp_tick_div = 0;
++
++static boolean_t
++merlinx_smp_read_core(unsigned int i, unsigned int *running_out, uint32_t *mpidr_out,
++    uint32_t *u_out, uint32_t *s_out, uint32_t *id_out,
++    uint64_t *irq_out, uint64_t *ipi_out, uint64_t *tmr_out, uint64_t *dex_out)
++{
++	processor_t proc = (i < processor_count) ? processor_array[i] : PROCESSOR_NULL;
++	cpu_data_t *cd = cpu_datap((int)i);
++	unsigned int running = 0;
++	uint32_t u = 0, s = 0, id = 0;
++
++	if (proc != PROCESSOR_NULL) {
++		host_t thost = HOST_NULL;
++		processor_basic_info_data_t binfo;
++		mach_msg_type_number_t bcnt = PROCESSOR_BASIC_INFO_COUNT;
++		if (processor_info(proc, PROCESSOR_BASIC_INFO, &thost,
++		    (processor_info_t)&binfo, &bcnt) == KERN_SUCCESS) {
++			running = binfo.running ? 1U : 0U;
++		}
++		processor_cpu_load_info_data_t linfo;
++		mach_msg_type_number_t lcnt = PROCESSOR_CPU_LOAD_INFO_COUNT;
++		if (processor_info(proc, PROCESSOR_CPU_LOAD_INFO, &thost,
++		    (processor_info_t)&linfo, &lcnt) == KERN_SUCCESS) {
++			u = linfo.cpu_ticks[CPU_STATE_USER] + linfo.cpu_ticks[CPU_STATE_NICE];
++			s = linfo.cpu_ticks[CPU_STATE_SYSTEM];
++			id = linfo.cpu_ticks[CPU_STATE_IDLE];
++		}
++	}
++	if (cd != NULL) {
++		if (cd->cpu_running)
++			running = 1U;
++		*mpidr_out = cd->cpu_phys_id;
++		*irq_out = cd->cpu_stat.irq_ex_cnt;
++		*ipi_out = cd->cpu_stat.ipi_cnt;
++		*tmr_out = cd->cpu_stat.timer_cnt;
++		*dex_out = cd->cpu_stat.data_ex_cnt;
++	} else {
++		*mpidr_out = 0;
++		*irq_out = 0;
++		*ipi_out = 0;
++		*tmr_out = 0;
++		*dex_out = 0;
++	}
++	*running_out = running;
++	*u_out = u;
++	*s_out = s;
++	*id_out = id;
++	return (proc != PROCESSOR_NULL || cd != NULL);
++}
++
++static void
++merlinx_smp_calc_pct(const struct merlinx_smp_sample *prev, unsigned int i,
++    uint32_t u, uint32_t s, uint32_t id,
++    unsigned int *busy_pct, unsigned int *usr_pct, unsigned int *sys_pct)
++{
++	uint32_t du = prev->valid ? ((u >= prev->ticks_u[i]) ? (u - prev->ticks_u[i]) : 0U) : u;
++	uint32_t ds = prev->valid ? ((s >= prev->ticks_s[i]) ? (s - prev->ticks_s[i]) : 0U) : s;
++	uint32_t di = prev->valid ? ((id >= prev->ticks_i[i]) ? (id - prev->ticks_i[i]) : 0U) : id;
++	uint64_t dtot = (uint64_t)du + (uint64_t)ds + (uint64_t)di;
++	if (dtot > 0ULL) {
++		*busy_pct = (unsigned int)(((uint64_t)(du + ds) * 100ULL) / dtot);
++		*usr_pct = (unsigned int)(((uint64_t)du * 100ULL) / dtot);
++		*sys_pct = (unsigned int)(((uint64_t)ds * 100ULL) / dtot);
++	} else {
++		*busy_pct = 0U;
++		*usr_pct = 0U;
++		*sys_pct = 0U;
++	}
++}
++
++static void
++native_diag_smp_tick(void)
++{
++	char buf[384];
++	int pos = 0;
++	unsigned int ncpus = processor_count;
++	unsigned int i;
++	uint32_t arm_run = ((uintptr_t)&armcpu_smp_running != 0) ? armcpu_smp_running : 0U;
++
++	/* Emit every 2nd focus tick (~4s) to keep USB log compact */
++	if ((merlinx_smp_tick_div++ & 1U) != 0U)
++		return;
++	if (ncpus > MERLINX_SMP_MAX_CPUS)
++		ncpus = MERLINX_SMP_MAX_CPUS;
++
++	pos = snprintf(buf, sizeof(buf), "[SMP] avail=%u/%u run=%u",
++	    processor_avail_count, processor_count, arm_run);
++	for (i = 0; i < ncpus && pos > 0 && (size_t)pos + 28 < sizeof(buf); i++) {
++		unsigned int run = 0, bp = 0, up = 0, sp = 0;
++		uint32_t mpidr = 0, u = 0, s = 0, id = 0;
++		uint64_t irq = 0, ipi = 0, tmr = 0, dex = 0, dipi = 0;
++		merlinx_smp_read_core(i, &run, &mpidr, &u, &s, &id, &irq, &ipi, &tmr, &dex);
++		merlinx_smp_calc_pct(&merlinx_smp_tick_prev, i, u, s, id, &bp, &up, &sp);
++		dipi = merlinx_smp_tick_prev.valid ?
++		    ((ipi >= merlinx_smp_tick_prev.ipi[i]) ? (ipi - merlinx_smp_tick_prev.ipi[i]) : 0ULL) : ipi;
++		merlinx_smp_tick_prev.ticks_u[i] = u;
++		merlinx_smp_tick_prev.ticks_s[i] = s;
++		merlinx_smp_tick_prev.ticks_i[i] = id;
++		merlinx_smp_tick_prev.ipi[i] = ipi;
++		if (!run) {
++			pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, " c%u:OFF", i);
++		} else {
++			pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos,
++			    " c%u:%u%%(u%u/s%u,I+%llu)", i, bp, up, sp, (unsigned long long)dipi);
++		}
++	}
++	merlinx_smp_tick_prev.valid = TRUE;
++	native_musb_log_printf("%s\n", buf);
++}
++
++static void
++native_musb_cmd_smp(void)
++{
++	unsigned int ncpus = processor_count;
++	unsigned int i;
++	uint32_t arm_req = ((uintptr_t)&armcpu_smp_requested != 0) ? armcpu_smp_requested : 0U;
++	uint32_t arm_run = ((uintptr_t)&armcpu_smp_running != 0) ? armcpu_smp_running : 0U;
++	uint32_t arm_cond = ((uintptr_t)&armcpu_smp_conduit != 0) ? armcpu_smp_conduit : 0U;
++	uint32_t arm_init = ((uintptr_t)&armcpu_cpu_init_completed != 0) ? armcpu_cpu_init_completed : 0U;
++
++	if (ncpus > MERLINX_SMP_MAX_CPUS)
++		ncpus = MERLINX_SMP_MAX_CPUS;
++	native_musb_cmd_append(
++	    "SMP: avail=%u/%u armcpu(req=%u run=%u cond=%u init=%u) window=%s\n"
++	    "CPU MPIDR  RUN BUSY%% (U%%/S%%)  TICKS(u/s/i)        IRQ      IPI      TMR      DEX      STEP/F/RC\n",
++	    processor_avail_count, processor_count, arm_req, arm_run, arm_cond, arm_init,
++	    merlinx_smp_cmd_prev.valid ? "delta" : "boot");
++	for (i = 0; i < ncpus; i++) {
++		unsigned int run = 0, bp = 0, up = 0, sp = 0;
++		uint32_t mpidr = 0, u = 0, s = 0, id = 0;
++		uint64_t irq = 0, ipi = 0, tmr = 0, dex = 0;
++		uint32_t step = ((uintptr_t)armcpu_smp_step != 0) ? armcpu_smp_step[i] : 0U;
++		uint32_t fail = ((uintptr_t)armcpu_smp_fail != 0) ? armcpu_smp_fail[i] : 0U;
++		int32_t rc = ((uintptr_t)armcpu_smp_psci_rc != 0) ? armcpu_smp_psci_rc[i] : 0;
++		merlinx_smp_read_core(i, &run, &mpidr, &u, &s, &id, &irq, &ipi, &tmr, &dex);
++		merlinx_smp_calc_pct(&merlinx_smp_cmd_prev, i, u, s, id, &bp, &up, &sp);
++		merlinx_smp_cmd_prev.ticks_u[i] = u;
++		merlinx_smp_cmd_prev.ticks_s[i] = s;
++		merlinx_smp_cmd_prev.ticks_i[i] = id;
++		merlinx_smp_cmd_prev.ipi[i] = ipi;
++		native_musb_cmd_append(
++		    "c%-2u 0x%04x %u   %3u%% (%2u/%2u) %u/%u/%u  %-8llu %-8llu %-8llu %-8llu %u/%u/%d\n",
++		    i, mpidr, run, bp, up, sp, u, s, id,
++		    (unsigned long long)irq, (unsigned long long)ipi,
++		    (unsigned long long)tmr, (unsigned long long)dex,
++		    step, fail, rc);
++	}
++	merlinx_smp_cmd_prev.valid = TRUE;
++	if (armcpu_stats_row != NULL) {
++		char row[256];
++		for (i = 0; i < 20U; i++) {
++			if (armcpu_stats_row(i, row, sizeof(row)) == 0U)
++				break;
++			native_musb_cmd_append("%s\n", row);
++		}
++	}
++}
++
+ static void
+ native_musb_dump_proc_bt(proc_t p, boolean_t mirror_to_ring)
+ {
+@@ -3290,7 +3487,8 @@
+ 		    "  tap <x> <y>       Inject touch tap at pixel (x, y) in 1080x2340\n"
+ 		    "  swipe <x1> <y1> <x2> <y2>  Inject touch swipe gesture\n"
+ 		    "  home              Inject Home button + bottom-edge unlock swipe\n"
+-		    "  cpufreq           Boost / dump MT6768 + MT6358 CPU & CCI clock state\n",
++		    "  cpufreq           Boost / dump MT6768 + MT6358 CPU & CCI clock state\n"
++		    "  smp               Dump SMP online status, per-core CPU load & IPI/IRQ stats\n",
+ 		    native_diag_block_iconservices);
+ 	} else if (strncmp(cmd, "ps", 2) == 0) {
+ 		native_musb_cmd_append("PID   THR  NAME                 XPC_TAG\n");
+@@ -3449,6 +3647,8 @@
+ 	} else if (strncmp(cmd, "cpufreq", 7) == 0) {
+ 		if (merlinx_usb_cmd_cpufreq)
+ 			merlinx_usb_cmd_cpufreq();
++	} else if (strncmp(cmd, "smp", 3) == 0) {
++		native_musb_cmd_smp();
+ 	} else {
+ 		native_musb_cmd_append("Unknown command '%s' (try 'help')\n", cmd);
+ 	}
