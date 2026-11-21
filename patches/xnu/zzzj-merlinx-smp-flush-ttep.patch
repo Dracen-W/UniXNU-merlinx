@@ -1,0 +1,14 @@
+diff --git a/osfmk/arm64/cpu.c b/osfmk/arm64/cpu.c
+index 1111111..2222222 100644
+--- a/osfmk/arm64/cpu.c
++++ b/osfmk/arm64/cpu.c
+@@ -880,6 +880,9 @@ cpu_start(int cpu)
+ 		configure_coresight_registers(cpu_data_ptr);
+ 
+ 		flush_dcache((vm_offset_t)&CpuDataEntries[cpu], sizeof(cpu_data_entry_t), FALSE);
+ 		flush_dcache((vm_offset_t)cpu_data_ptr, sizeof(cpu_data_t), FALSE);
++		flush_dcache((vm_offset_t)&cpu_ttep, sizeof(cpu_ttep), FALSE);
++		flush_dcache((vm_offset_t)&sysreg_restore, sizeof(sysreg_restore), FALSE);
++		__builtin_arm_dsb(DSB_SY);
+ 
+ #if defined(KERNEL_INTEGRITY_CTRR)
