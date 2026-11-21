@@ -25,12 +25,6 @@
 [submodule "drivers/RamBlock"]
 	path = drivers/RamBlock
 	url = https://github.com/UniXNU/RamBlock.git
-[submodule "drivers/VirtioMmioBlock"]
-	path = drivers/VirtioMmioBlock
-	url = https://github.com/UniXNU/VirtioMmioBlock.git
-[submodule "drivers/VirtioMmioConsole"]
-	path = drivers/VirtioMmioConsole
-	url = https://github.com/UniXNU/VirtioMmioConsole.git
 [submodule "kits/AdrenoFirmware"]
 	path = kits/AdrenoFirmware
 	url = https://github.com/UniXNU/AdrenoFirmware.git
