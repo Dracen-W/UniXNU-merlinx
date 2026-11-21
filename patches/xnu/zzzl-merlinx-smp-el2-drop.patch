@@ -1,8 +1,8 @@
 diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
-index acbaa1a..2895e36 100644
+index acbaa1a..aaef194 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -145,6 +145,41 @@
+@@ -145,6 +145,42 @@
  	adrp	x19, EXT(ResetHandlerData)@page			// Get address of the reset handler data
  	add		x19, x19, EXT(ResetHandlerData)@pageoff
  	mrs		x15, MPIDR_EL1						// Load MPIDR to get CPU number
@@ -26,7 +26,8 @@ index acbaa1a..2895e36 100644
 +	msr		S3_4_C1_C1_3, xzr						// HSTR_EL2
 +	msr		S3_4_C2_C1_0, xzr						// VTTBR_EL2
 +	mrs		x9, S3_4_C12_C9_5						// ICC_SRE_EL2
-+	orr		x9, x9, #9								// SRE | Enable for EL1 GICv3 sysregs
++	orr		x9, x9, #1								// SRE (bit 0)
++	orr		x9, x9, #8								// Enable (bit 3) for EL1 GICv3 sysregs
 +	msr		S3_4_C12_C9_5, x9
 +	isb
 +	msr		S3_4_C12_C11_0, xzr						// ICH_HCR_EL2 = 0
