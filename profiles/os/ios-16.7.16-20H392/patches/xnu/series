@@ -59,3 +59,4 @@ device:patches/xnu/zzyb-native-cryptex-os-view.patch
 device:patches/xnu/zzyc-owner-skip-launch-constraints.patch
 xnu-8796-arm64-kpc-backend.patch
 xnu-8796-iorpc-kernelcontent.patch
+xnu-8796-clang-auto-var-init.patch
