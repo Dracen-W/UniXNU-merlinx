@@ -18,7 +18,7 @@ IOS_VERSION=${UNIXNU_IOS_VERSION:-17.0}
 if [ ! -d refer/xnu/.git ]; then
   git clone --depth 1 --branch "$XNU_TAG" https://github.com/apple-oss-distributions/xnu.git refer/xnu
 fi
-if [ "$(git -C refer/xnu rev-parse HEAD)" != "$XNU_COMMIT" ]; then
+if [ -n "${UNIXNU_XNU_COMMIT:-}" ] && [ "$(git -C refer/xnu rev-parse HEAD)" != "$UNIXNU_XNU_COMMIT" ]; then
   echo 'error: unexpected XNU reference revision' >&2
   exit 1
 fi
