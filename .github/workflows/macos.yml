@@ -324,7 +324,7 @@ jobs:
         run: |
           for f in "$WORK"/logs/*.log; do
             [ -f "$f" ] || continue
-            hits=$(grep -nE "error:|fatal error:|Undefined symbols|ld: symbol" "$f" | head -n 40 || true)
+            hits=$(grep -nE ": (fatal )?error:|Undefined symbols|ld: symbol|SystemExit|Traceback" "$f" | head -n 40 || true)
             if [ -n "$hits" ]; then
               echo "=== Errors in $(basename "$f") ==="
               echo "$hits"

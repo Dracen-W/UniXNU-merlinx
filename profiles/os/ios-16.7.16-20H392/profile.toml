@@ -69,3 +69,10 @@ trust_cache_sha256 = [
   "63e01c03b31e1532a5581a24865490673f0b5c297b0199fe0095637c6100ef4b",
   "9cc478fe3525e2683b5b9ea1eea0851eaebebdab21d206556233400e59d2e361",
 ]
+
+# Apple libpthread matching macOS 13.5 / xnu-8796.141.3 (Darwin 22.6.0).
+[[source]]
+name = "libpthread"
+kind = "refer"
+git = "https://github.com/apple-oss-distributions/libpthread.git"
+ref = "libpthread-514.100.2"

@@ -12,10 +12,11 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from kernel_target import TRIPLE, check_object
 from xnu_symbols import kernel_names
 SOURCE = ROOT / 'refer/libpthread'
-# The OS profile pins the source; without it, the Darwin 23 revision.
-REVISION = os.environ.get('UNIXNU_LIBPTHREAD_COMMIT', 'c0e60fb5ecfc54cf379c261d3f9572cc22ded891')
-if subprocess.check_output(['git', '-C', SOURCE, 'rev-parse', 'HEAD'], text=True).strip() != REVISION:
-    raise SystemExit('Unexpected libpthread source revision')
+# The OS profile pins the source; only enforce UNIXNU_LIBPTHREAD_COMMIT when explicitly set.
+EXPECTED_REVISION = os.environ.get('UNIXNU_LIBPTHREAD_COMMIT', '').strip()
+REVISION = subprocess.check_output(['git', '-C', SOURCE, 'rev-parse', 'HEAD'], text=True).strip()
+if EXPECTED_REVISION and REVISION != EXPECTED_REVISION:
+    raise SystemExit(f'Unexpected libpthread source revision: got {REVISION}, expected {EXPECTED_REVISION}')
 if subprocess.check_output(['git', '-C', SOURCE, 'status', '--porcelain'], text=True):
     raise SystemExit('The libpthread reference must remain immutable')
 WORK = ROOT / '.cache/libpthread-work'
@@ -66,7 +67,9 @@ def compile_one(source, destination, namespace=None):
     result = subprocess.run(command, cwd=record['directory'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     destination.with_suffix('.log').write_text(result.stdout)
     if result.returncode:
-        raise SystemExit(result.stdout[-4500:])
+        err_lines = [l for l in result.stdout.splitlines() if ': error:' in l or ': fatal error:' in l]
+        summary = '\n'.join(err_lines[:40]) + '\n---\n' if err_lines else ''
+        raise SystemExit(summary + result.stdout[-3500:])
     check_object(destination.read_bytes(), destination.name)
 
 def names(path, mode, global_only=True):
