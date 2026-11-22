@@ -524,14 +524,14 @@
       "0600",
       "plist",
       {
-        "LastSystemVersion": "21H461",
+        "LastSystemVersion": "20H392",
         "DMLastMigrationResults": {
           "success": true,
-          "buildVersion": "21H461"
+          "buildVersion": "20H392"
         },
         "DMUserDataDisposition": {
           "SyntheticDidUpgrade": false,
-          "buildVersion": "21H461"
+          "buildVersion": "20H392"
         }
       }
     ],
@@ -542,14 +542,14 @@
       "0600",
       "plist",
       {
-        "LastSystemVersion": "21H461",
+        "LastSystemVersion": "20H392",
         "DMLastMigrationResults": {
           "success": true,
-          "buildVersion": "21H461"
+          "buildVersion": "20H392"
         },
         "DMUserDataDisposition": {
           "SyntheticDidUpgrade": false,
-          "buildVersion": "21H461"
+          "buildVersion": "20H392"
         }
       }
     ],
@@ -755,5 +755,5 @@
       }
     ]
   ],
-  "files_comment": "Preferences iOS writes after its first boot, seeded so it skips them: the data migrators (com.apple.migration LastSystemVersion; without it backboardd reruns them every boot), Setup Assistant, and launch watchdogs scaled for a CPU-rendered display. Values follow HackiOS's userland (iOS 16.5) for build 21H461."
+  "files_comment": "Preferences iOS writes after its first boot, seeded so it skips them: the data migrators (com.apple.migration LastSystemVersion; without it backboardd reruns them every boot), Setup Assistant, and launch watchdogs scaled for a CPU-rendered display. Values follow HackiOS's userland (iOS 16.5) for build 20H392."
 }
