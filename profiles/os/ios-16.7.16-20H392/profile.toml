@@ -18,6 +18,8 @@ board_id = 14
 fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustCache"]
 
 [ipsw.sha256]
+"087-86698-044.dmg" = "80f426d5b8fca8552f95be427434f1911dbb4c2c6d28aad94f2426ddd0c92483"
+"087-86593-047.dmg" = "9cd738f3b0169055549df84ad6d8d13e50a2da39af618ce0522ca4e06df86849"
 
 [userdata]
 windows = [
@@ -46,10 +48,23 @@ product-name = "iPhone X"
 product-description = "iPhone X"
 artwork-device-idiom = "phone"
 artwork-display-gamut = "P3"
+compatible-device-fallback = "iPhone9,2"
 
 [adt.product.u32]
 artwork-device-subtype = 2436
 artwork-scale-factor = 3
+thin-bezel = 1
 
 [adt.defaults.u32]
 "kern.maxvnodes" = 66560
+
+[root]
+os_volume_uuid = "DADD93F8-DBBF-4B17-A1DF-0F11E64172F7"
+os_image_sha256 = "6e87bfcaa8eca952e00b719f333d1f1060715a63566112267ad8730e1ed98906"
+systemos_image_sha256 = "9cd738f3b0169055549df84ad6d8d13e50a2da39af618ce0522ca4e06df86849"
+
+[payload]
+trust_cache_sha256 = [
+  "63e01c03b31e1532a5581a24865490673f0b5c297b0199fe0095637c6100ef4b",
+  "9cc478fe3525e2683b5b9ea1eea0851eaebebdab21d206556233400e59d2e361",
+]

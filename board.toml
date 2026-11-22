@@ -26,13 +26,15 @@ board_id = 14
 fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustCache"]
 
 [ipsw.sha256]
+"087-86698-044.dmg" = "80f426d5b8fca8552f95be427434f1911dbb4c2c6d28aad94f2426ddd0c92483"
+"087-86593-047.dmg" = "9cd738f3b0169055549df84ad6d8d13e50a2da39af618ce0522ca4e06df86849"
 
 [kernel]
 defconfig = "merlinx_defconfig"
 # Generic source-kernel archives only. merlinx-specific storage, display and
 # GPU providers are added in later stages.
 config_fragments = ["soc:configs/mt6768.config"]
-patch_series = ["soc:patches/xnu/series", "device:patches/xnu/series"]
+patch_series = ["os:patches/xnu/series", "soc:patches/xnu/series", "device:patches/xnu/series"]
 archives = [
   "build-corecrypto-14.py",
   "build-corecrypto-14.py --namespace",
@@ -54,9 +56,10 @@ archives = [
 [kernel.prelink]
 tool = "kits/XnuPrelink/emit_prelink.py"
 kernel = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf"
-kernelcache_sha256 = "f18b4df865405f2a287b84977d7aca745e056d656d9fc9df1662970ce2969de7"
+kernelcache_sha256 = "2ec297bac95bcba01046fd0148e97e7e5885c05a6c18827f39f534ba375c1221"
 slide = "-0x1000000"
-early_security_init = "com.apple.driver.AppleMobileFileIntegrity=0xfffffff005ab4ae0"
+# Fill AMFI early_security_init address from 20H392 kernelcache
+early_security_init = ""
 roots = [
   "com.apple.AppleFSCompression.AppleFSCompressionTypeZlib",
   "com.apple.driver.AppleARMPlatform",
@@ -88,7 +91,6 @@ roots = [
   "com.apple.security.AppleImage4",
   "com.apple.security.sandbox",
   "com.apple.iokit.IOHIDFamily",
-  "com.apple.iokit.IOHIDEventDriver",
 ]
 
 [device_tree]
@@ -111,14 +113,12 @@ title = "UniXNU"
 dram_size = "0x100000000"
 panic_screen = true
 timeout = 3
-kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=2", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "fts-touch=3", "sheng-touch-hid=1", "sheng-fb-diff=1", "smp=1", "cpus=8"]
-text_fixups = [
-  "dyld_shared_cache_arm64.15,421e8bc,28ad1bb0008544f9,c0035fd6008544f9",
-  "dyld_shared_cache_arm64.13,1b05bec,44008052,24008052",
-  "dyld_shared_cache_arm64.13,1b05b08,44008052,24008052",
-  "dyld_shared_cache_arm64.17,4b7925c,49e08994,1f2003d5",
-  "dyld_shared_cache_arm64.11,34f3b84,00000000,e0031faa",
-  "BTAudioHALPlugin,38bec,ffc300d1f44f01a9,000080d2c0035fd6",
+kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=3", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "fts-touch=3", "sheng-touch-hid=1", "sheng-fb-diff=1", "smp=1", "cpus=8"]
+# 21H461 text_fixups cleared; populate only if 20H392 dyld_shared_cache needs fixups
+text_fixups = []
+trust_cache_sha256 = [
+  "63e01c03b31e1532a5581a24865490673f0b5c297b0199fe0095637c6100ef4b",
+  "9cc478fe3525e2683b5b9ea1eea0851eaebebdab21d206556233400e59d2e361",
 ]
 
 [payload.adt]
@@ -128,8 +128,9 @@ cpu_regs = "0,0x700,0x600,0x100,0x200,0x300,0x400,0x500"
 psci_method = "smc"
 packed_data_ramdisk = true
 ipad_identity = false
+iphone_identity = true
 chip_id = "0x8015"
-root_match_volume_uuid = "04769D26-2CA0-4825-B443-E2E5F88300F2"
+root_match_volume_uuid = "DADD93F8-DBBF-4B17-A1DF-0F11E64172F7"
 
 [userdata]
 first_lba = 2541568

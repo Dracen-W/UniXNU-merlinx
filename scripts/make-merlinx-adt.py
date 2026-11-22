@@ -80,7 +80,11 @@ def main():
     parser.add_argument('--chip-id', type=lambda value: int(value, 16), default=None)
     parser.add_argument('--ipad-identity', action='store_true',
                         help='/product and /buttons describe an iPad-class device without a Home button (MobileGestalt reads these from the tree); '
-                             'values follow the unchanged iPad7,1 tree, the panel geometry and button set are sheng\'s')
+                             'values follow the unchanged iPad7,1 tree, the panel geometry and button set are merlinx\'s')
+    parser.add_argument('--iphone-identity', action='store_true',
+                        help='/product and /buttons describe an iPhone X (iPhone10,6 / D221AP) full-screen device without a Home button')
+    parser.add_argument('--product-id', default='fd079b298144a7deb4d7c87fef3eb474d8f0e7eb',
+                        help='20-byte hex /product/product-id for --iphone-identity (verify against DeviceTree.d221ap.im4p)')
     parser.add_argument('--cpu-regs', default='0',
                         help='Comma-separated CPU MPIDR affinity values (the /cpus reg of each core); the first is the running boot CPU. '
                              'SM8550 numbers its cores 0x000..0x700 in Affinity1 (sm8550.dtsi). More than one adds /psci')
@@ -117,14 +121,22 @@ def main():
                                    ('device_type', b'cpu\0'), ('compatible', b'arm,cortex-a55\0'),
                                    ('timebase-frequency', struct.pack('<I', TIMEBASE))])
             for index, reg in enumerate(cpu_regs)]
+    apple_identity = args.ipad_identity or args.iphone_identity
+    root_model = b'iPhone10,6\0' if args.iphone_identity else (b'iPad7,1\0' if args.ipad_identity else b'merlinx-first-boot\0')
+    root_target = b'D221\0' if args.iphone_identity else (b'J120\0' if args.ipad_identity else None)
+    root_compat = (
+        b'D221AP\0xiaomi,merlinx\0mediatek,mt6768\0' if args.iphone_identity
+        else (b'J120AP\0xiaomi,merlinx\0mediatek,mt6768\0' if args.ipad_identity else b'xiaomi,merlinx\0mediatek,mt6768\0')
+    )
+    display_scale = 3 if args.iphone_identity else 2
     tree = node('device-tree', [
         # hw.product/hw.machine/hw.target come from the root 'model'/'target-type' (IODTPlatformExpert);
-        # libMobileGestalt prefix-matches hw.product against iPhone/iPod/iPad, so the iPad identity needs both here.
-        ('model', b'iPad7,1\0' if args.ipad_identity else b'merlinx-first-boot\0'),
-        *([('target-type', b'J120\0')] if args.ipad_identity else []),
-        # Root compatible strings of the compiled board DT (xiaomi,sheng / qcom,sm8550).
-        ('compatible', b'J120AP\0xiaomi,merlinx\0mediatek,mt6768\0' if args.ipad_identity else b'xiaomi,merlinx\0mediatek,mt6768\0'),
-        ('display-scale', struct.pack('<I', 2)),
+        # libMobileGestalt prefix-matches hw.product against iPhone/iPod/iPad.
+        ('model', root_model),
+        *([('target-type', root_target)] if root_target is not None else []),
+        # Root compatible strings of the compiled board DT.
+        ('compatible', root_compat),
+        ('display-scale', struct.pack('<I', display_scale)),
         ('display-rotation', struct.pack('<I', 0)),
         ('#address-cells', struct.pack('<I', 2)),
         ('#size-cells', struct.pack('<I', 2)),
@@ -142,7 +154,7 @@ def main():
                         # baseband). Values established on hardware by github.com/dipa-studio/ios-sweet (tools/mkadt.py).
                         *([('certificate-production-status', struct.pack('<I', 0)), ('effective-production-status-ap', struct.pack('<I', 0)),
                            ('certificate-security-mode', struct.pack('<I', 1)), ('effective-security-mode-sep', struct.pack('<I', 1))]
-                          if args.ipad_identity else []),
+                          if apple_identity else []),
                         # This property describes the actual volatile Data RAM disk. A persistent one is not ephemeral: with the property
                         # datamigrator skips every migration (os_variant_uses_ephemeral_storage), so the staged system apps never install.
                         *([('ephemeral-storage', struct.pack('<I', 1))]
@@ -182,10 +194,18 @@ def main():
         *( [node('buttons', [('compatible', b'buttons\0'), ('device_type', b'buttons\0'),
                              # No 'menu' entry: sheng has no Home button. 2 = the non-mechanical answer BSPlatform passes through.
                              ('button-names', b'hold\0voldown\0volup\0'),
-                             ('home-button-type', struct.pack('<I', 2))])] if args.ipad_identity else [] ),
-        node('product', [('product-name', b'iPad Pro (12.9-inch) (2nd generation)\0' if args.ipad_identity else b'Xiaomi Redmi Note 9\0'),
+                             ('home-button-type', struct.pack('<I', 2))])] if apple_identity else [] ),
+        node('product', [('product-name', b'iPhone X\0' if args.iphone_identity else (b'iPad Pro (12.9-inch) (2nd generation)\0' if args.ipad_identity else b'Xiaomi Redmi Note 9\0')),
                          ('model', b'xiaomi,merlinx\0'),
-                         *( [('product-description', b'iPad Pro (12.9-inch) (2nd generation)\0'),
+                         *( [('product-description', b'iPhone X\0'),
+                             ('artwork-device-idiom', b'phone\0'),
+                             ('artwork-device-subtype', struct.pack('<I', 2436)),
+                             ('artwork-scale-factor', struct.pack('<I', 3)),
+                             ('artwork-display-gamut', b'P3\0'),
+                             ('compatible-device-fallback', b'iPhone9,2\0'),
+                             ('product-id', bytes.fromhex(args.product_id)),
+                             ('thin-bezel', struct.pack('<I', 1))] if args.iphone_identity else
+                            [('product-description', b'iPad Pro (12.9-inch) (2nd generation)\0'),
                              ('artwork-device-idiom', b'pad\0'),
                              ('artwork-device-subtype', struct.pack('<I', 2732)),
                              ('artwork-scale-factor', struct.pack('<I', 2)),

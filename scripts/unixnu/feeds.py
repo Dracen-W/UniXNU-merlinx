@@ -75,6 +75,8 @@ def read_sources(ctx):
                 xnu[field] = os_profile[key]
         if os_profile.get('xnu_version'):
             xnu['ref'] = 'xnu-' + os_profile['xnu_version']
+            if not os_profile.get('xnu_revision'):
+                xnu.pop('commit', None)
         sources[('refer', 'xnu')] = xnu
     path = ctx.device / 'local.toml'
     if path.is_file():

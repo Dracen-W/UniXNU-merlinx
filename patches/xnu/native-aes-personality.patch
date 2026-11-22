@@ -1,7 +1,7 @@
 diff --git a/iokit/KernelConfigTables.cpp b/iokit/KernelConfigTables.cpp
 --- a/iokit/KernelConfigTables.cpp
 +++ b/iokit/KernelConfigTables.cpp
-@@ -61,4 +61,56 @@
+@@ -61,4 +61,48 @@
      "     'IOProviderClass' = IOService;"
      "     'IOExclaveProxy'  = 1:32;"
      "   }"
@@ -45,14 +45,6 @@ diff --git a/iokit/KernelConfigTables.cpp b/iokit/KernelConfigTables.cpp
 +    "   ,{"
 +    "     'IOClass'         = NativeUfs;"
 +    "     'IOMatchCategory' = NativeUfsRoot;"
-+    "     'IOProviderClass' = IOPlatformExpertDevice;"
-+    "     'IOProbeScore'    = 500:32;"
-+    "   }"
-+#endif
-+#if defined(XNU_NATIVE_EMMC) && XNU_NATIVE_EMMC
-+    "   ,{"
-+    "     'IOClass'         = NativeEmmc;"
-+    "     'IOMatchCategory' = NativeEmmcRoot;"
 +    "     'IOProviderClass' = IOPlatformExpertDevice;"
 +    "     'IOProbeScore'    = 500:32;"
 +    "   }"

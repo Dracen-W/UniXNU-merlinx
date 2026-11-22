@@ -41,10 +41,11 @@ diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
 index cc96ee9..acbaa1a 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -145,6 +145,19 @@
- 	adrp	x19, EXT(ResetHandlerData)@page			// Get address of the reset handler data
- 	add		x19, x19, EXT(ResetHandlerData)@pageoff
- 	mrs		x15, MPIDR_EL1						// Load MPIDR to get CPU number
+@@ -181,6 +181,19 @@
+ 	isb
+ 	eret
+ L_mt6768_el1_entry:
+ 	mrs		x15, MPIDR_EL1						// Reload MPIDR_EL1 in EL1
 +	lsr		x9, x15, #8
 +	orr		x9, x9, x15
 +	and		x9, x9, #7

@@ -85,7 +85,7 @@ class NativeHidInput : public IOHIDDevice {
     int prevX[TOUCH_FINGERS] = {};
     int prevY[TOUCH_FINGERS] = {};
 
-    static unsigned transformCoordinate(int value, int maximum, bool clampBottomEdge) {
+    static unsigned transformCoordinate(int value, int maximum, bool clampEdges) {
         if (maximum <= 1) {
             return 0;
         }
@@ -95,10 +95,26 @@ class NativeHidInput : public IOHIDDevice {
         if (value >= maximum) {
             value = maximum - 1;
         }
-        if (clampBottomEdge && value >= maximum - 14) {
-            return 32767U;
+        if (clampEdges) {
+            // Snap top 18px (~6pt @3x) to 0 for Notification/Control Center pull-down
+            if (value <= 18) {
+                return 0U;
+            }
+            // Snap bottom 32px (~10.6pt @3x) to 32767 for full-screen iPhone Home indicator swipe-up
+            if (value >= maximum - 32) {
+                return 32767U;
+            }
         }
         return static_cast<unsigned>((static_cast<long long>(value) * 32767LL) / (maximum - 1));
+    }
+
+    bool wasActiveId(int rawId) const {
+        for (unsigned j = 0; j < TOUCH_FINGERS; ++j) {
+            if (prevIds[j] == rawId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static bool hasEventDriver(IORegistryEntry *parent, unsigned depth) {
@@ -193,6 +209,12 @@ class NativeHidInput : public IOHIDDevice {
             bool tipDown = (state.points[i].tip != 0);
             unsigned x = transformCoordinate(state.points[i].x, xMax, false);
             unsigned y = transformCoordinate(state.points[i].y, yMax, true);
+            // For a brand-new touchdown starting in the bottom 48px Home-bar zone (~16pt @3x),
+            // anchor the first contact at the exact bottom edge (32767) so iOS SBHomeGestureArbiter
+            // reliably classifies the gesture as a bottom-edge Home/unlock swipe.
+            if (tipDown && !self->wasActiveId(rawId) && state.points[i].y >= yMax - 48) {
+                y = 32767U;
+            }
 
             unsigned char *f = report + 1 + slot * 6;
             f[0] = tipDown ? 1U : 2U;
