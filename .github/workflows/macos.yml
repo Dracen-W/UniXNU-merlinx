@@ -10,7 +10,7 @@ on:
       device_ref:
         description: Device repository ref
         required: true
-        default: iOS
+        default: ipados-stable-version
       defconfig:
         description: Defconfig name (configs/ of the device repository)
         required: true
@@ -248,6 +248,27 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: bash -euo pipefail -c "$PRE_BUILD"
 
+      - name: Restore feeds cache
+        id: cache-feeds
+        uses: actions/cache/restore@v4
+        with:
+          path: out/feeds
+          key: feeds-${{ runner.os }}-${{ hashFiles('feeds.toml', 'device/feeds.toml', 'device/unixnu.lock') }}
+          restore-keys: |
+            feeds-${{ runner.os }}-
+
+      - name: Restore XNU build cache
+        id: cache-xnu
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ steps.check.outputs.work }}/tree/.cache/fakeroot
+            ${{ steps.check.outputs.work }}/tree/build/availability
+            ${{ steps.check.outputs.work }}/tree/build/xnu/ios-obj
+          key: xnu-obj-${{ runner.os }}-${{ inputs.xcode }}-${{ inputs.defconfig }}-${{ github.run_id }}
+          restore-keys: |
+            xnu-obj-${{ runner.os }}-${{ inputs.xcode }}-${{ inputs.defconfig }}-
+
       - name: Build kernel
         id: kernel
         env:
@@ -285,7 +306,7 @@ jobs:
           ./unixnu build payload "${args[@]}"
 
       - name: Upload private build artifacts
-        if: inputs.publish_artifacts
+        if: inputs.publish_artifacts && github.event.repository.private
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: merlinx-artifacts-${{ github.run_id }}
@@ -295,6 +316,37 @@ jobs:
             out/merlinx/**/boot/boot.img
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Print compiler errors on failure
+        if: failure() && steps.check.outcome == 'success'
+        env:
+          WORK: ${{ steps.check.outputs.work }}
+        run: |
+          for f in "$WORK"/logs/*.log; do
+            [ -f "$f" ] || continue
+            hits=$(grep -nE "error:|fatal error:|Undefined symbols|ld: symbol" "$f" | head -n 40 || true)
+            if [ -n "$hits" ]; then
+              echo "=== Errors in $(basename "$f") ==="
+              echo "$hits"
+            fi
+          done
+
+      - name: Save feeds cache
+        if: always() && steps.check.outcome == 'success' && steps.cache-feeds.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: out/feeds
+          key: ${{ steps.cache-feeds.outputs.cache-primary-key }}
+
+      - name: Save XNU build cache
+        if: always() && steps.check.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ steps.check.outputs.work }}/tree/.cache/fakeroot
+            ${{ steps.check.outputs.work }}/tree/build/availability
+            ${{ steps.check.outputs.work }}/tree/build/xnu/ios-obj
+          key: ${{ steps.cache-xnu.outputs.cache-primary-key }}
 
       - name: Collect the text logs
         id: logs
