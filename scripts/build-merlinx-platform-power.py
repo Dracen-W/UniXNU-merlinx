@@ -8,9 +8,12 @@ AMFI's ConfigurationSettings check can complete.
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+from kernel_target import TRIPLE
 DEVICE = Path(os.environ.get('UNIXNU_DEVICE', ROOT))
 OUT = ROOT / 'build/sheng-platform-power'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -51,6 +54,8 @@ while index < len(arguments):
     elif value == '-o':
         command += ['-o', str(obj)]
         index += 1
+    elif value in ('-MF', '-MJ'):
+        index += 1
     elif value == '-Xclang' and arguments[index + 1].startswith('-W'):
         index += 1
     elif not value.startswith('-W'):
@@ -79,7 +84,7 @@ asm = OUT / 'original-bindings.S'
 asm.write_text(''.join(f'.globl {name}\n.set {name}, {value:#x}\n' for name, value in sorted(bindings.items())))
 sdk = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--show-sdk-path'], text=True).strip()
 bindings_obj = OUT / 'original-bindings.o'
-subprocess.run(['xcrun', 'clang', '-target', 'arm64-apple-ios17.0', '-isysroot', sdk,
+subprocess.run(['xcrun', 'clang', '-target', TRIPLE, '-isysroot', sdk,
                 '-c', str(asm), '-o', str(bindings_obj)], check=True)
 archive = OUT / 'libShengPlatformPower.a'
 archive.unlink(missing_ok=True)

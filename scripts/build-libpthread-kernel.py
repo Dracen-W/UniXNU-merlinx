@@ -27,7 +27,9 @@ if not WORK.exists():
 for patch in sorted((ROOT / 'patches/libpthread').glob('*.patch')):
     if subprocess.run(['git', '-C', WORK, 'apply', '--reverse', '--check', patch],
                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
-        subprocess.run(['git', '-C', WORK, 'apply', patch], check=True)
+        if subprocess.run(['git', '-C', WORK, 'apply', '--check', patch],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            subprocess.run(['git', '-C', WORK, 'apply', patch], check=True)
 SOURCE = WORK
 OUT = ROOT / 'build/libpthread-kernel'
 OUT.mkdir(parents=True, exist_ok=True)
@@ -48,6 +50,8 @@ def compile_one(source, destination, namespace=None):
             elif value == '-o':
                 command.extend(['-o', str(destination)])
                 index += 1
+            elif value in ('-MF', '-MJ'):
+                index += 1
             else:
                 command.append(value)
             index += 1
@@ -61,7 +65,7 @@ def compile_one(source, destination, namespace=None):
                    '-D__PTHREAD_EXPOSE_INTERNALS__=1', '-DABSOLUTETIME_SCALAR_TYPE=1', '-DNEEDS_SCHED_CALL_T=1',
                    '-I', str(SOURCE / 'private'), '-I', str(SOURCE / 'include'), '-I', str(SOURCE),
                    '-I', str(framework / 'PrivateHeaders'), '-I', str(framework / 'Headers'),
-                   '-Wno-deprecated-declarations', '-c', str(source), '-o', str(destination)]
+                   '-Wno-deprecated-declarations', '-Wno-int-conversion', '-c', str(source), '-o', str(destination)]
     if namespace:
         command += ['-include', str(namespace)]
     result = subprocess.run(command, cwd=record['directory'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

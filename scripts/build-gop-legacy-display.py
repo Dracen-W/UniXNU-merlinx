@@ -18,7 +18,9 @@ OUT = ROOT / 'build/native-legacy-display'
 OUT.mkdir(parents=True, exist_ok=True)
 FTS_DIR = ROOT / 'drivers/FocalTechTouch'
 sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
+sys.path.insert(0, str(ROOT / 'scripts'))
 from native_prelink import macho
+from kernel_target import TRIPLE
 
 
 def run(command, **kwargs):
@@ -363,6 +365,8 @@ def compile_cxx_with_xnu_record(src_path: Path, dst_obj: Path, extra_flags=None)
         elif value == '-o':
             command += ['-o', str(dst_obj)]
             index += 1
+        elif value in ('-MF', '-MJ'):
+            index += 1
         elif value == '-Xclang' and args[index + 1].startswith('-W'):
             index += 1
         elif not value.startswith('-W'):
@@ -433,11 +437,11 @@ require(not hid_missing, 'Unbound original IOHIDDevice symbols: ' + ', '.join(so
 asm = OUT / 'original-bindings.S'
 asm.write_text(''.join(f'.globl {name}\n.set {name}, {value:#x}\n' for name, value in sorted(bindings.items())))
 sdk = run(['xcrun', '--sdk', 'iphoneos', '--show-sdk-path'], text=True).strip()
-run(['xcrun', 'clang', '-target', 'arm64-apple-ios17.0', '-isysroot', sdk, '-Werror',
+run(['xcrun', 'clang', '-target', TRIPLE, '-isysroot', sdk, '-Werror',
      '-c', asm, '-o', OUT / 'original-bindings.o'])
 
 c_common = [
-    'xcrun', 'clang', '-target', 'arm64-apple-ios17.0', '-isysroot', sdk,
+    'xcrun', 'clang', '-target', TRIPLE, '-isysroot', sdk,
     '-std=c99', '-O2', '-fno-builtin', '-fno-common', '-mkernel',
     '-Wall', '-Wextra', '-Werror', '-I', str(FTS_DIR),
 ]

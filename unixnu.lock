@@ -18,8 +18,6 @@ commit = "30fe6a7d945340ce69cef121132f049e810089a5"
 [source."libplatform"]
 commit = "a00a4cc36da2110578bcf3b8eeeeb93dcc7f4e11"
 
-[source."libpthread"]
-commit = "c0e60fb5ecfc54cf379c261d3f9572cc22ded891"
 
 [source."mt6768"]
 commit = "ea9c5a8c750f1993f1150247ad1601402d27401c"
