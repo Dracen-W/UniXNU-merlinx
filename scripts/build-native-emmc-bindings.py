@@ -10,7 +10,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
+sys.path.insert(0, str(ROOT / 'scripts'))
 import native_prelink as np
+from kernel_target import TRIPLE
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--objects-dir', type=Path, default=ROOT / 'build/native-emmc')
@@ -42,13 +44,13 @@ for line in recorded.read_text().splitlines():
     if line.startswith('.set '):
         name, value = line[5:].split(',')
         bindings[name.strip()] = int(value.strip(), 16)
-subprocess.run(['xcrun', 'clang', '-target', 'arm64-apple-ios17.0', '-Werror',
+subprocess.run(['xcrun', 'clang', '-target', TRIPLE, '-Werror',
                 '-Wno-incompatible-sysroot', '-c', recorded, '-o', out / 'original-bindings.o'], check=True)
 archive = out / 'libNativeEmmc.a'
 archive.unlink(missing_ok=True)
 subprocess.run(['xcrun', 'ar', 'rcs', archive, obj_path, out / 'original-bindings.o'], check=True)
 (out / 'bindings.json').write_text(json.dumps(dict(
-    source_kernelcache_sha256='f18b4df865405f2a287b84977d7aca745e056d656d9fc9df1662970ce2969de7',
+    source_kernelcache_sha256='2ec297bac95bcba01046fd0148e97e7e5885c05a6c18827f39f534ba375c1221',
     ordinary_storage_abi=True, compiled_object_sha256=hashlib.sha256(obj).hexdigest(),
     bindings={name: hex(value) for name, value in sorted(bindings.items())},
     original_code_modified=False), indent=2) + '\n')

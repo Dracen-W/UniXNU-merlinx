@@ -78,7 +78,7 @@ abi = json.loads((ROOT / 'scripts/data/merlinx-legacy-display-abi.json').read_te
 pure = abi['pure']
 methods = [int(value, 16) for value in abi['methods']]
 legacy_vptr = int(abi['legacy_vptr'], 16)
-require(len(methods) == 358, 'merlinx legacy ABI needs exactly 358 methods')
+require(len(methods) == 338, 'merlinx legacy ABI needs exactly 338 methods')
 
 hid_abi = json.loads((ROOT / 'scripts/data/merlinx-hid-device-abi.json').read_text())
 hid_methods = [int(value, 16) for value in hid_abi['methods']]
@@ -95,36 +95,36 @@ header = '''// SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <libkern/libkern.h>
 struct OriginalLegacySwapRequest;
 struct OriginalLegacyStateRequest {uint32_t skipRequested,requested,skipPowered,powered;uint8_t changed;uint8_t pad[11];};
-static constexpr unsigned kLegacyVsyncClients=5592;
-static constexpr unsigned kRequestRect0=17,kRequestRect1=81,kRequestMasks=792,kRequestOptions=804,kRequestDims=816,kRequestSurfaces=2624;
-#define NATIVE_LEGACY_LEAVES(LEAF) LEAF(211) LEAF(245) LEAF(246) LEAF(306) LEAF(307) LEAF(338) LEAF(345)
+static constexpr unsigned kLegacyVsyncClients=4992;
+static constexpr unsigned kRequestRect0=17,kRequestRect1=81,kRequestMasks=792,kRequestOptions=804,kRequestDims=816,kRequestSurfaces=2184;
+#define NATIVE_LEGACY_LEAVES(LEAF) LEAF(211) LEAF(242) LEAF(243) LEAF(292) LEAF(293) LEAF(322) LEAF(329)
 class IOMobileFramebufferLegacy : public IOService {
  OSDeclareAbstractStructors(IOMobileFramebufferLegacy)
- unsigned char originalPrivate[0x18a0-sizeof(IOService)];
+ unsigned char originalPrivate[0x1660-sizeof(IOService)];
 public:
  void installBootDimensions(uint32_t width,uint32_t height) {
-  *reinterpret_cast<uint32_t *>(reinterpret_cast<unsigned char *>(this)+5808)=width;
-  *reinterpret_cast<uint32_t *>(reinterpret_cast<unsigned char *>(this)+5812)=height;
+  *reinterpret_cast<uint32_t *>(reinterpret_cast<unsigned char *>(this)+5208)=width;
+  *reinterpret_cast<uint32_t *>(reinterpret_cast<unsigned char *>(this)+5212)=height;
  }
  const OriginalLegacySwapRequest *pendingSwapRequest() const {
   const OriginalLegacySwapRequest *request=nullptr;
-  memcpy(&request,reinterpret_cast<const unsigned char *>(this)+5480,sizeof(request));return request;
+  memcpy(&request,reinterpret_cast<const unsigned char *>(this)+4880,sizeof(request));return request;
  }
  bool activateOnlyPendingSwap(const OriginalLegacySwapRequest *request) {
   auto self=reinterpret_cast<unsigned char *>(this);
   auto bytes=reinterpret_cast<const unsigned char *>(request);
   const void *current=nullptr,*head=nullptr,*tail=nullptr,*next=nullptr,*previous=nullptr;
-  memcpy(&current,self+5472,8);memcpy(&head,self+5480,8);memcpy(&tail,self+5488,8);
+  memcpy(&current,self+4872,8);memcpy(&head,self+4880,8);memcpy(&tail,self+4888,8);
   if(!request || current || head!=request)return false;
-  memcpy(&next,bytes+2960,8);memcpy(&previous,bytes+2968,8);
-  if(previous!=self+5480)return false;
+  memcpy(&next,bytes+2408,8);memcpy(&previous,bytes+2416,8);
+  if(previous!=self+4880)return false;
   if(next) {
-   const void *link=self+5480;
-   memcpy(const_cast<unsigned char *>(reinterpret_cast<const unsigned char *>(next))+2968,&link,8);
-  } else if(tail!=bytes+2960)return false;
-  memcpy(self+5472,&request,8);
-  if(next) {memcpy(self+5480,&next,8);}
-  else {const void *empty=nullptr,*emptyTail=self+5480;memcpy(self+5480,&empty,8);memcpy(self+5488,&emptyTail,8);}
+   const void *link=self+4880;
+   memcpy(const_cast<unsigned char *>(reinterpret_cast<const unsigned char *>(next))+2416,&link,8);
+  } else if(tail!=bytes+2408)return false;
+  memcpy(self+4872,&request,8);
+  if(next) {memcpy(self+4880,&next,8);}
+  else {const void *empty=nullptr,*emptyTail=self+4880;memcpy(self+4880,&empty,8);memcpy(self+4888,&emptyTail,8);}
   return true;
  }
  void free() override;
@@ -138,35 +138,35 @@ public:
  IOReturn newUserClient(task_t,void *,UInt32,IOUserClient **) override;
  IOReturn setPowerState(unsigned long,IOService *) override;
 '''
-for i in range(168, 358):
+for i in range(168, 338):
     if i == 184:
         header += ' virtual bool isMainDisplay();\n'
     elif i == 188:
         header += ' virtual IOReturn getDotPitch(uint32_t *);\n'
-    elif i == 213:
+    elif i == 212:
         header += ' virtual IOReturn supportedFrameInfo(uint32_t,uint32_t *,char *,uint32_t *)=0;\n'
-    elif i == 249:
+    elif i == 246:
         header += ' virtual void getDisplayDimensions(uint32_t *,uint32_t *);\n'
-    elif i == 290:
+    elif i == 276:
         header += ' virtual void kickSwapQueue();\n'
-    elif i == 296:
+    elif i == 282:
         header += ' virtual bool validateSwap(const OriginalLegacySwapRequest *);\n'
-    elif i == 295:
+    elif i == 281:
         header += ' virtual void completeCurrentSwap();\n'
-    elif i == 337:
+    elif i == 321:
         header += ' virtual IOReturn collectCompletionReports(uint32_t,void *,uint32_t *,uint32_t)=0;\n'
-    elif i == 288:
+    elif i == 274:
         header += ' virtual bool startHardware();\n'
-    elif i == 354:
+    elif i == 336:
         header += ' virtual int applyStateRequest(OriginalLegacyStateRequest *,bool);\n'
-    elif i == 301:
+    elif i == 287:
         header += ' virtual bool getRefreshAttributes(uint64_t *,bool);\n'
     elif i in pure:
         header += f' virtual __attribute__((noreturn)) void opaque{i}()=0;\n'
     else:
         header += f' virtual __attribute__((deprecated("Unclassified ABI: never call from source"))) void opaque{i}();\n'
 header += '''};
-static_assert(sizeof(IOMobileFramebufferLegacy)==0x18a0,"Actual original instance extent");
+static_assert(sizeof(IOMobileFramebufferLegacy)==0x1660,"Actual original instance extent");
 
 // Override pixel copy routines on merlinx so every pixel stored to the active MT6768 OVL0
 // foreground layer (L3_ADDR) carries opaque Alpha = 0xFF (preventing OVL per-pixel alpha tinting),
@@ -391,23 +391,23 @@ compile_cxx_with_xnu_record(ROOT / 'package/MerlinxLegacyDisplay.cpp', OUT / 'Me
 compile_cxx_with_xnu_record(FTS_DIR / 'FtsProbe.cpp', OUT / 'FtsProbe.o')
 
 obj = OUT / 'NativeLegacyDisplay.o'
-symbols, compiled = extract_vtable_and_undef(obj, '__ZTV19NativeLegacyDisplay', 358)
+symbols, compiled = extract_vtable_and_undef(obj, '__ZTV19NativeLegacyDisplay', 338)
 hid_symbols, hid_compiled = extract_vtable_and_undef(hid_obj, '__ZTV14NativeHidInput', 207)
 
 bindings = {
-    '__ZN25IOMobileFramebufferLegacyC2EPK11OSMetaClass': 0xfffffff0057865cc,
-    '__ZN25IOMobileFramebufferLegacyD2Ev': 0xfffffff005786618,
-    '__ZN25IOMobileFramebufferLegacy10gMetaClassE': 0xfffffff006b35940,
+    '__ZN25IOMobileFramebufferLegacyC2EPK11OSMetaClass': 0xfffffff005c0bbbc,
+    '__ZN25IOMobileFramebufferLegacyD2Ev': 0xfffffff005c0bc08,
+    '__ZN25IOMobileFramebufferLegacy10gMetaClassE': 0xfffffff007a45540,
     '__ZTV25IOMobileFramebufferLegacy': legacy_vptr - 16,
-    '_native_legacy_surface_descriptor': 0xfffffff004b9ead0,
-    '_native_legacy_surface_width': 0xfffffff004b9ebbc,
-    '_native_legacy_surface_height': 0xfffffff004b9ebc4,
-    '_native_legacy_surface_stride': 0xfffffff004b9ebd4,
-    '_native_legacy_surface_allocation': 0xfffffff004b9ebfc,
-    '_native_legacy_surface_format': 0xfffffff004b9ebac,
-    '_native_legacy_surface_planes': 0xfffffff004b9ebf4,
-    '_native_legacy_vsync_notify_original': 0xfffffff005796720,
-    '_native_legacy_set_refresh_properties': 0xfffffff00579ebb8,
+    '_native_legacy_surface_descriptor': 0xfffffff005a4e71c,
+    '_native_legacy_surface_width': 0xfffffff005a4e7f4,
+    '_native_legacy_surface_height': 0xfffffff005a4e7fc,
+    '_native_legacy_surface_stride': 0xfffffff005a4e80c,
+    '_native_legacy_surface_allocation': 0xfffffff005a4e834,
+    '_native_legacy_surface_format': 0xfffffff005a4e7e4,
+    '_native_legacy_surface_planes': 0xfffffff005a4e82c,
+    '_native_legacy_vsync_notify_original': 0xfffffff005c1b838,
+    '_native_legacy_set_refresh_properties': 0xfffffff005c23610,
     '__ZN11IOHIDDeviceC2EPK11OSMetaClass': int(hid_abi['c2'], 16),
     '__ZN11IOHIDDeviceD2Ev': int(hid_abi['d2'], 16),
     '__ZN11IOHIDDevice10gMetaClassE': int(hid_abi['gmeta'], 16),

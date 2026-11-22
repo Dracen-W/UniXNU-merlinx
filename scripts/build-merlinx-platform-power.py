@@ -23,19 +23,19 @@ header = '''// Generated minimal ApplePMGR ABI for the merlinx bring-up provider
 #include <IOKit/IOPMGR.h>
 class ApplePMGR : public IOPMGR {
  OSDeclareAbstractStructors(ApplePMGR)
- unsigned char originalPrivate[0x4b8a8-sizeof(IOPMGR)];
+ unsigned char originalPrivate[0x6968-sizeof(IOPMGR)];
 public:
 '''
 guards = ''
-for slot in range(177, 340):
-    if slot == 320:
+for slot in range(177, 325):
+    if slot == 312:
         header += ' virtual uint32_t readAon();\n'
-    elif slot == 321:
+    elif slot == 313:
         header += ' virtual void writeAon(uint64_t);\n'
     else:
         header += f' virtual void opaque{slot}() = 0;\n'
         guards += f' void opaque{slot}() override {{ unavailable({slot}); }}\n'
-header += '};\nstatic_assert(sizeof(ApplePMGR)==0x4b8a8,"ApplePMGR ABI size");\n'
+header += '};\nstatic_assert(sizeof(ApplePMGR)==0x6968,"ApplePMGR ABI size");\n'
 (OUT / 'OriginalPMGRABI.h').write_text(header)
 (OUT / 'GuardedPMGRSlots.inc').write_text(guards)
 
@@ -73,12 +73,12 @@ subprocess.run(['llvm-objcopy', '--remove-section=__DATA,__mod_init_func',
                 str(obj), str(late)], check=True)
 
 bindings = {
-    '__ZN9ApplePMGRC2EPK11OSMetaClass': 0xfffffff0049f003c,
-    '__ZN9ApplePMGRD2Ev': 0xfffffff0049f019c,
-    '__ZN9ApplePMGR10gMetaClassE': 0xfffffff006adf490,
-    '_sheng_original_pmgr_nub_create': 0xfffffff004a22568,
-    '_sheng_original_pmgr_nub_read': 0xfffffff004a24adc,
-    '_sheng_original_pmgr_nub_write': 0xfffffff004a230ec,
+    '__ZN9ApplePMGRC2EPK11OSMetaClass': 0xfffffff00565703c,
+    '__ZN9ApplePMGRD2Ev': 0xfffffff005657164,
+    '__ZN9ApplePMGR10gMetaClassE': 0xfffffff007a0b410,
+    '_sheng_original_pmgr_nub_create': 0xfffffff0056832d4,
+    '_sheng_original_pmgr_nub_read': 0xfffffff005685724,
+    '_sheng_original_pmgr_nub_write': 0xfffffff005683dbc,
 }
 asm = OUT / 'original-bindings.S'
 asm.write_text(''.join(f'.globl {name}\n.set {name}, {value:#x}\n' for name, value in sorted(bindings.items())))
