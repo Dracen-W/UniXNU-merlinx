@@ -50,7 +50,7 @@ archive = out / 'libNativeEmmc.a'
 archive.unlink(missing_ok=True)
 subprocess.run(['xcrun', 'ar', 'rcs', archive, obj_path, out / 'original-bindings.o'], check=True)
 (out / 'bindings.json').write_text(json.dumps(dict(
-    source_kernelcache_sha256='2ec297bac95bcba01046fd0148e97e7e5885c05a6c18827f39f534ba375c1221',
+    source_kernelcache_sha256='c32bd7c0bdee17909a542d84b349201eef6aefe76a2c1595436de70aa048afbb',
     ordinary_storage_abi=True, compiled_object_sha256=hashlib.sha256(obj).hexdigest(),
     bindings={name: hex(value) for name, value in sorted(bindings.items())},
     original_code_modified=False), indent=2) + '\n')

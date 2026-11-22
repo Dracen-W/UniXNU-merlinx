@@ -73,12 +73,12 @@ subprocess.run(['llvm-objcopy', '--remove-section=__DATA,__mod_init_func',
                 str(obj), str(late)], check=True)
 
 bindings = {
-    '__ZN9ApplePMGRC2EPK11OSMetaClass': 0xfffffff00565703c,
-    '__ZN9ApplePMGRD2Ev': 0xfffffff005657164,
-    '__ZN9ApplePMGR10gMetaClassE': 0xfffffff007a0b410,
-    '_sheng_original_pmgr_nub_create': 0xfffffff0056832d4,
-    '_sheng_original_pmgr_nub_read': 0xfffffff005685724,
-    '_sheng_original_pmgr_nub_write': 0xfffffff005683dbc,
+    '__ZN9ApplePMGRC2EPK11OSMetaClass': 0xfffffff00465703c,
+    '__ZN9ApplePMGRD2Ev': 0xfffffff004657164,
+    '__ZN9ApplePMGR10gMetaClassE': 0xfffffff006a0b410,
+    '_sheng_original_pmgr_nub_create': 0xfffffff0046832d4,
+    '_sheng_original_pmgr_nub_read': 0xfffffff004685724,
+    '_sheng_original_pmgr_nub_write': 0xfffffff004683dbc,
 }
 asm = OUT / 'original-bindings.S'
 asm.write_text(''.join(f'.globl {name}\n.set {name}, {value:#x}\n' for name, value in sorted(bindings.items())))
