@@ -330,6 +330,39 @@ jobs:
               echo "$hits"
             fi
           done
+          if [ -f "$WORK/logs/prelink.log" ]; then
+            echo "=== Tail of prelink.log ==="
+            tail -n 40 "$WORK/logs/prelink.log" || true
+            python3 - "$WORK" <<'PY_PRELINK_AUDIT' || true
+import sys, tomllib
+from pathlib import Path
+work = Path(sys.argv[1])
+tree = work / "tree"
+sys.path.insert(0, str(tree / "kits/XnuPrelink"))
+import native_prelink as np
+orig_fn = np.unique_kernel_binding
+missing = {}
+def audit_binding(address, original_symbols, native_symbols):
+    try:
+        return orig_fn(address, original_symbols, native_symbols)
+    except ValueError as e:
+        missing[address] = str(e)
+        return address
+np.unique_kernel_binding = audit_binding
+board = tomllib.loads((Path("device/board.toml")).read_text())
+pl = board["kernel"]["prelink"]
+kc = next(work.glob("**/kernelcache.decompressed"), None) or next(Path("out").glob("**/kernelcache.decompressed"), None)
+kern = tree / pl["kernel"]
+if kc and kern.is_file():
+    try:
+        np.plan(kern.read_bytes(), kc.read_bytes(), pl["roots"], int(str(pl["slide"]), 0))
+    except Exception as e:
+        print("Audit plan exception:", e)
+    print(f"=== ALL missing/ambiguous prelink kernel bindings ({len(missing)}) ===")
+    for addr in sorted(missing):
+        print(" ", missing[addr])
+PY_PRELINK_AUDIT
+          fi
 
       - name: Save feeds cache
         if: always() && steps.check.outcome == 'success' && steps.cache-feeds.outputs.cache-hit != 'true'

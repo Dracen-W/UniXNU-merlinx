@@ -1,0 +1,23 @@
+diff --git a/bsd/vfs/vfs_syscalls.c b/bsd/vfs/vfs_syscalls.c
+--- a/bsd/vfs/vfs_syscalls.c
++++ b/bsd/vfs/vfs_syscalls.c
+@@ -14576,6 +14576,19 @@ fs_snapshot(proc_t p, struct fs_snapshot_args *uap, int32_t *retval)
+ 	default:
+ 		error = ENOSYS;
+ 	}
+ 
+ 	return error;
+ }
++
++/* iOS 16.7.x (20H392) APFS KPI: return mount matching both fsid and vfsops. */
++extern mount_t vfs_getvfs(fsid_t *fsid);
++mount_t vfs_getvfs_with_vfsops(fsid_t *fsid, const struct vfsops *ops);
++mount_t
++vfs_getvfs_with_vfsops(fsid_t *fsid, const struct vfsops *ops)
++{
++	mount_t mp = vfs_getvfs(fsid);
++	if (mp != NULL && ops != NULL && mp->mnt_op != ops) {
++		return NULL;
++	}
++	return mp;
++}
