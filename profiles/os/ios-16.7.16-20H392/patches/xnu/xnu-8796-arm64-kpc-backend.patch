@@ -2,7 +2,7 @@ diff --git a/osfmk/arm64/kpc.c b/osfmk/arm64/kpc.c
 new file mode 100644
 --- /dev/null
 +++ b/osfmk/arm64/kpc.c
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,156 @@
 +/* SPDX-License-Identifier: BSD-2-Clause-Patent */
 +/* Minimal arm64 KPC arch backend for xnu-8796 open-source builds (no PMU counters). */
 +#include <kern/kpc.h>
@@ -141,4 +141,21 @@ new file mode 100644
 +void
 +kpc_idle_exit(void)
 +{
++}
++
++int kpc_pc_capture = 0;
++
++uint32_t
++kpc_get_classes(void)
++{
++	return 0;
++}
++
++int
++kpc_get_all_cpus_counters(uint32_t classes __unused, int *curcpu, uint64_t *buf __unused)
++{
++	if (curcpu) {
++		*curcpu = 0;
++	}
++	return 0;
 +}
