@@ -62,19 +62,6 @@ index 09bb70c..10385b4 100644
  	/*
  	 * Allocate a big chunk for locals instead of using stack since these
  	 * structures are pretty big.
-@@ -4756,6 +4763,12 @@ proc_exec_switch_task(proc_t old_proc, proc_t new_proc, task_t old_task, task_t
- 		new_proc->p_return_to_kernel_offset = 0;
- 		new_proc->p_pthread_wq_quantum_offset = 0;
- 
-+	if (error != 0 && spawn_base[0]) {
-+		char spawn_text[48];
-+		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
-+		native_gop_text(100, spawn_text);
-+	}
-+
- 		/* If old_proc is session leader, change the leader to new proc */
- 		session_replace_leader(old_proc, new_proc);
- 
 @@ -6904,6 +6917,54 @@ native_gop_text(unsigned line, const char *text)
  	}
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
