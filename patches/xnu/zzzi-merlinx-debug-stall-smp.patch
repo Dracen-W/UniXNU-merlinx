@@ -28,7 +28,7 @@ index 07e77db..9075b67 100644
  	clock_interval_to_deadline(2, (uint32_t)NSEC_PER_SEC, &deadline);
  	thread_call_enter_delayed(native_diag_focus_call, deadline);
  }
-@@ -3070,6 +3075,193 @@ native_musb_cmd_append(const char *fmt, ...)
+@@ -3070,6 +3075,203 @@ native_musb_cmd_append(const char *fmt, ...)
  	}
  }
  
@@ -140,6 +140,16 @@ index 07e77db..9075b67 100644
 +	unsigned int i;
 +	uint32_t arm_run = ((uintptr_t)&armcpu_smp_running != 0) ? armcpu_smp_running : 0U;
 +
++	/* Periodic [SMP] ring summary is opt-in (merlinx-smp-log=1); USB `smp` cmd stays active. */
++	{
++		static int smp_log_on = -1;
++		if (smp_log_on < 0) {
++			unsigned int v = 0;
++			smp_log_on = (PE_parse_boot_argn("merlinx-smp-log", &v, sizeof(v)) && v != 0) ? 1 : 0;
++		}
++		if (!smp_log_on)
++			return;
++	}
 +	/* Emit every 2nd focus tick (~4s) to keep USB log compact */
 +	if ((merlinx_smp_tick_div++ & 1U) != 0U)
 +		return;

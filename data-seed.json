@@ -709,7 +709,8 @@
         "com.apple.amsaccountsd": true,
         "com.apple.amsengagementd": true,
         "com.apple.locationd.pipelined": true,
-        "com.apple.accessoryupdaterd": true
+        "com.apple.accessoryupdaterd": true,
+        "com.apple.datamigrator": true
       }
     ],
     [
@@ -749,7 +750,8 @@
         "com.apple.amsaccountsd": true,
         "com.apple.amsengagementd": true,
         "com.apple.locationd.pipelined": true,
-        "com.apple.accessoryupdaterd": true
+        "com.apple.accessoryupdaterd": true,
+        "com.apple.datamigrator": true
       }
     ]
   ],
