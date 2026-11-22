@@ -162,6 +162,18 @@ index 7b24de2..005254e 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
+@@ -73,6 +74,11 @@
+ #include <prng/entropy.h>
+ 
+ 
++#ifndef _SYS_PROC_H_
++struct proc;
++typedef struct proc *proc_t;
++extern proc_t current_proc(void);
++#endif
+ 
+ 
+ #include <arm64/platform_error_handler.h>
 @@ -1354,6 +1355,154 @@ handle_sw_step_debug(arm_saved_state_t *state)
  	__builtin_unreachable();
  }

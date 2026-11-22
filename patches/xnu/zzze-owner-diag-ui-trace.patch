@@ -282,21 +282,22 @@ index 10385b4..749b758 100644
  		}
  	}
  
-@@ -4763,9 +4994,12 @@ proc_exec_switch_task(proc_t old_proc, proc_t new_proc, task_t old_task, task_t
- 		new_proc->p_return_to_kernel_offset = 0;
- 		new_proc->p_pthread_wq_quantum_offset = 0;
+@@ -4929,6 +4929,15 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+ 		ipc_importance_release(inherit);
+ 	}
  
--	if (error != 0 && spawn_base[0]) {
 +	if (error == 0 && spawn_arg1[0] && retval && *retval > 1) {
 +		native_diag_xp_note(*retval, spawn_arg1);
 +	}
 +	if (error != 0 && spawn_base[0] && native_diag_throttle(native_diag_spawn_throttle, spawn_base)) {
- 		char spawn_text[48];
--		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
++		char spawn_text[48];
 +		snprintf(spawn_text, sizeof(spawn_text), "SPF %d e%d %.20s", ap ? ap->p_pid : 0, error, spawn_base);
- 		native_gop_text(100, spawn_text);
- 	}
- 
++		native_gop_text(100, spawn_text);
++	}
++
+ 	assert(exec_failure_reason == NULL);
+ 	return error;
+ }
 @@ -4927,6 +5161,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
