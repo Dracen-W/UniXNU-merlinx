@@ -41,7 +41,7 @@ diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
 index cc96ee9..acbaa1a 100644
 --- a/osfmk/arm64/start.s
 +++ b/osfmk/arm64/start.s
-@@ -181,6 +181,19 @@
+@@ -181,7 +181,20 @@
  	isb
  	eret
  L_mt6768_el1_entry:
