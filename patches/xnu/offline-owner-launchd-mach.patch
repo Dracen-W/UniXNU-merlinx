@@ -2,12 +2,12 @@ diff --git a/osfmk/ipc/mach_msg.c b/osfmk/ipc/mach_msg.c
 index 9771464..e1f72a9 100644
 --- a/osfmk/ipc/mach_msg.c
 +++ b/osfmk/ipc/mach_msg.c
-@@ -830,6 +830,8 @@ mach_msg_trap_send(
+@@ -829,6 +829,8 @@ mach_msg_trap_send(
+ 	 * Now that we have validated msg_send_size, aux_send_size and desc_count,
  	 * copy in the message.
  	 */
- 	mr = ipc_kmsg_get_from_user(msg_addr, msg_send_size, (aux_send_size == 0) ?
 +	extern void native_gop_text(unsigned line, const char *text);
 +	native_gop_text(14, "MSG");
+ 	mr = ipc_kmsg_get_from_user(msg_addr, msg_send_size, (aux_send_size == 0) ?
  	    0 : aux_addr, aux_send_size, user_header, desc_count, option64, &kmsg);
  
- 	if (mr != MACH_MSG_SUCCESS) {
