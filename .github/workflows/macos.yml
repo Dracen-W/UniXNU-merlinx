@@ -10,7 +10,7 @@ on:
       device_ref:
         description: Device repository ref
         required: true
-        default: merlinx-work
+        default: ipados-stable-version
       defconfig:
         description: Defconfig name (configs/ of the device repository)
         required: true
