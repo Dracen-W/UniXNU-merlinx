@@ -1,0 +1,22 @@
+diff --git a/iokit/DriverKit/IORPC.h b/iokit/DriverKit/IORPC.h
+--- a/iokit/DriverKit/IORPC.h
++++ b/iokit/DriverKit/IORPC.h
+@@ -221,6 +221,7 @@
+ 
+ struct IORPC {
+ 	IORPCMessageMach * message;
++	IORPCMessage     * kernelContent;
+ 	IORPCMessageMach * reply;
+ 	uint32_t           sendSize;
+ 	uint32_t           replySize;
+diff --git a/iokit/IOKit/IORPC.h b/iokit/IOKit/IORPC.h
+--- a/iokit/IOKit/IORPC.h
++++ b/iokit/IOKit/IORPC.h
+@@ -221,6 +221,7 @@
+ 
+ struct IORPC {
+ 	IORPCMessageMach * message;
++	IORPCMessage     * kernelContent;
+ 	IORPCMessageMach * reply;
+ 	uint32_t           sendSize;
+ 	uint32_t           replySize;

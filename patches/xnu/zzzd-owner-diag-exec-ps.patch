@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 6d7569a..d015dab 100644
+index 09bb70c..10385b4 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
 @@ -101,6 +101,8 @@
@@ -11,7 +11,7 @@ index 6d7569a..d015dab 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2386,19 +2388,11 @@ encapsulated_binary:
+@@ -2309,19 +2311,11 @@ encapsulated_binary:
  		}
  		if (p->p_pid > 1) {
  			const char *cm = p->p_comm[0] ? p->p_comm : "CHILD";
@@ -35,7 +35,7 @@ index 6d7569a..d015dab 100644
  		}
  	}
  bad:
-@@ -3569,6 +3563,7 @@ int
+@@ -3401,6 +3395,7 @@ int
  posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  {
  	proc_t p = ap;
@@ -43,7 +43,7 @@ index 6d7569a..d015dab 100644
  	native_gop_text(8, "SPAWN");
  	user_addr_t pid = uap->pid;
  	int ival[2];            /* dummy retval for setpgid() */
-@@ -3612,6 +3607,18 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3441,6 +3436,18 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		struct vnode_attr origva;
  	} *__spawn_data;
  
@@ -62,9 +62,9 @@ index 6d7569a..d015dab 100644
  	/*
  	 * Allocate a big chunk for locals instead of using stack since these
  	 * structures are pretty big.
-@@ -4927,6 +4934,12 @@ bad:
- 	}
- #endif
+@@ -4756,6 +4763,12 @@ proc_exec_switch_task(proc_t old_proc, proc_t new_proc, task_t old_task, task_t
+ 		new_proc->p_return_to_kernel_offset = 0;
+ 		new_proc->p_pthread_wq_quantum_offset = 0;
  
 +	if (error != 0 && spawn_base[0]) {
 +		char spawn_text[48];
@@ -72,10 +72,10 @@ index 6d7569a..d015dab 100644
 +		native_gop_text(100, spawn_text);
 +	}
 +
- 	assert(spawn_no_exec || exec_failure_reason == NULL);
- 	return error;
- }
-@@ -7166,6 +7179,54 @@ native_gop_text(unsigned line, const char *text)
+ 		/* If old_proc is session leader, change the leader to new proc */
+ 		session_replace_leader(old_proc, new_proc);
+ 
+@@ -6904,6 +6917,54 @@ native_gop_text(unsigned line, const char *text)
  	}
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
@@ -131,10 +131,10 @@ index 6d7569a..d015dab 100644
  volatile int native_owner_cache_status = -1;
  volatile int native_owner_cache_mount_status = -1;
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index 202da6a..f0721cc 100644
+index 21f8f5a..9f2050b 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1627,6 +1627,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+@@ -1598,6 +1598,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
  
  	if (p->p_pid > 1) {
  		extern void native_gop_text(unsigned line, const char *text);
@@ -142,7 +142,7 @@ index 202da6a..f0721cc 100644
  		const char *nm = p->p_name[0] ? p->p_name : p->p_comm;
  		char ex_text[48];
  		if (exit_reason != OS_REASON_NULL) {
-@@ -1639,6 +1640,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+@@ -1610,6 +1611,7 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
  			    p->p_pid, nm, rv);
  		}
  		native_gop_text(100, ex_text);
@@ -151,10 +151,10 @@ index 202da6a..f0721cc 100644
  
  	proc_prepareexit(p, rv, perf_notify);
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
-index ae94c7e..31bad41 100644
+index 7b24de2..005254e 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -61,6 +61,7 @@
+@@ -60,6 +60,7 @@
  #include <vm/pmap.h>
  #include <vm/vm_fault.h>
  #include <vm/vm_kern.h>
@@ -162,7 +162,7 @@ index ae94c7e..31bad41 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -1532,6 +1533,154 @@ handle_sw_step_debug(arm_saved_state_t *state)
+@@ -1354,6 +1355,154 @@ handle_sw_step_debug(arm_saved_state_t *state)
  	__builtin_unreachable();
  }
  
@@ -317,12 +317,12 @@ index ae94c7e..31bad41 100644
  static void
  handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,
      fault_status_t fault_code, vm_prot_t fault_type, expected_fault_handler_t expected_fault_handler)
-@@ -1675,6 +1824,8 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+@@ -1484,6 +1633,8 @@ handle_user_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr
+ 	}
  #endif /* __has_feature(ptrauth_calls) */
- 
  	boot_progress_user_abort(state, esr, fault_addr);
 +	if (native_diag_user_fault(state, fault_addr, fault_type))
 +		return;
- 	if (user_fault_in_self_restrict_mode(thread) &&
- 	    task_is_jit_exception_fatal(get_threadtask(thread))) {
- 		extern int exit_with_jit_exception(proc_t p);
+ 	exception_triage(exc, codes, numcodes);
+ 	__builtin_unreachable();
+ }

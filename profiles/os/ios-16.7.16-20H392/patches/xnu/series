@@ -57,3 +57,5 @@ device:patches/xnu/zzy-native-gpu-addon-mount.patch
 device:patches/xnu/zzy-staged-system-apps.patch
 device:patches/xnu/zzyb-native-cryptex-os-view.patch
 device:patches/xnu/zzyc-owner-skip-launch-constraints.patch
+xnu-8796-arm64-kpc-backend.patch
+xnu-8796-iorpc-kernelcontent.patch

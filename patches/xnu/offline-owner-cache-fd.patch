@@ -1,8 +1,8 @@
 diff --git a/bsd/kern/kern_descrip.c b/bsd/kern/kern_descrip.c
-index c966085..ebce6ac 100644
+index 13b08b5..5006172 100644
 --- a/bsd/kern/kern_descrip.c
 +++ b/bsd/kern/kern_descrip.c
-@@ -2740,10 +2740,27 @@ outdrop:
+@@ -2730,10 +2730,27 @@ outdrop:
  	return sys_fcntl_outdrop(p, fd, fp, vp, error);
  }
  
@@ -28,9 +28,9 @@ index c966085..ebce6ac 100644
 +	}
 +#endif
  	int cmd = uap->cmd;
+ 	struct filedesc *fdp = &p->p_fd;
  	struct fileproc *fp;
- 	struct vnode *vp = NULLVP;      /* for AUDIT_ARG() at end */
-@@ -4098,6 +4115,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
+@@ -4035,6 +4052,12 @@ sys_fcntl_nocancel(proc_t p, struct fcntl_nocancel_args *uap, int32_t *retval)
  		}
  
  		(void) vnode_put(vp);
@@ -43,23 +43,35 @@ index c966085..ebce6ac 100644
  		break;
  	}
  #if CONFIG_SUPPLEMENTAL_SIGNATURES
-@@ -5293,9 +5316,15 @@ dropboth:
+@@ -5223,9 +5246,27 @@ dropboth:
  	}
  
  outdrop:
 +#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
 +	if (fd == native_owner_cache_last_fd) native_owner_cache_fcntl_last_error = error;
 +#endif
++	if (p->p_pid == 1) {
++		char trace_text[64];
++		snprintf(trace_text, sizeof(trace_text), "FC %d %d", uap->cmd, error);
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(18, trace_text);
++	}
  	return sys_fcntl_outdrop(p, fd, fp, vp, error);
  
  out:
 +#if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
 +	if (fd == native_owner_cache_last_fd) native_owner_cache_fcntl_last_error = error;
 +#endif
++	if (p->p_pid == 1) {
++		char trace_text[64];
++		snprintf(trace_text, sizeof(trace_text), "FC %d %d", uap->cmd, error);
++		extern void native_gop_text(unsigned line, const char *text);
++		native_gop_text(18, trace_text);
++	}
  	return sys_fcntl_out(p, fd, fp, error);
  }
  
-@@ -5528,6 +5557,15 @@ fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
+@@ -5454,6 +5495,15 @@ fstat(proc_t p, int fd, user_addr_t ub, user_addr_t xsecurity,
  		}
  	}
  out:
@@ -76,10 +88,10 @@ index c966085..ebce6ac 100644
  	if (fsec != NULL) {
  		kauth_filesec_free(fsec);
 diff --git a/bsd/kern/sys_generic.c b/bsd/kern/sys_generic.c
-index f229fc1..b90a74c 100644
+index 9de68e1..9c20d22 100644
 --- a/bsd/kern/sys_generic.c
 +++ b/bsd/kern/sys_generic.c
-@@ -392,14 +392,55 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
+@@ -394,14 +394,55 @@ read(struct proc *p, struct read_args *uap, user_ssize_t *retval)
  	return read_nocancel(p, (struct read_nocancel_args *)uap, retval);
  }
  
@@ -136,32 +148,3 @@ index f229fc1..b90a74c 100644
  }
  
  /*
-diff --git a/bsd/kern/kern_descrip.c b/bsd/kern/kern_descrip.c
-index ebce6ac..bddf281 100644
---- a/bsd/kern/kern_descrip.c
-+++ b/bsd/kern/kern_descrip.c
-@@ -5319,12 +5319,24 @@ outdrop:
- #if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
- 	if (fd == native_owner_cache_last_fd) native_owner_cache_fcntl_last_error = error;
- #endif
-+	if (p->p_pid == 1) {
-+		char trace_text[64];
-+		snprintf(trace_text, sizeof(trace_text), "FC %d %d", uap->cmd, error);
-+		extern void native_gop_text(unsigned line, const char *text);
-+		native_gop_text(18, trace_text);
-+	}
- 	return sys_fcntl_outdrop(p, fd, fp, vp, error);
- 
- out:
- #if defined(XNU_OWNER_CACHE_MOUNT) && XNU_OWNER_CACHE_MOUNT
- 	if (fd == native_owner_cache_last_fd) native_owner_cache_fcntl_last_error = error;
- #endif
-+	if (p->p_pid == 1) {
-+		char trace_text[64];
-+		snprintf(trace_text, sizeof(trace_text), "FC %d %d", uap->cmd, error);
-+		extern void native_gop_text(unsigned line, const char *text);
-+		native_gop_text(18, trace_text);
-+	}
- 	return sys_fcntl_out(p, fd, fp, error);
- }
- 

@@ -1,8 +1,9 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index d015dab..f43099c 100644
+index 10385b4..749b758 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -101,8 +101,209 @@
+@@ -100,9 +100,210 @@
+ #include <sys/uio_internal.h>
  #include <sys/acct.h>
  
 +#include <pexpert/pexpert.h>
@@ -212,7 +213,8 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  static int native_owner_data_writable(proc_t p);
  #endif
-@@ -2387,12 +2588,27 @@ encapsulated_binary:
+@@ -2309,13 +2510,28 @@ encapsulated_binary:
+ 			    KAUTH_FILEOP_EXEC,
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
 -		if (p->p_pid > 1) {
@@ -247,7 +249,7 @@ index d015dab..f43099c 100644
  		}
  	}
  bad:
-@@ -3608,15 +3824,30 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
+@@ -3436,7 +3652,8 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		struct vnode_attr origva;
  	} *__spawn_data;
  
@@ -257,7 +259,7 @@ index d015dab..f43099c 100644
  		char spawn_path[128];
  		size_t spawn_len = 0;
  		spawn_path[0] = 0;
- 		(void)copyinstr(uap->path, spawn_path, sizeof(spawn_path), &spawn_len);
+@@ -3444,7 +3661,21 @@ posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  		spawn_path[sizeof(spawn_path) - 1] = 0;
  		if (spawn_path[0]) {
  			const char *slash = strrchr(spawn_path, '/');
@@ -280,9 +282,9 @@ index d015dab..f43099c 100644
  		}
  	}
  
-@@ -4934,7 +5165,10 @@ bad:
- 	}
- #endif
+@@ -4763,9 +4994,12 @@ proc_exec_switch_task(proc_t old_proc, proc_t new_proc, task_t old_task, task_t
+ 		new_proc->p_return_to_kernel_offset = 0;
+ 		new_proc->p_pthread_wq_quantum_offset = 0;
  
 -	if (error != 0 && spawn_base[0]) {
 +	if (error == 0 && spawn_arg1[0] && retval && *retval > 1) {
@@ -293,7 +295,9 @@ index d015dab..f43099c 100644
 -		snprintf(spawn_text, sizeof(spawn_text), "SPF e%d %.24s", error, spawn_base);
 +		snprintf(spawn_text, sizeof(spawn_text), "SPF %d e%d %.20s", ap ? ap->p_pid : 0, error, spawn_base);
  		native_gop_text(100, spawn_text);
-@@ -5169,6 +5403,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+ 	}
+ 
+@@ -4927,6 +5161,22 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -316,7 +320,7 @@ index d015dab..f43099c 100644
  #if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
  	if (!err && p->p_pid == 1) {
  		int write_error = native_owner_data_writable(p);
-@@ -7180,13 +7430,35 @@ native_gop_text(unsigned line, const char *text)
+@@ -6918,13 +7168,35 @@ native_gop_text(unsigned line, const char *text)
  	native_gop_draw_span(16, mid - 4, 320 + line * 60, 2, 0xffffffffu, text);
  }
  
@@ -353,7 +357,7 @@ index d015dab..f43099c 100644
  
  static int
  native_diag_tracked_slot(const char *name)
-@@ -7195,28 +7467,36 @@ native_diag_tracked_slot(const char *name)
+@@ -6933,28 +7205,36 @@ native_diag_tracked_slot(const char *name)
  	if (!name)
  		return -1;
  	for (i = 0; i < sizeof(native_diag_tracked) / sizeof(native_diag_tracked[0]); i++)
@@ -397,7 +401,7 @@ index d015dab..f43099c 100644
  }
  
  void
-@@ -7226,6 +7506,103 @@ native_diag_note_exit(int pid, const char *name)
+@@ -6964,6 +7244,103 @@ native_diag_note_exit(int pid, const char *name)
  	if (slot >= 0 && native_diag_tracked_pid[slot] == pid)
  		native_diag_tracked_pid[slot] = 0;
  	native_diag_process_summary();
@@ -501,7 +505,7 @@ index d015dab..f43099c 100644
  }
  volatile int native_owner_cache_stage = 0;
  volatile int native_owner_cache_status = -1;
-@@ -8437,6 +8814,8 @@ load_init_program(proc_t p)
+@@ -8382,6 +8759,8 @@ load_init_program(proc_t p)
  	int data_error = native_owner_data_prepare(p, (user_addr_t)scratch_addr);
  	boot_progress_stage("Data mount returned");
  	if (data_error) panic("offline scratch Data mount failed: %d", data_error);
@@ -511,10 +515,10 @@ index d015dab..f43099c 100644
  	extern int sheng_boot_watchdog_policy(void *, uint64_t);
  	boot_progress_stage("temporary watchdog launch policy enter");
 diff --git a/bsd/kern/kern_exit.c b/bsd/kern/kern_exit.c
-index f0721cc..5ec2380 100644
+index 9f2050b..6746563 100644
 --- a/bsd/kern/kern_exit.c
 +++ b/bsd/kern/kern_exit.c
-@@ -1628,19 +1628,33 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
+@@ -1599,7 +1599,16 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
  	if (p->p_pid > 1) {
  		extern void native_gop_text(unsigned line, const char *text);
  		extern void native_diag_note_exit(int pid, const char *name);
@@ -531,10 +535,7 @@ index f0721cc..5ec2380 100644
  		char ex_text[48];
  		if (exit_reason != OS_REASON_NULL) {
  			snprintf(ex_text, sizeof(ex_text), "EX %d %.12s %x R%u:%llx",
- 			    p->p_pid, nm, rv, exit_reason->osr_namespace,
- 			    (unsigned long long)exit_reason->osr_code);
- 			native_gop_text(20, ex_text);
- 		} else {
+@@ -1610,8 +1619,13 @@ exit_with_reason(proc_t p, int rv, int *retval, boolean_t thread_can_terminate,
  			snprintf(ex_text, sizeof(ex_text), "EX %d %.16s %x",
  			    p->p_pid, nm, rv);
  		}
@@ -550,10 +551,10 @@ index f0721cc..5ec2380 100644
  
  	proc_prepareexit(p, rv, perf_notify);
 diff --git a/osfmk/arm64/sleh.c b/osfmk/arm64/sleh.c
-index 31bad41..d0e815e 100644
+index 005254e..3475003 100644
 --- a/osfmk/arm64/sleh.c
 +++ b/osfmk/arm64/sleh.c
-@@ -62,6 +62,12 @@
+@@ -61,6 +61,12 @@
  #include <vm/vm_fault.h>
  #include <vm/vm_kern.h>
  #include <vm/vm_shared_region.h>
@@ -566,10 +567,10 @@ index 31bad41..d0e815e 100644
  
  #include <sys/errno.h>
  #include <sys/kdebug.h>
-@@ -2475,3 +2481,1276 @@ recoverable_kernel_trap_test(__unused int64_t in, int64_t *out)
- SYSCTL_TEST_REGISTER(recoverable_kernel_trap, recoverable_kernel_trap_test);
+@@ -2247,3 +2253,1276 @@ sleh_invalid_stack(arm_context_t *context, uint32_t esr __unused, vm_offset_t fa
+ 	panic_with_thread_kernel_state("Invalid kernel stack pointer (probable corruption).", &context->ss);
+ }
  
- #endif
 +
 +/* ---------------------------------------------------------------------------------------------------------
 + * The UI trace of the documented boot arguments (boot-ui-focus, -focus2..4, boot-ui-chrono).

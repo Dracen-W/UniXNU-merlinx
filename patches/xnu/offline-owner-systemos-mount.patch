@@ -1,5 +1,5 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
-index 8bba078..5ccf635 100644
+index f41b75b..d1810b3 100644
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
 @@ -98,6 +98,11 @@
@@ -14,16 +14,7 @@ index 8bba078..5ccf635 100644
  #include <sys/exec.h>
  #include <sys/kdebug.h>
  #include <sys/signal.h>
-@@ -183,7 +188,7 @@
- 
- #include "kern_exec_internal.h"
- 
--#include <CodeSignature/Entitlements.h>
-+#include <CoreEntitlements/CoreEntitlements.h>
- 
- #include <mach/exclaves.h>
- 
-@@ -2376,6 +2381,8 @@ encapsulated_binary:
+@@ -2299,6 +2304,8 @@ encapsulated_binary:
  			    KAUTH_FILEOP_EXEC,
  			    (uintptr_t)ndp->ni_vp, 0);
  		}
@@ -32,7 +23,7 @@ index 8bba078..5ccf635 100644
  	}
  bad:
  	proc_transend(p, 0);
-@@ -3545,6 +3552,7 @@ int
+@@ -3377,6 +3384,7 @@ int
  posix_spawn(proc_t ap, struct posix_spawn_args *uap, int32_t *retval)
  {
  	proc_t p = ap;
@@ -40,7 +31,7 @@ index 8bba078..5ccf635 100644
  	user_addr_t pid = uap->pid;
  	int ival[2];            /* dummy retval for setpgid() */
  	char *subsystem_root_path = NULL;
-@@ -5131,7 +5139,12 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
+@@ -4889,7 +4897,12 @@ execve(proc_t p, struct execve_args *uap, int32_t *retval)
  	muap.envp = uap->envp;
  	muap.mac_p = USER_ADDR_NULL;
  	err = __mac_execve(p, &muap, retval);
@@ -54,7 +45,7 @@ index 8bba078..5ccf635 100644
  	return err;
  }
  
-@@ -7013,8 +7026,370 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
+@@ -6748,8 +6761,370 @@ create_unix_stack(vm_map_t map, load_result_t* load_result,
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -426,7 +417,7 @@ index 8bba078..5ccf635 100644
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7461,7 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
+@@ -6821,14 +7196,17 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
@@ -435,9 +426,8 @@ index 8bba078..5ccf635 100644
  
  	/*
  	 * So that init task is set with uid,gid 0 token
-@@ -7096,7 +7471,10 @@ load_init_program_at_path(proc_t p, user_addr_t scratch_addr, const char* path)
  	 */
- 	set_security_token(p, proc_ucred_unsafe(p));
+ 	set_security_token(p);
  
 -	return execve(p, &init_exec_args, retval);
 +	error = execve(p, &init_exec_args, retval);
@@ -447,7 +437,7 @@ index 8bba078..5ccf635 100644
  }
  
  static const char * init_programs[] = {
-@@ -7148,6 +7526,15 @@ load_init_program(proc_t p)
+@@ -6880,6 +7258,15 @@ load_init_program(proc_t p)
  	mach_vm_size_t map_page_size = vm_map_page_size(map);
  
  	(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);
@@ -463,7 +453,7 @@ index 8bba078..5ccf635 100644
  #if CONFIG_MEMORYSTATUS
  	(void) memorystatus_init_at_boot_snapshot();
  #endif /* CONFIG_MEMORYSTATUS */
-@@ -7162,7 +7549,7 @@ load_init_program(proc_t p)
+@@ -6894,7 +7281,7 @@ load_init_program(proc_t p)
  
  		if (is_release_suffix) {
  			printf("load_init_program: attempting to load /sbin/launchd\n");
@@ -472,7 +462,7 @@ index 8bba078..5ccf635 100644
  			if (!error) {
  				return;
  			}
-@@ -7173,7 +7560,7 @@ load_init_program(proc_t p)
+@@ -6905,7 +7292,7 @@ load_init_program(proc_t p)
  			strlcat(launchd_path, launchd_suffix, sizeof(launchd_path));
  
  			printf("load_init_program: attempting to load %s\n", launchd_path);
@@ -481,7 +471,7 @@ index 8bba078..5ccf635 100644
  			if (!error) {
  				return;
  			} else if (error != ENOENT) {
-@@ -7186,7 +7573,7 @@ load_init_program(proc_t p)
+@@ -6918,7 +7305,7 @@ load_init_program(proc_t p)
  	error = ENOENT;
  	for (i = 0; i < sizeof(init_programs) / sizeof(init_programs[0]); i++) {
  		printf("load_init_program: attempting to load %s\n", init_programs[i]);
