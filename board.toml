@@ -8,7 +8,7 @@ soc = "MT6768"
 soc_source = "mt6768"
 description = "Xiaomi Redmi Note 9"
 kit = "merlinx"
-os_profile = "ipados-17.7.11-21H461"
+os_profile = "ios-16.7.16-20H392"
 
 [components]
 include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "AppleKeyStoreState", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52", "GopFramebuffer", "FocalTechTouch"]
@@ -16,18 +16,16 @@ include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "AppleKeyStoreState", "Nati
 # The target is the unchanged iPad7,1 iPadOS 17.7.11 restore image for the
 # first kernel bring-up. The final phone target can switch to iOS later.
 [ipsw]
-url = "https://updates.cdn-apple.com/2025SpringFCS/fullrestores/122-77166/DCA6CFE8-90E9-4B92-880D-3DE171798E40/iPad_Pro_HFR_17.7.11_21H461_Restore.ipsw"
-product = "iPad7,1"
-version = "17.7.11"
-build = "21H461"
-device_class = "j120ap"
-chip_id = 0x8011
-board_id = 12
+url = "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw"
+product = "iPhone10,6"
+version = "16.7.16"
+build = "20H392"
+device_class = "d221ap"
+chip_id = 0x8015
+board_id = 14
 fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustCache"]
 
 [ipsw.sha256]
-"044-76040-038.dmg" = "3f99b859c9728379110b66657c7b15285bcb1925ad8b5726542e2cdcf8b1028d"
-"044-76034-038.dmg" = "b4908cde41d23e6bc05e6af51a2c9eeb00cf0f863a6a18b1600c96a3fd70414f"
 
 [kernel]
 defconfig = "merlinx_defconfig"
@@ -103,6 +101,7 @@ boot_partition_bytes = 67108864
 
 [package.defconfig]
 "ipados-17.7.11-21H461" = "merlinx_defconfig"
+"ios-16.7.16-20H392" = "merlinx_defconfig"
 
 [payload]
 volume = "MERLINX"
@@ -128,8 +127,8 @@ owned_memory_size = "0x50000000"
 cpu_regs = "0,0x700,0x600,0x100,0x200,0x300,0x400,0x500"
 psci_method = "smc"
 packed_data_ramdisk = true
-ipad_identity = true
-chip_id = "0x8011"
+ipad_identity = false
+chip_id = "0x8015"
 root_match_volume_uuid = "04769D26-2CA0-4825-B443-E2E5F88300F2"
 
 [userdata]
@@ -138,7 +137,7 @@ last_lba = 30519543
 lba_bytes = 4096
 windows = [
   { name = "OS", component = "OS" },
-  { name = "SystemOS", component = "Cryptex1,SystemOS" },
+  { name = "SystemOS", component = "Cryptex1,SystemOS", optional = true },
 ]
 
 [firmware]
