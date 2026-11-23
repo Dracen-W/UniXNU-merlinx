@@ -1,7 +1,8 @@
 diff --git a/iokit/DriverKit/IORPC.h b/iokit/DriverKit/IORPC.h
 --- a/iokit/DriverKit/IORPC.h
 +++ b/iokit/DriverKit/IORPC.h
-@@ -222,5 +222,8 @@
+@@ -221,8 +221,11 @@
+ 
  struct IORPC {
  	IORPCMessageMach * message;
  	IORPCMessageMach * reply;
@@ -10,10 +11,13 @@ diff --git a/iokit/DriverKit/IORPC.h b/iokit/DriverKit/IORPC.h
 +#ifdef KERNEL
 +	IORPCMessage     * kernelContent;
 +#endif /* KERNEL */
+ };
+ typedef struct IORPC IORPC;
 diff --git a/iokit/IOKit/IORPC.h b/iokit/IOKit/IORPC.h
 --- a/iokit/IOKit/IORPC.h
 +++ b/iokit/IOKit/IORPC.h
-@@ -222,5 +222,8 @@
+@@ -221,8 +221,11 @@
+ 
  struct IORPC {
  	IORPCMessageMach * message;
  	IORPCMessageMach * reply;
@@ -22,3 +26,5 @@ diff --git a/iokit/IOKit/IORPC.h b/iokit/IOKit/IORPC.h
 +#ifdef KERNEL
 +	IORPCMessage     * kernelContent;
 +#endif /* KERNEL */
+ };
+ typedef struct IORPC IORPC;
