@@ -2,7 +2,7 @@ diff --git a/bsd/vm/vm_unix.c b/bsd/vm/vm_unix.c
 index 8696353..6d6c939 100644
 --- a/bsd/vm/vm_unix.c
 +++ b/bsd/vm/vm_unix.c
-@@ -2225,6 +2225,83 @@ static void shared_region_map_and_slide_cleanup(
+@@ -2225,6 +2225,88 @@ static void shared_region_map_and_slide_cleanup(
  	struct _sr_file_mappings *sr_file_mappings,
  	struct vm_shared_region  *shared_region);
  
@@ -25,7 +25,12 @@ index 8696353..6d6c939 100644
 +#if defined(XNU_OWNER_CACHE_CARRIER_WRONG_UUID) && XNU_OWNER_CACHE_CARRIER_WRONG_UUID
 +	const char *cache_uuid = "9846FE78-2910-4297-AF97-D59BB6F8FC16";
 +#else
-+	const char *cache_uuid = "8846FE78-2910-4297-AF97-D59BB6F8FC16";
++	const char *cache_uuid =
++#ifdef XNU_OWNER_CACHE_VOLUME_UUID
++	    XNU_OWNER_CACHE_VOLUME_UUID;
++#else
++	    "8846FE78-2910-4297-AF97-D59BB6F8FC16";
++#endif
 +#endif
 +#if defined(XNU_OWNER_UNION_SYSTEMOS) && XNU_OWNER_UNION_SYSTEMOS
 +	const char *directory = "/System/Library/Caches/com.apple.dyld";

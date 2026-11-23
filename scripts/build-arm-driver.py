@@ -196,6 +196,16 @@ if component == 'NativeEmmc':
     text = text.replace('constexpr uint32_t kTransferBlocks = 512;', 'constexpr uint32_t kTransferBlocks = 2048;', 1)
     text = text.replace('constexpr unsigned kSpinPolls = 128;', 'constexpr unsigned kSpinPolls = 4096;', 1)
     text = text.replace('SDC_STS_BUSY << 1', 'SDC_STS_BUSY | (SDC_STS_BUSY << 1)', 1)
+    # Accept iOS 16.7.16 (20H392) OS & SystemOS volume UUIDs alongside iPadOS 17.7.11 (21H461)
+    text = text.replace(
+        'if (native_emmc_uuid_equals(uuid, "04769D26-2CA0-4825-B443-E2E5F88300F2"))',
+        'if (native_emmc_uuid_equals(uuid, "04769D26-2CA0-4825-B443-E2E5F88300F2") || native_emmc_uuid_equals(uuid, "DADD93F8-DBBF-4B17-A1DF-0F11E64172F7"))',
+        1,
+    ).replace(
+        'if (native_emmc_uuid_equals(uuid, "8846FE78-2910-4297-AF97-D59BB6F8FC16"))',
+        'if (native_emmc_uuid_equals(uuid, "8846FE78-2910-4297-AF97-D59BB6F8FC16") || native_emmc_uuid_equals(uuid, "96096B28-B6DC-4BC7-9D3A-2632A0FE53F1"))',
+        1,
+    )
     source = out / 'NativeEmmc.cpp'
     source.write_text(text)
 if component == 'NativeRamBlock':

@@ -23,7 +23,7 @@ header = '''// Generated minimal ApplePMGR ABI for the merlinx bring-up provider
 #include <IOKit/IOPMGR.h>
 class ApplePMGR : public IOPMGR {
  OSDeclareAbstractStructors(ApplePMGR)
- unsigned char originalPrivate[0x6968-sizeof(IOPMGR)];
+ unsigned char originalPrivate[0x36968-sizeof(IOPMGR)];
 public:
 '''
 guards = ''
@@ -35,7 +35,7 @@ for slot in range(177, 325):
     else:
         header += f' virtual void opaque{slot}() = 0;\n'
         guards += f' void opaque{slot}() override {{ unavailable({slot}); }}\n'
-header += '};\nstatic_assert(sizeof(ApplePMGR)==0x6968,"ApplePMGR ABI size");\n'
+header += '};\nstatic_assert(sizeof(ApplePMGR)==0x36968,"ApplePMGR ABI size");\n'
 (OUT / 'OriginalPMGRABI.h').write_text(header)
 (OUT / 'GuardedPMGRSlots.inc').write_text(guards)
 
@@ -77,7 +77,7 @@ bindings = {
     '__ZN9ApplePMGRD2Ev': 0xfffffff004657164,
     '__ZN9ApplePMGR10gMetaClassE': 0xfffffff006a0b410,
     '_sheng_original_pmgr_nub_create': 0xfffffff0046832d4,
-    '_sheng_original_pmgr_nub_read': 0xfffffff004685724,
+    '_sheng_original_pmgr_nub_read': 0xfffffff004685734,
     '_sheng_original_pmgr_nub_write': 0xfffffff004683dbc,
 }
 asm = OUT / 'original-bindings.S'
