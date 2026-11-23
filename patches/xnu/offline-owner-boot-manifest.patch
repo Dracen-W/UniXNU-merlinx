@@ -1,6 +1,6 @@
 --- a/iokit/bsddev/IOKitBSDInit.cpp
 +++ b/iokit/bsddev/IOKitBSDInit.cpp
-@@ -566,6 +566,69 @@
+@@ -566,6 +566,82 @@
  	return result;
  }
  
@@ -39,11 +39,24 @@
 +	SHA384_Final(digest, &context);
 +	IORegistryEntry *chosen = IORegistryEntry::fromPath("/chosen", gIODTPlane);
 +	if (!chosen) { native_owner_boot_manifest_status = 2; return 0; }
-+	// Never replace an existing firmware/Apple identity with an owner identity.
-+	if (chosen->getProperty("boot-manifest-hash") || chosen->getProperty("owner-boot-manifest-domain")) {
++	// Never replace a non-zero firmware/Apple identity; allow replacing an all-zero ADT placeholder.
++	if (chosen->getProperty("owner-boot-manifest-domain")) {
 +		chosen->release();
 +		native_owner_boot_manifest_status = 3;
 +		return 0;
++	}
++	if (OSData *existing = OSDynamicCast(OSData, chosen->getProperty("boot-manifest-hash"))) {
++		const uint8_t *eb = reinterpret_cast<const uint8_t *>(existing->getBytesNoCopy());
++		unsigned int elen = existing->getLength();
++		bool nonzero = false;
++		for (unsigned int ei = 0; eb && ei < elen; ++ei) {
++			if (eb[ei] != 0) { nonzero = true; break; }
++		}
++		if (nonzero) {
++			chosen->release();
++			native_owner_boot_manifest_status = 3;
++			return 0;
++		}
 +	}
 +	OSData *value = OSData::withBytes(digest, sizeof(digest));
 +	OSData *tag = OSData::withBytes(domain, sizeof(domain));

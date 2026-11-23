@@ -1925,6 +1925,8 @@ static IOReturn wrappedRegister(IOUserClient *client,mach_port_t port,UInt32 typ
     return status;
 }
 static void interpose(IOUserClient *client,int pid) {
+    /* Disabled: lockless vtable mutation on IOMobileFramebufferUserClient is unsafe under 8-core SMP. */
+    (void)client;(void)pid;return;
 #if __has_feature(ptrauth_calls)
     (void)client;(void)pid;return;
 #endif

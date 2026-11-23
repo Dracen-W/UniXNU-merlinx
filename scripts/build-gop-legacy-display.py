@@ -21,6 +21,8 @@ sys.path.insert(0, str(ROOT / 'kits/XnuPrelink'))
 sys.path.insert(0, str(ROOT / 'scripts'))
 from native_prelink import macho
 from kernel_target import TRIPLE
+from dw_config import load_resolved_config, cflags_for
+DW_CFG = load_resolved_config(ROOT)
 
 
 def run(command, **kwargs):
@@ -144,7 +146,10 @@ for i in range(168, 338):
     elif i == 188:
         header += ' virtual IOReturn getDotPitch(uint32_t *);\n'
     elif i == 212:
-        header += ' virtual IOReturn supportedFrameInfo(uint32_t,uint32_t *,char *,uint32_t *)=0;\n'
+        if DW_CFG.get('CONFIG_XNU_DW_DISPLAY_IOS16_SFI_ABI', True):
+            header += ' virtual IOReturn supportedFrameInfo(uint32_t,uint32_t *,char *)=0;\n'
+        else:
+            header += ' virtual IOReturn supportedFrameInfo(uint32_t,uint32_t *,char *,uint32_t *)=0;\n'
     elif i == 246:
         header += ' virtual void getDisplayDimensions(uint32_t *,uint32_t *);\n'
     elif i == 276:
@@ -387,8 +392,8 @@ def compile_cxx_with_xnu_record(src_path: Path, dst_obj: Path, extra_flags=None)
 
 hid_obj = OUT / 'MerlinxHidInput.o'
 compile_cxx_with_xnu_record(ROOT / 'package/MerlinxHidInput.cpp', hid_obj)
-compile_cxx_with_xnu_record(ROOT / 'package/MerlinxLegacyDisplay.cpp', OUT / 'MerlinxLegacyDisplay.o')
-compile_cxx_with_xnu_record(FTS_DIR / 'FtsProbe.cpp', OUT / 'FtsProbe.o')
+compile_cxx_with_xnu_record(ROOT / 'package/MerlinxLegacyDisplay.cpp', OUT / 'MerlinxLegacyDisplay.o', extra_flags=cflags_for('DISPLAY', DW_CFG))
+compile_cxx_with_xnu_record(FTS_DIR / 'FtsProbe.cpp', OUT / 'FtsProbe.o', extra_flags=cflags_for('FOCALTECH', DW_CFG))
 
 obj = OUT / 'NativeLegacyDisplay.o'
 symbols, compiled = extract_vtable_and_undef(obj, '__ZTV19NativeLegacyDisplay', 338)
@@ -443,7 +448,7 @@ run(['xcrun', 'clang', '-target', TRIPLE, '-isysroot', sdk, '-Werror',
 c_common = [
     'xcrun', 'clang', '-target', TRIPLE, '-isysroot', sdk,
     '-std=c99', '-O2', '-fno-builtin', '-fno-common', '-mkernel',
-    '-Wall', '-Wextra', '-Werror', '-I', str(FTS_DIR),
+    '-Wall', '-Wextra', '-Werror', '-I', str(FTS_DIR), *cflags_for('FOCALTECH', DW_CFG),
 ]
 run([*c_common, '-c', FTS_DIR / 'FtsProtocol.c', '-o', OUT / 'FtsProtocol.o'])
 run([*c_common, '-c', FTS_DIR / 'FtsTouchCore.c', '-o', OUT / 'FtsTouchCore.o'])

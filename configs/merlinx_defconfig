@@ -1,4 +1,6 @@
-# Kernel configuration of the merlinx bring-up image. CONFIG_XNU_<NAME> becomes XNU_<NAME>.
+# Board-level general kernel configuration for Xiaomi Redmi Note 9 (merlinx).
+# OS-specific UUIDs and CONFIG_XNU_DW_* overrides live in configs/merlinx-iOS16.7.config
+# and take final precedence over this file.
 
 CONFIG_XNU_BUILD_ARCHIVES=y
 CONFIG_XNU_SOURCE_CORECRYPTO14=y

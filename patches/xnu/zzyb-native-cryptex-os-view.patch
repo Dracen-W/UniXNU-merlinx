@@ -243,9 +243,9 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
 +	    "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
 +	    "<plist version=\"1.0\"><dict>"
-+	    "<key>LastSystemVersion</key><string>21H461</string>"
-+	    "<key>DMLastMigrationResults</key><dict><key>buildVersion</key><string>21H461</string><key>success</key><true/></dict>"
-+	    "<key>DMUserDataDisposition</key><dict><key>SyntheticDidUpgrade</key><false/><key>buildVersion</key><string>21H461</string></dict>"
++	    "<key>LastSystemVersion</key><string>20H392</string>"
++	    "<key>DMLastMigrationResults</key><dict><key>buildVersion</key><string>20H392</string><key>success</key><true/></dict>"
++	    "<key>DMUserDataDisposition</key><dict><key>SyntheticDidUpgrade</key><false/><key>buildVersion</key><string>20H392</string></dict>"
 +	    "</dict></plist>\n";
 +	static const char sb_xml[] =
 +	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -293,7 +293,7 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +	    "<key>com.apple.OTATaskingAgent</key><true/>"
 +	    "<key>com.apple.CommCenter</key><true/>"
 +	    "<key>com.apple.purplebuddy</key><true/>"
-+	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/><key>com.apple.privacyaccountingd</key><true/><key>com.apple.chronod</key><true/><key>com.apple.cloudd</key><true/><key>com.apple.MobileSMS</key><true/><key>com.apple.maild</key><true/><key>com.apple.amsaccountsd</key><true/><key>com.apple.amsengagementd</key><true/><key>com.apple.locationd.pipelined</key><true/><key>com.apple.accessoryupdaterd</key><true/>"
++	    "<key>com.apple.fairplayd.A2</key><true/><key>com.apple.iconservices.iconservicesagent</key><true/><key>com.apple.ReportMemoryException</key><true/><key>com.apple.privacyaccountd</key><true/><key>com.apple.privacyaccountingd</key><true/><key>com.apple.chronod</key><true/><key>com.apple.cloudd</key><true/><key>com.apple.MobileSMS</key><true/><key>com.apple.maild</key><true/><key>com.apple.amsaccountsd</key><true/><key>com.apple.amsengagementd</key><true/><key>com.apple.locationd.pipelined</key><true/><key>com.apple.accessoryupdaterd</key><true/><key>com.apple.contextstored</key><true/><key>com.apple.donotdisturbd</key><true/><key>com.apple.locationd</key><true/><key>com.apple.WirelessRadioManager</key><true/><key>com.apple.WirelessRadioManagerd</key><true/><key>com.apple.aggregated</key><true/>"
 +	    "</dict></plist>\n";
 +	static const char pb_xml[] =
 +	    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"

@@ -571,26 +571,43 @@ if [ "$NATIVE_ARCH_TIMER" = 1 ] && [ "${XNU_ARMCPU:-0}" != 1 ]; then
   echo 'Architectural timer entry requires the actual ArmCpu interrupt provider' >&2
   exit 1
 fi
-EXTRA_MAKE_ARGS+=("start.o_SFLAGS_ADD=-DXNU_NATIVE_ARCH_TIMER=$NATIVE_ARCH_TIMER")
-NATIVE_TIMER_STAMP=$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/.native-arch-timer-mode
-if [ "$(cat "$NATIVE_TIMER_STAMP" 2>/dev/null || echo 0)" != "$NATIVE_ARCH_TIMER" ]; then
-  rm -f "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/start.o"
-  printf '%s\n' "$NATIVE_ARCH_TIMER" > "$NATIVE_TIMER_STAMP"
-fi
 NATIVE_PAN=${XNU_NATIVE_PAN:-0}
 if [ "$NATIVE_PAN" != 0 ] && [ "$NATIVE_PAN" != 1 ]; then
   echo 'XNU_NATIVE_PAN must be 0 or 1' >&2
   exit 1
+fi
+START_SFLAGS="-DXNU_NATIVE_ARCH_TIMER=$NATIVE_ARCH_TIMER -DXNU_NATIVE_PAN=$NATIVE_PAN"
+if [ "$NATIVE_PAN" = 1 ]; then
+  START_SFLAGS="$START_SFLAGS -march=armv8.1-a"
+fi
+EXTRA_MAKE_ARGS+=("start.o_SFLAGS_ADD=$START_SFLAGS")
+NATIVE_TIMER_STAMP=$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/.native-arch-timer-mode
+if [ "$(cat "$NATIVE_TIMER_STAMP" 2>/dev/null || echo 0)" != "$NATIVE_ARCH_TIMER:$NATIVE_PAN" ]; then
+  rm -f "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/start.o"
+  printf '%s\n' "$NATIVE_ARCH_TIMER:$NATIVE_PAN" > "$NATIVE_TIMER_STAMP"
 fi
 EXTRA_CFLAGS="$EXTRA_CFLAGS -DXNU_NATIVE_PAN=$NATIVE_PAN"
 if [ "$NATIVE_PAN" = 1 ]; then
   EXTRA_MAKE_ARGS+=("copyio.o_CFLAGS_ADD=-march=armv8.1-a")
   EXTRA_MAKE_ARGS+=("pcb.o_CFLAGS_ADD=-march=armv8.1-a")
   EXTRA_MAKE_ARGS+=("platform_tests.o_CFLAGS_ADD=-march=armv8.1-a")
+  EXTRA_MAKE_ARGS+=("bcopy.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
+  EXTRA_MAKE_ARGS+=("copyio.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
+  EXTRA_MAKE_ARGS+=("locore.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
+  EXTRA_MAKE_ARGS+=("cswitch.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
 else
   EXTRA_MAKE_ARGS+=("copyio.o_CFLAGS_ADD=")
   EXTRA_MAKE_ARGS+=("pcb.o_CFLAGS_ADD=")
   EXTRA_MAKE_ARGS+=("platform_tests.o_CFLAGS_ADD=")
+  EXTRA_MAKE_ARGS+=("bcopy.o_SFLAGS_ADD=")
+  EXTRA_MAKE_ARGS+=("copyio.o_SFLAGS_ADD=")
+  EXTRA_MAKE_ARGS+=("locore.o_SFLAGS_ADD=")
+  EXTRA_MAKE_ARGS+=("cswitch.o_SFLAGS_ADD=")
+fi
+NATIVE_PAN_STAMP=$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/.native-pan-asm-mode
+if [ "$(cat "$NATIVE_PAN_STAMP" 2>/dev/null || echo none)" != "$NATIVE_PAN" ]; then
+  rm -f "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/bcopy.o"         "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/copyio.o"         "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/locore.o"         "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/cswitch.o"
+  printf '%s\n' "$NATIVE_PAN" > "$NATIVE_PAN_STAMP"
 fi
 if [ "${XNU_SOURCE_CORECRYPTO14:-0}" = 1 ]; then
   EXTRA_CFLAGS="$EXTRA_CFLAGS -DXNU_SOURCE_CORECRYPTO14=1"

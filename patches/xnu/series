@@ -19,5 +19,3 @@ zzzd-owner-diag-exec-ps.patch
 zzze-owner-diag-ui-trace.patch
 zzzg-musb-build-fixes.patch
 zzzh-merlinx-osd-and-usb-cmds.patch
-zzzi-merlinx-debug-stall-smp.patch
-zzzk-merlinx-smp-breadcrumbs.patch

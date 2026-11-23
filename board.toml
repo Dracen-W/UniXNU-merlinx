@@ -13,8 +13,7 @@ os_profile = "ios-16.7.16-20H392"
 [components]
 include = ["ArmCpu", "ArmDTPlatform", "SoftwareAES", "AppleKeyStoreState", "NativeEmmc", "RamBlock", "DarwinBoot", "XnuPrelink", "MaliG52", "GopFramebuffer", "FocalTechTouch"]
 
-# The target is the unchanged iPad7,1 iPadOS 17.7.11 restore image for the
-# first kernel bring-up. The final phone target can switch to iOS later.
+# Target OS: iPhone10,6 (d221ap) iOS 16.7.16 (20H392).
 [ipsw]
 url = "https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw"
 product = "iPhone10,6"
@@ -33,7 +32,7 @@ fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustC
 defconfig = "merlinx_defconfig"
 # Generic source-kernel archives only. merlinx-specific storage, display and
 # GPU providers are added in later stages.
-config_fragments = ["soc:configs/mt6768.config"]
+config_fragments = ["soc:configs/mt6768.config", "device:configs/merlinx-iOS16.7.config"]
 patch_series = ["os:patches/xnu/series", "soc:patches/xnu/series", "device:patches/xnu/series"]
 archives = [
   "build-corecrypto-14.py",
@@ -102,7 +101,7 @@ title = "UniXNU"
 dram_size = "0x100000000"
 panic_screen = true
 timeout = 3
-kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=3", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "fts-touch=3", "sheng-touch-hid=1", "sheng-fb-diff=1", "smp=1", "cpus=8"]
+kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=3", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "fts-touch=3", "sheng-touch-hid=1", "sheng-fb-diff=1", "smp=1", "cpus=8", "unentitled_ios_sim_launch=1", "wdt_test=no_user_checkin"]
 # 21H461 text_fixups cleared; populate only if 20H392 dyld_shared_cache needs fixups
 text_fixups = []
 trust_cache_sha256 = [

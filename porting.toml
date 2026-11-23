@@ -3,10 +3,10 @@ schema_version = 1
 [device]
 name = "merlinx"
 soc = "MT6768"
-os_profile = "ipados-17.7.11-21H461"
+os_profile = "ios-16.7.16-20H392"
 # Related repositories (rendered by the device documentation workflow):
 #   UniXNU-merlinx, uefi-merlinx, UniXNU-MT6768-common, NativeEmmc, Mali-G52, MaliMetal
-summary = "Redmi Note 9 bring-up: UniXNU boots iPadOS 17.7.11 21H461 from p33 through UEFI, native eMMC and a Data seed, reaches launchd and draws the Lock Screen and Dock; the MT6768 OVL is reprogrammed to remove the one-frame offset, the FT8719 touch driver injects HID contacts, and the kernel exposes an EP0 MUSB log/command channel. PosterBoard, userland GPU, Wi-Fi, audio and battery reporting remain incomplete."
+summary = "Redmi Note 9 (merlinx, MT6768) iOS 16.7.16 (20H392) bring-up: boots 8-core XNU-8796 from p33 through UEFI, NativeEmmc (DMA 41.2 MB/s), NativeLegacyDisplay (backboardd actively swapping 1080x2340 frames), FocalTech FT8719 SPI0 touch, and Mali-G52 kernel service (M1/M2 ABI verified) with unified CONFIG_XNU_DW_* layering (mt6768.config -> merlinx_defconfig -> merlinx-iOS16.7.config). MaliMetal userland _MTLDevice ABI fix is implemented and awaiting rebuilt ios16 addon verification on device; Wi-Fi, audio, and battery remain pending."
 repositories = [
   { name = "UniXNU-merlinx", url = "https://github.com/Dracen-W/UniXNU-merlinx", role = "device" },
   { name = "uefi-merlinx", url = "https://github.com/Dracen-W/uefi-merlinx", role = "firmware" },
@@ -22,12 +22,12 @@ id = "configuration"
 status = "device-verified"
 components = ["ArmDTPlatform", "ArmCpu", "SoftwareAES", "AppleKeyStoreState", "DarwinBoot", "XnuPrelink"]
 paths = ["board.toml", "configs/**", "components.toml", ".github/**"]
-inputs = ["MT6768 board resources, PMIC keys, p33 boot partition and the iPadOS 17.7.11 21H461 restore profile."]
-configuration = ["board.toml selects merlinx_defconfig, the iPad7,1 restore profile, the p33 boot layout and the native eMMC root path."]
+inputs = ["MT6768 board resources, PMIC keys, p33 boot partition and the iPhone10,6 iOS 16.7.16 (20H392) restore profile."]
+configuration = ["board.toml layers soc:configs/mt6768.config -> configs/merlinx_defconfig -> configs/merlinx-iOS16.7.config (final OS override for APFS UUIDs and all CONFIG_XNU_DW_* component parameters) via scripts/dw_config.py."]
 procedure = ["Build the firmware, kernel, payload and boot image, then flash the image to p33 with fastboot."]
 findings = ["The bootloader rejects fastboot boot, so every test image is written to p33 with fastboot flash boot."]
 completion = ["Source pins resolve, the defconfig applies and the selected board tests boot from p33."]
-limits = ["Only the iPadOS 17.7.11 profile is configured. The final phone target needs a separate OS profile."]
+limits = ["iOS 16.7.16 (20H392) is active on this branch while iPadOS 17.7.11 (21H461) remains on the iPadOS branch; full end-to-end app and stress testing is not yet complete."]
 next_action = ["Keep the board keys and OS profile synchronized with the packaging manifest."]
 evidence = [
   { kind = "source", reference = "board.toml", result = "Board name, SoC, OS profile, components and package defconfig are declared." },
@@ -129,7 +129,7 @@ completion = ["Touch or buttons produce stable HID events in userland."]
 limits = ["Real-hardware touch coordinate orientation and latency remain to be confirmed on the phone."]
 next_action = ["Verify FT8719 firmware download and Lock Screen swipe-to-unlock on hardware."]
 evidence = [
-  { kind = "source", reference = "drivers/FocalTechTouch/FtsProbe.cpp", result = "Staged FT8719 SPI probe, firmware loader and HID contact snapshot are wired to the board SPI0 and NativeHidInput bridge." },
+  { kind = "source", reference = "https://github.com/Dracen-W/FocalTechTouch-FT8719/blob/main/FtsProbe.cpp", result = "Staged FT8719 SPI probe, firmware loader and HID contact snapshot are wired to the board SPI0 and NativeHidInput bridge." },
 ]
 
 [[area]]
@@ -140,12 +140,12 @@ paths = ["components.toml", "drivers/MaliG52/**", "drivers/MaliMetal/**", "scrip
 inputs = ["Mali-G52 r1p0 at 0x13040000, MT6358 VGPU/VSRAM via pwrap WACS2, and the SPM, INFRACFG, topckgen and mfgcfg clock and power windows.", "NativeMali fixed external-method ABI and the MaliMetal MM3 pan_kmod seam."]
 configuration = ["MaliG52 is selected by board.toml and components.toml. The kernel personality matches mediatek,mali. build-mali-g52.py is invoked with --m2-writes --m3-writes --m4-writes --m6-writes so power, reset, MMU and job-write stages are compiled in. The IOKit glue, archive layout and build integration follow the official Adreno740 driver as the reference implementation; the Mali register, power and clock facts remain from MediaTek and panfrost sources. MaliMetal is the userland Metal/PanVK frontend and is not yet selected by the kernel build."]
 procedure = ["Build the kernel, build a payload with the Mali diagnostic image, flash it to p33 and read the MALI status lines through the GOP framebuffer.", "For the userland path, build PanVK with the MaliMetal patch series and open the NativeMali service from the MaliMetal bundle."]
-findings = ["The kernel matches the Mali provider and maps all six windows. GICD_PIDR2 reads 0x3b, proving the physical MMIO path. PMIC PSEQ_ID reads 0x0800, proving pwrap reads. M2 power/clock/domain setup completes, the M3 GPU reset and M4 MMU initialization run, and the M6 job-write stage is enabled.", "GPU_ID reads 0x74021000, which masks to product 0x7002 (Mali-G52). MALI RC is 0, and the GPU service publishes its device state. No GPU job, completed fence, PanVK device or userland Metal device has run yet.", "MaliMetal contains the host-tested NativeMali client and the MM3 device/sync patch series; the mesa-panvk CI job compiles the seam but the NativeMali IOUserClient is not installed."]
+findings = ["Mali-G52 kernel service (849 MHz, M2/M3/M4/M6 writes) and MaliMetal are confirmed working on iPadOS 17.7.11 (not yet fully stress-tested).", "On iOS 16.7.16 (20H392), Mali-G52 boots cleanly (GPU_ID 0x74021000, MALI M1 QUERY OK, MALI M2 INFO OK) for mediaserverd and backboardd.", "Root-caused iOS 16 ERR0_null in MaliMetal NativeBridgeMetalFrontend.mm (hardcoded 536-byte iPadOS 17 _MTLDevice size assert) and parameterized it via CONFIG_XNU_DW_MALIMETAL_MTLDEVICE_SIZE=0."]
 completion = ["M2 completes, GPU_ID reads 0x70021000 with the expected feature and present masks, and a bounded GPU submission returns a completed fence."]
 limits = ["The kernel path is confirmed through reset and MMU setup, but no job/fence has completed. The NativeMali IOUserClient and service are not installed in the current boot image, so MM4 cannot create a PanVK device on hardware. PanVK's 144 MB JM indirect buffer also exceeds the current 128 MB NativeMali per-BO limit. Userland display remains at IOMFB_FDR_loader exit 1."]
 next_action = ["Build and install the NativeMali IOUserClient, lower or extend the PanVK indirect allocation, cross-build the target PanVK dylib, then run one bounded PanVK job and record its fence."]
 evidence = [
-  { kind = "source", reference = "drivers/MaliG52/xnu/NativeMaliGpuService.cpp", result = "The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages." },
+  { kind = "source", reference = "https://github.com/Dracen-W/Mali-G52/blob/main/xnu/NativeMaliGpuService.cpp", result = "The IOKit service matches the ADT Mali node, maps the GPU and power windows and exposes the diagnostic stages." },
   { kind = "source", reference = "components.toml", result = "The MaliG52 component pins revision be5ed4437fed98def5b9e392f9fa4da790b341e1 and the M2/M3/M4/M6 build recipe." },
   { kind = "device", reference = "https://github.com/Dracen-W/UniXNU-merlinx", command = "fastboot flash boot out/merlinx-uefi-emmc-mali-m4m6.img", revision = "22f479e03dcdf22006415cb22300f509faa75bbf", result = "MALI RC 0; GPU_ID 0x74021000; M3 reset, M4 MMU and M6 job-write stages enabled." },
   { kind = "host", reference = "https://github.com/Dracen-W/MaliMetal/actions/runs/41444900463", command = "tests/run.sh; meson setup build-vk ...; ninja -C build-vk src/panfrost/vulkan/libvulkan_panfrost.so", revision = "df45b652c8d321c4a98d4195c8eb47896c62072d", result = "All five jobs passed, including the full mesa-panvk compile of the 0001-0006 patch series." },

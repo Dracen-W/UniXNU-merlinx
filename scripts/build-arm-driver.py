@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 from kernel_target import ARCH, TRIPLE, check_object
+from dw_config import load_resolved_config, cflags_for
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -67,147 +68,32 @@ if args.negative_aes_kat:
     (out / 'OriginalAESABI.h').write_bytes(source.with_name('OriginalAESABI.h').read_bytes())
     source = out / 'NativeAES.cpp'
     source.write_text(text.replace(marker, '0x77,0x49,0xab,0xac'))
-if component == 'NativeEmmc':
-    # Stage a build-time copy of NativeEmmc.cpp into build/native-emmc/ so the
-    # drivers/NativeEmmc submodule stays 100% clean while eliminating the
-    # unconditional per-FIFO-word IODelay(1) bottleneck (160 ms -> <2 ms per 64 KiB read).
+dw_cfg = load_resolved_config(ROOT)
+if component == 'NativeLegacyDisplay' and dw_cfg.get('CONFIG_XNU_DW_DISPLAY_IOS16_SFI_ABI', True):
+    # Stage a build-time copy of NativeLegacyDisplay.cpp into build/native-legacy-display/
+    # so the external drivers/GopFramebuffer submodule stays 100% clean.
+    # iOS 16.7.16 (20H392) IOMobileFramebufferUserClient selector 74 calls slot 212
+    # (supportedFrameInfo) with only 3 explicit arguments (index, count, key); x4 still
+    # holds IOMobileFramebufferUserClient*. The upstream iPadOS 17 4-arg implementation
+    # wrote *mask=0 (str wzr, [x4]), zeroing the low 32 bits of the client's vptr.
     text = source.read_text()
-    text = text.replace(
-        'constexpr uint32_t kTransferBlocks = 128;',
-        'constexpr uint32_t kTransferBlocks = 2048;',
-        1,
+    old_sfi = (
+        '    IOReturn supportedFrameInfo(uint32_t,uint32_t *count,char *key,uint32_t *mask) override {\n'
+        '        if(!count || !key || !mask)return kIOReturnBadArgument;\n'
+        '        *count=0;*mask=0;bzero(key,64);return kIOReturnUnsupported;\n'
+        '    }'
     )
-    old_pio_loop = """  uint32_t got = 0;
-  unsigned idle = 0;
-  while (got < total) {
-    status = read32(base, MSDC_INT);
-    if (status & MSDC_INT_ERROR) {
-      *failure = 4;
-      return false;
-    }
-    uint32_t available = read32(base, MSDC_FIFOCS) & MSDC_FIFOCS_RX_MASK;
-    uint32_t before = got;
-    while (available >= 4 && got + 4 <= total) {
-      uint32_t word = read32(base, MSDC_RXDATA);
-      out[got + 0] = static_cast<uint8_t>(word);
-      out[got + 1] = static_cast<uint8_t>(word >> 8);
-      out[got + 2] = static_cast<uint8_t>(word >> 16);
-      out[got + 3] = static_cast<uint8_t>(word >> 24);
-      got += 4;
-      available -= 4;
-    }
-    if ((status & MSDC_INT_XFER_COMPL) && got == total) {
-      clearStatus(base, status & MSDC_INT_XFER_COMPL);
-      break;
-    }
-    if (got != before) {
-      idle = 0;
-    } else if (++idle > 200000) {
-      *failure = 5;
-      return false;
-    }
-    IODelay(1);
-  }"""
-    new_pio_loop = """  for (unsigned clrSpin = 0; clrSpin < 100000U && (read32(base, MSDC_FIFOCS) & MSDC_FIFOCS_CLR); ++clrSpin) {
-  }
-  uint32_t got = 0;
-  unsigned idle = 0;
-  while (got < total) {
-    uint32_t available = read32(base, MSDC_FIFOCS) & MSDC_FIFOCS_RX_MASK;
-    uint32_t before = got;
-    while (available >= 4 && got + 4 <= total) {
-      uint32_t word = read32(base, MSDC_RXDATA);
-      out[got + 0] = static_cast<uint8_t>(word);
-      out[got + 1] = static_cast<uint8_t>(word >> 8);
-      out[got + 2] = static_cast<uint8_t>(word >> 16);
-      out[got + 3] = static_cast<uint8_t>(word >> 24);
-      got += 4;
-      available -= 4;
-    }
-    if (got >= total) {
-      break;
-    }
-    if (got != before) {
-      idle = 0;
-      continue;
-    }
-    status = read32(base, MSDC_INT);
-    if (status & MSDC_INT_ERROR) {
-      *failure = 4;
-      return false;
-    }
-    if (++idle > 2000000U) {
-      *failure = 5;
-      return false;
-    }
-    if ((idle & 63U) == 0U) {
-      IODelay(1);
-    }
-  }
-  for (unsigned xferSpin = 0; xferSpin < 200000U; ++xferSpin) {
-    status = read32(base, MSDC_INT);
-    if (status & (MSDC_INT_XFER_COMPL | MSDC_INT_ERROR)) {
-      break;
-    }
-    if ((xferSpin & 15U) == 15U) {
-      IODelay(1);
-    }
-  }
-  if (status & MSDC_INT_ERROR) {
-    *failure = 4;
-    return false;
-  }"""
-    if old_pio_loop in text:
-        text = text.replace(old_pio_loop, new_pio_loop, 1)
-    old_write_loop = """    for (uint32_t index = 0; index < n; index++) {
-      uint64_t offset = (done + index) * 512;
-      if (buffer->writeBytes(offset, bounce + index * 512, 512) != 512) {
-        result = kIOReturnIOError;
-        break;
-      }
-    }"""
-    new_write_loop = """    IOByteCount chunkBytes = static_cast<IOByteCount>(n) * 512;
-    if (buffer->writeBytes(done * 512, bounce, chunkBytes) != chunkBytes) {
-      result = kIOReturnIOError;
-      break;
-    }"""
-    if old_write_loop in text:
-        text = text.replace(old_write_loop, new_write_loop, 1)
-    # The current submodule routes every empty-FIFO wait through pollPause().
-    # Sleep only once per 64 consecutive empty polls instead of once per poll.
-    old_poll_pause = """static inline void pollPause(unsigned iteration)
-{
-  if (iteration < kSpinPolls) {
-    __asm__ volatile("yield" ::: "memory");
-  } else {
-    IODelay(1);
-  }
-}"""
-    new_poll_pause = """static inline void pollPause(unsigned iteration)
-{
-  if ((iteration & ((kSpinPolls / 2U) - 1U)) != 0U) {
-    __asm__ volatile("yield" ::: "memory");
-  } else {
-    IODelay(1);
-  }
-}"""
-    if old_poll_pause in text:
-        text = text.replace(old_poll_pause, new_poll_pause, 1)
-    text = text.replace('constexpr uint32_t kTransferBlocks = 512;', 'constexpr uint32_t kTransferBlocks = 2048;', 1)
-    text = text.replace('constexpr unsigned kSpinPolls = 128;', 'constexpr unsigned kSpinPolls = 4096;', 1)
-    text = text.replace('SDC_STS_BUSY << 1', 'SDC_STS_BUSY | (SDC_STS_BUSY << 1)', 1)
-    # Accept iOS 16.7.16 (20H392) OS & SystemOS volume UUIDs alongside iPadOS 17.7.11 (21H461)
-    text = text.replace(
-        'if (native_emmc_uuid_equals(uuid, "04769D26-2CA0-4825-B443-E2E5F88300F2"))',
-        'if (native_emmc_uuid_equals(uuid, "04769D26-2CA0-4825-B443-E2E5F88300F2") || native_emmc_uuid_equals(uuid, "DADD93F8-DBBF-4B17-A1DF-0F11E64172F7"))',
-        1,
-    ).replace(
-        'if (native_emmc_uuid_equals(uuid, "8846FE78-2910-4297-AF97-D59BB6F8FC16"))',
-        'if (native_emmc_uuid_equals(uuid, "8846FE78-2910-4297-AF97-D59BB6F8FC16") || native_emmc_uuid_equals(uuid, "96096B28-B6DC-4BC7-9D3A-2632A0FE53F1"))',
-        1,
+    new_sfi = (
+        '    IOReturn supportedFrameInfo(uint32_t,uint32_t *count,char *key) override {\n'
+        '        if(!count || !key)return kIOReturnBadArgument;\n'
+        '        *count=0;bzero(key,64);return kIOReturnUnsupported;\n'
+        '    }'
     )
-    source = out / 'NativeEmmc.cpp'
-    source.write_text(text)
+    if old_sfi not in text:
+        raise SystemExit('Expected 4-arg supportedFrameInfo not found in NativeLegacyDisplay.cpp')
+    staged = out / 'NativeLegacyDisplay.cpp'
+    staged.write_text(text.replace(old_sfi, new_sfi, 1))
+    source = staged
 if component == 'NativeRamBlock':
     # Stage a fresh build-time copy of drivers/RamBlock into build/ram-block/src/
     # and apply patches/ramblock/sparse-hash64.patch before compiling.
@@ -264,11 +150,11 @@ if component == 'NativeUfs':
     command += ['-I', str(ROOT / 'kits/VerifiedRoot/include'), '-I', str(ROOT / 'drivers/VirtioMmioBlock'),
                 '-DNATIVE_VERIFIED_BLOCK=1', '-DNATIVE_VERIFIED_BLOCK_MULTI_POLICY=1', '-mgeneral-regs-only']
 if component == 'NativeEmmc':
-    command += ['-mgeneral-regs-only']
+    command += ['-mgeneral-regs-only', *cflags_for('NATIVEEMMC', dw_cfg)]
 if component=='NativeOfflineGPU':
     command += ['-I',str(ROOT/'drivers/VirtioMmioConsole')]
 if component in ('NativeLegacyDisplay','NativeHidInput'):
-    command += ['-I', str(out)]
+    command += ['-I', str(out), '-I', str(ROOT / 'drivers/GopFramebuffer')]
 if component == 'NativeAdreno':
     command += ['-I', str(ROOT / 'kits/ArmSmmu4K'), '-I', str(ROOT / 'kits/AdrenoPM4'),
                 '-I', str(ROOT / 'kits/sheng'), '-I', str(ROOT / 'kits/Sm8550Platform'), '-I', str(ROOT / 'kits/AdrenoFirmware'),

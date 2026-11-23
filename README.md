@@ -1,84 +1,41 @@
+# UniXNU-merlinx (iOS 16.7.16 / `20H392` Branch)
 
+UniXNU device repository for **Xiaomi Redmi Note 9 (`merlinx`, MediaTek MT6768 / Helio G85)** targeting **iPhone X (`iPhone10,6`, `d221ap`) iOS 16.7.16 (`20H392`, XNU `8796.141.3`)**.
 
-<p align="center">
-  English | <a href="README.zh-CN.md">简体中文</a>
-</p>
+> Looking for the iPadOS 17.7.11 (`21H461`) branch? Switch to the iPadOS branch (confirmed working with MaliMetal, though not yet fully tested).
 
-# UniXNU Official Webpage
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/logo-light.svg">
-    <img alt="UniXNU" src="assets/logo-light.svg" width="200">
-  </picture>
-</p>
+## Current Hardware Status (iOS 16.7.16 `20H392`)
 
-<p align="center">
-  <a href="https://unixnu.com"><img alt="Documentation" src="https://img.shields.io/badge/docs-unixnu.com-2A5BD7?logo=readthedocs&logoColor=white"></a>
-  <a href="https://t.me/unixnu"><img alt="Telegram" src="https://img.shields.io/badge/Telegram-@unixnu-26A5E4?logo=telegram&logoColor=white"></a>
-  <a href="https://qun.qq.com/universal-share/share?ac=1&authKey=Pubz23DOCY76nxjlGuSms2zesk4jRvas4zrXJRYk7omf7CprXbGQigLEI%2BCoYR8D&busi_data=eyJncm91cENvZGUiOiIxMTI2MTE2NzU5IiwidG9rZW4iOiJwSHJsUDN1UnN2Vi8yM210TjJRbzBIcERmcUpyOS9lb0hHVVpadWdvVFdScVpSYUFLT1YzTk5TWC9mN2xWYmtIIiwidWluIjoiMzE1MTEwOTc0MSJ9&data=_cJgr-jX9yJ2-GXwVjRN5FOhDyk5B-HAfIk5LSunbW_XkkmKqNXbpH33wzP93J0p9DI1fbjgBUrUfTVhwDcxjg&svctype=4&tempid=h5_group_info"><img alt="QQ Group" src="https://img.shields.io/badge/QQ%20Group-join-12B7F5?logo=qq&logoColor=white"></a>
-  <a href="https://x.com/UniXNU_new"><img alt="X" src="https://img.shields.io/badge/X-@UniXNU__new-000000?logo=x&logoColor=white"></a>
-</p>
+| Subsystem | Status | Notes |
+| --- | --- | --- |
+| 8-Core SMP + PAN | Working | `smp=1 cpus=8`, A75 1999 MHz / A55 1699 MHz, native ARMv8.1 PAN enabled in `bcopy.s` |
+| Storage (`NativeEmmc`) | Working | 8-bit DDR eMMC 5.1, DMA 41.2 MB/s, OS + SystemOS + Data mounted cleanly |
+| Display (`NativeLegacyDisplay`) | Working | MT6768 OVL0 scanout aligned; `backboardd` actively swapping 1080×2340 frames (iOS 16 3-arg `supportedFrameInfo` ABI fixed via build-time staging) |
+| Touch (`FocalTechTouch-FT8719`) | Working | SPI0 firmware load `stage 3/3 err 0`, live HID frames captured |
+| GPU Kernel (`Mali-G52`) | Working | `GPU_ID 0x74021000`, 849 MHz, `MALI M1 QUERY OK` / `M2 INFO OK` |
+| GPU Userland (`MaliMetal`) | Ready for retest | `_MTLDevice` ABI size guard parameterized (`CONFIG_XNU_DW_MALIMETAL_MTLDEVICE_SIZE=0`); rebuild `mali-gpu-ios16-<HHMM-DDMMYY>.addon` via MaliMetal CI |
+| Wi-Fi / Audio / Battery | Pending | Reference patches/docs retained until each bring-up phase completes |
 
-# UniXNU
+## Unified Configuration Architecture (`CONFIG_XNU_DW_*`)
 
-> **Migration notice:** Update your device repository for shared SoC support and canonical component names. Follow the [migration guide](https://unixnu.com/porting/migration).
+Configuration follows an Android/Linux Kconfig fragment hierarchy resolved by [`scripts/dw_config.py`](scripts/dw_config.py):
 
-An independent project to run iOS and macOS on non-Apple ARM64 hardware through UEFI. Like OpenCore, UniXNU is a general UEFI environment and driver loading system: it loads the drivers a device needs and boots the OS through a common UEFI layer.
+1. **SoC baseline**: `soc:configs/mt6768.config` (`UniXNU-MT6768-common`)
+2. **Board general**: [`configs/merlinx_defconfig`](configs/merlinx_defconfig)
+3. **OS final override**: [`configs/merlinx-iOS16.7.config`](configs/merlinx-iOS16.7.config) *(always takes final precedence)*
 
-UniXNU provides shared build tools, ARM64 support, OS profiles and reusable components for ports across SoCs and devices. SoC repositories supply common platform support, and device repositories supply board configuration and hardware integration.
+All APFS volume UUIDs (`CONFIG_XNU_DW_APFS_*`), OS build string (`CONFIG_XNU_DW_OS_BUILD`), and component switches (`CONFIG_XNU_DW_NATIVEEMMC_*`, `CONFIG_XNU_DW_MALIG52_*`, `CONFIG_XNU_DW_MALIMETAL_*`, `CONFIG_XNU_DW_FOCALTECH_*`, `CONFIG_XNU_DW_MT6768_*`, `CONFIG_XNU_DW_DISPLAY_*`) are centrally defined in `configs/merlinx-iOS16.7.config`. Each sub-repository provides a blank `configs/example.config` documenting its supported keys.
 
-**🎉 News:** Adreno740 and AdrenoMetal implement GPU acceleration for A740/SM8550. See the [Adreno 740 driver documentation](https://unixnu.com/drivers/adreno740).
+## Optional Debug Patches
 
-Documentation: [unixnu.com](https://unixnu.com). Start with [Port a device](https://unixnu.com/porting/) or [Build and boot](https://unixnu.com/building).
+Bring-up SMP debug patches (`zzzi-merlinx-debug-stall-smp.patch`, `zzzk-merlinx-smp-breadcrumbs.patch`) are archived in [`patches/xnu/debug-patch/`](patches/xnu/debug-patch/) and excluded from default `patches/xnu/series`. See `patches/xnu/debug-patch/README.md` to re-enable temporarily.
 
-## Redmi Note 9 (Merlinx) port
+## Related Repositories
 
-UniXNU boots iPadOS 17.7.11 (21H461) on the Xiaomi Redmi Note 9 (merlinx, MT6768) from the p33 boot partition. The bootloader does not implement `fastboot boot`, so every image is written with `fastboot flash boot`.
-
-What works:
-
-* **Boot chain**: UEFI firmware, DarwinBoot, XNU with a 4 KiB user ABI, the iPadOS restore profile and a packed Data seed all start from p33.
-* **Storage**: NativeEmmc replaces the UEFI storage path; the SystemOS cryptex and the writable Data seed mount before `launchd`.
-* **Userland**: `launchd` reaches the full service graph, `lsd` completes its first LaunchServices build, and SpringBoard draws the Lock Screen clock and Dock.
-* **Display**: the legacy GOP provider reprograms `DISP_OVL0`/`DISP_OVL0_2L` to scan the exact XNU framebuffer, removing the one-frame vertical offset and the leftover LK splash; the OSD text stops after the boot frames.
-* **Touch**: the FocalTech FT8719 driver loads its Xinli firmware over SPI0 and injects contacts through `NativeHidInput` (`IOHIDDevice`).
-* **Diagnostics**: an EP0 MUSB log/command channel (VID `0x05AC`, PID `0x12A8`) streams the kernel ring, `ps`, fault records and display/touch commands; `scripts/merlinx_usb_log.py` is the host client.
-* **GPU (kernel)**: the Mali-G52 path completes M2/M3/M4/M6, reads `GPU_ID` and reports `MALI RC 0`.
-
-Still open: PosterBoard exits without a GPU, so the first SpringBoard can hit the FrontBoard watchdog before the replacement draws the Lock Screen again; userland Metal/PanVK, Wi-Fi/Bluetooth, audio and battery reporting are not implemented.
-
-Build and flash:
-
-```bash
-./unixnu firmware
-./unixnu kernel
-./unixnu payload --kernel <kernel.macho> --data-ramdisk <seed>.dbr --trust-cache <bundle>
-./unixnu bootimg
-fastboot flash boot out/merlinx-uefi-emmc-mali-*.img
-```
-
-The boot-chain and UI traps are collected in [bringup-quirks-and-pitfalls.md](bringup-quirks-and-pitfalls.md); the per-area status is recorded in [porting.toml](porting.toml).
-
-## Repositories
-
-| Repository | Contents |
-| --- | --- |
-| [UniXNU](https://github.com/UniXNU/UniXNU) | Build tools, component catalog, ARM64 support, OS profiles, UEFI package, documentation |
-| [UniXNU-merlinx](https://github.com/Dracen-W/UniXNU-merlinx) | Redmi Note 9 device repository (this one) |
-| [UniXNU-MT6768-common](https://github.com/Dracen-W/UniXNU-MT6768-common) | Shared MT6768 support |
-| [uefi-merlinx](https://github.com/Dracen-W/uefi-merlinx) | UEFI firmware for the Redmi Note 9 |
-| [NativeEmmc](https://github.com/Dracen-W/NativeEmmc) | Native eMMC storage driver |
-| [Mali-G52](https://github.com/Dracen-W/Mali-G52) | Mali-G52 kernel driver |
-| [MaliMetal](https://github.com/Dracen-W/MaliMetal) | Mali userland Metal/PanVK frontend |
-| [FocalTechTouch-FT8719](https://github.com/Dracen-W/FocalTechTouch-FT8719) | FocalTech FT8719 touch driver |
-
-Clone with `--recurse-submodules`.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-BSD-2-Clause-Patent. See [LICENSE](LICENSE).
+- Device: `Dracen-W/UniXNU-merlinx` (this repo; `porting.toml` validated against official UniXNU `porting-record.py`)
+- SoC: `Dracen-W/UniXNU-MT6768-common`
+- Storage: `Dracen-W/NativeEmmc`
+- GPU Kernel: `Dracen-W/Mali-G52`
+- GPU Userland: `Dracen-W/MaliMetal`
+- Touch: `Dracen-W/FocalTechTouch-FT8719`
+- Firmware: `Dracen-W/uefi-merlinx`

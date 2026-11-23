@@ -4,6 +4,9 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dw_config import load_resolved_config, cflags_for
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--m2-writes', action='store_true')
@@ -42,13 +45,15 @@ for source in sources:
                 '-Wno-deprecated-enum-enum-conversion', '-Wno-unnecessary-virtual-specifier',
                 '-I', str(OUT), '-I', str(SOURCE), '-I', str(SOURCE / 'xnu'),
                 '-I', str(ROOT / '.cache/xnu-work/osfmk')]
-    if args.m2_writes:
+    dw_cfg = load_resolved_config(ROOT)
+    command.extend(cflags_for('MALIG52', dw_cfg))
+    if args.m2_writes or dw_cfg.get('CONFIG_XNU_DW_MALIG52_M2_WRITES'):
         command.append('-DNATIVE_MALI_M2_WRITES=1')
-    if args.m3_writes:
+    if args.m3_writes or dw_cfg.get('CONFIG_XNU_DW_MALIG52_M3_WRITES'):
         command.append('-DNATIVE_MALI_M3_WRITES=1')
-    if args.m4_writes:
+    if args.m4_writes or dw_cfg.get('CONFIG_XNU_DW_MALIG52_M4_WRITES'):
         command.append('-DNATIVE_MALI_M4_WRITES=1')
-    if args.m6_writes:
+    if args.m6_writes or dw_cfg.get('CONFIG_XNU_DW_MALIG52_M6_WRITES'):
         command.append('-DNATIVE_MALI_M6_WRITES=1')
     (OUT / (source.stem + '-command.json')).write_text(json.dumps(command, indent=2) + '\n')
     result = subprocess.run(command, cwd=record['directory'], stdout=subprocess.PIPE,
