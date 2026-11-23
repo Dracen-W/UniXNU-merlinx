@@ -153,7 +153,9 @@ def main():
                         # DeviceType then takes its native "Hactivation" branch (Activated without an activation record; no SEP or
                         # baseband). Values established on hardware by github.com/dipa-studio/ios-sweet (tools/mkadt.py).
                         *([('certificate-production-status', struct.pack('<I', 0)), ('effective-production-status-ap', struct.pack('<I', 0)),
-                           ('certificate-security-mode', struct.pack('<I', 1)), ('effective-security-mode-sep', struct.pack('<I', 1))]
+                           ('certificate-security-mode', struct.pack('<I', 1)), ('effective-security-mode-sep', struct.pack('<I', 1)),
+                           ('effective-security-mode-ap', struct.pack('<I', 1)), ('mix-n-match-prevention-status', struct.pack('<I', 0)),
+                           ('security-domain', struct.pack('<I', 1)), ('board-id', struct.pack('<I', 14)), ('chip-epoch', struct.pack('<I', 1)), ('boot-manifest-hash', bytes(48))]
                           if apple_identity else []),
                         # This property describes the actual volatile Data RAM disk. A persistent one is not ephemeral: with the property
                         # datamigrator skips every migration (os_variant_uses_ephemeral_storage), so the staged system apps never install.
@@ -179,7 +181,7 @@ def main():
                                  ([('TrustCache', bytes(16))] if args.trust_cache else []) +
                                  ([('GpuAddon', bytes(16))] if args.gpu_addon else [])),
               # Read by the original AppleImage4 at start-up; present and empty here.
-              node('manifest-properties')]),
+              node('manifest-properties', [('BNCH', bytes(48))])]),
         node('cpus', children=cpus),
         *([node('psci', [('compatible', b'arm,psci-1.0\0'), ('method', args.psci_method.encode() + b'\0')])] if len(cpus) > 1 else []),
         # Suspend/resume is not implemented for this board. Use the original
