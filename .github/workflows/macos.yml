@@ -12,9 +12,13 @@ on:
         required: true
         default: ipados-stable-version
       defconfig:
-        description: Defconfig name (configs/ of the device repository)
+        description: Board general defconfig name (configs/ of the device repository)
         required: true
         default: merlinx_defconfig
+      os_config:
+        description: OS override config path relative to device repo (applied after defconfig; empty uses board.toml)
+        required: false
+        default: configs/merlinx-iOS16.7.config
       steps:
         description: Steps to build (nothing is uploaded except text logs; userdata needs about 16 GB of disk)
         type: choice
@@ -94,6 +98,7 @@ jobs:
       UNIXNU_DEVICE: ${{ github.workspace }}/device
       UNIXNU_IPSW: ${{ inputs.ipsw_url }}
       DEFCONFIG: ${{ inputs.defconfig }}
+      UNIXNU_DW_OS_CONFIG: ${{ inputs.os_config }}
       STEPS: ${{ inputs.steps }}
     steps:
       - name: Check out UniXNU

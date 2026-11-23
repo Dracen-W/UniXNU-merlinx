@@ -55,10 +55,21 @@ def parse_config_file(path: Path) -> dict:
 
 def default_layers(root: Path = ROOT) -> list[Path]:
     os_override = os.environ.get('UNIXNU_DW_OS_CONFIG', 'configs/merlinx-iOS16.7.config')
+    dev_env = os.environ.get('UNIXNU_DEVICE', '').strip()
+    dev = Path(dev_env) if dev_env else None
+    def pick(rel: str) -> Path:
+        p = Path(rel)
+        if p.is_absolute():
+            return p
+        if (root / rel).is_file():
+            return root / rel
+        if dev and (dev / rel).is_file():
+            return dev / rel
+        return root / rel
     layers = [
-        root / 'soc/mt6768/configs/mt6768.config',
-        root / 'configs/merlinx_defconfig',
-        root / os_override if not Path(os_override).is_absolute() else Path(os_override),
+        pick('soc/mt6768/configs/mt6768.config'),
+        pick('configs/merlinx_defconfig'),
+        pick(os_override),
     ]
     return layers
 

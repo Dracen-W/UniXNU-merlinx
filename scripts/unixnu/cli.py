@@ -1,5 +1,6 @@
 """Command line of the UniXNU build driver."""
 import argparse
+import os
 import json
 import platform
 import shutil
@@ -121,6 +122,14 @@ def cmd_defconfig(ctx):
     if ctx.schema_version == 2:
         inputs = [profiles.resolve_path(ctx, entry) for entry in ctx.board.get('kernel', {}).get('config_fragments', [])]
     inputs.append(source)
+    if ctx.schema_version == 2:
+        overrides = list(ctx.board.get('kernel', {}).get('config_overrides', []))
+        env_override = os.environ.get('UNIXNU_DW_OS_CONFIG', '').strip()
+        if env_override:
+            entry = env_override if ':' in env_override or Path(env_override).is_absolute() else f'device:{env_override}'
+            if entry not in overrides:
+                overrides.append(entry)
+        inputs.extend(profiles.resolve_path(ctx, entry) for entry in overrides)
     chunks = []
     for path in inputs:
         if not path.is_file():

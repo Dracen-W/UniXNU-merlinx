@@ -32,7 +32,8 @@ fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustC
 defconfig = "merlinx_defconfig"
 # Generic source-kernel archives only. merlinx-specific storage, display and
 # GPU providers are added in later stages.
-config_fragments = ["soc:configs/mt6768.config", "device:configs/merlinx-iOS16.7.config"]
+config_fragments = ["soc:configs/mt6768.config"]
+config_overrides = ["device:configs/merlinx-iOS16.7.config"]
 patch_series = ["os:patches/xnu/series", "soc:patches/xnu/series", "device:patches/xnu/series"]
 archives = [
   "build-corecrypto-14.py",
