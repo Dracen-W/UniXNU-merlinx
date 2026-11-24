@@ -144,7 +144,9 @@ def main():
         node('chosen', [('random-seed', os.urandom(64)),
                         # Without these XNU never publishes IOPlatformUUID and gethostuuid() blocks forever
                         # for callers (configd) that pass a zero timeout.
-                        *([('unique-chip-id', struct.pack('<Q', args.unique_chip_id)), ('chip-id', struct.pack('<I', args.chip_id))]
+                        *([('unique-chip-id', struct.pack('<Q', args.unique_chip_id)), ('chip-id', struct.pack('<I', args.chip_id)),
+                           ('mac-address-wifi0', bytes([0x02, 0x00, (args.unique_chip_id >> 24) & 0xff, (args.unique_chip_id >> 16) & 0xff, (args.unique_chip_id >> 8) & 0xff, args.unique_chip_id & 0xfe])),
+                           ('mac-address-bluetooth0', bytes([0x02, 0x00, (args.unique_chip_id >> 24) & 0xff, (args.unique_chip_id >> 16) & 0xff, (args.unique_chip_id >> 8) & 0xff, (args.unique_chip_id & 0xfe) | 0x01]))]
                           if args.unique_chip_id is not None else []),
                         # This boots the normal target OS. Volatile Data is
                         # described separately by ephemeral-storage below.
