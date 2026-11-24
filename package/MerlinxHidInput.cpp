@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 // Merlinx IOHIDDevice bridge for FocalTech FT8719 touch and synthetic HID events.
 #include "OriginalHidDeviceABI.h"
+#include "MerlinxButtons.h"
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include <IOKit/IOLib.h>
 #include <IOKit/IOTimerEventSource.h>
@@ -91,29 +92,18 @@ class NativeHidInput : public IOHIDDevice {
     int prevX[TOUCH_FINGERS] = {};
     int prevY[TOUCH_FINGERS] = {};
 
-    static unsigned transformCoordinateX(int value, int maximum) {
-        if (maximum <= 1) {
-            return 0;
-        }
-        if (value < 0) {
-            value = 0;
-        }
-        if (value >= maximum) {
-            value = maximum - 1;
-        }
-        // Snap outer 12px (~4pt @3x) horizontal bezel to exact screen edges
-        if (value <= 12) {
-            return 0U;
-        }
-        if (value >= maximum - 12) {
-            return 32767U;
-        }
-        return static_cast<unsigned>((static_cast<long long>(value) * 32767LL) / (maximum - 1));
-    }
+    // Screen-edge bezel snap and initial-touchdown anchor thresholds (1080x2340 @3x).
+    static constexpr int kBezelSnapXPx        = 12; // ~4pt outer horizontal bezel
+    static constexpr int kBezelSnapTopPx      = 18; // ~6pt top bezel
+    static constexpr int kBezelSnapBottomPx   = 32; // ~10.6pt bottom bezel
+    static constexpr int kEdgeAnchorSidePx    = 32; // ~10.6pt left/right back-swipe zone
+    static constexpr int kEdgeAnchorTopPx     = 28; // ~9.3pt Notification/Control Center zone
+    static constexpr int kEdgeAnchorBottomPx  = 48; // ~16pt Home-indicator swipe-up zone
+    static constexpr unsigned kHidCoordMax    = 32767U;
 
-    static unsigned transformCoordinateY(int value, int maximum) {
+    static unsigned transformAxis(int value, int maximum, int lowSnapPx, int highSnapPx) {
         if (maximum <= 1) {
-            return 0;
+            return 0U;
         }
         if (value < 0) {
             value = 0;
@@ -121,15 +111,13 @@ class NativeHidInput : public IOHIDDevice {
         if (value >= maximum) {
             value = maximum - 1;
         }
-        // Snap top 18px (~6pt @3x) to 0 for Notification/Control Center pull-down
-        if (value <= 18) {
+        if (value <= lowSnapPx) {
             return 0U;
         }
-        // Snap bottom 32px (~10.6pt @3x) to 32767 for full-screen iPhone Home indicator swipe-up
-        if (value >= maximum - 32) {
-            return 32767U;
+        if (value >= maximum - highSnapPx) {
+            return kHidCoordMax;
         }
-        return static_cast<unsigned>((static_cast<long long>(value) * 32767LL) / (maximum - 1));
+        return static_cast<unsigned>((static_cast<long long>(value) * static_cast<long long>(kHidCoordMax)) / (maximum - 1));
     }
 
     bool wasActiveId(int rawId) const {
@@ -231,22 +219,20 @@ class NativeHidInput : public IOHIDDevice {
                 contactId = 1;
             }
             bool tipDown = (state.points[i].tip != 0);
-            unsigned x = transformCoordinateX(state.points[i].x, xMax);
-            unsigned y = transformCoordinateY(state.points[i].y, yMax);
-            // For a brand-new touchdown starting near any screen edge, anchor the initial
-            // contact at the exact edge (0 or 32767) so iOS UIKit / SpringBoard screen-edge
-            // pan recognizers reliably classify left/right back-swipes, top Notification/Control
-            // Center pull-downs, and bottom Home-indicator swipes across the glass bezel.
+            unsigned x = transformAxis(state.points[i].x, xMax, kBezelSnapXPx, kBezelSnapXPx);
+            unsigned y = transformAxis(state.points[i].y, yMax, kBezelSnapTopPx, kBezelSnapBottomPx);
+            // Anchor initial edge touchdowns to exact HID bounds so UIKit / SpringBoard
+            // screen-edge pan recognizers reliably trigger across the glass bezel.
             if (tipDown && !self->wasActiveId(rawId)) {
-                if (state.points[i].x <= 32) {
+                if (state.points[i].x <= kEdgeAnchorSidePx) {
                     x = 0U;
-                } else if (state.points[i].x >= xMax - 32) {
-                    x = 32767U;
+                } else if (state.points[i].x >= xMax - kEdgeAnchorSidePx) {
+                    x = kHidCoordMax;
                 }
-                if (state.points[i].y <= 28) {
+                if (state.points[i].y <= kEdgeAnchorTopPx) {
                     y = 0U;
-                } else if (state.points[i].y >= yMax - 48) {
-                    y = 32767U;
+                } else if (state.points[i].y >= yMax - kEdgeAnchorBottomPx) {
+                    y = kHidCoordMax;
                 }
             }
 
@@ -358,16 +344,15 @@ class NativeHidInput : public IOHIDDevice {
         if (seq == self->lastButtonSeq) {
             return;
         }
-        uint8_t hwMask = static_cast<uint8_t>(__atomic_load_n(&gHidButtonMask, __ATOMIC_ACQUIRE) & 0x0EU);
+        uint8_t hwMask = static_cast<uint8_t>(__atomic_load_n(&gHidButtonMask, __ATOMIC_ACQUIRE) & MERLINX_BTN_HW_MASK);
         self->lastButtonSeq = seq;
         if (hwMask == self->lastSentButtons) {
             return;
         }
         self->lastSentButtons = hwMask;
-        uint8_t combined = static_cast<uint8_t>(hwMask | (self->down ? 0x01U : 0x00U));
+        uint8_t combined = static_cast<uint8_t>(hwMask | (self->down ? MERLINX_BTN_HOME : 0x00U));
         IOReturn result = self->dispatchConsumerReport(combined);
-        merlinx_usb_log_line("[BTN-HID] rpt2 bits=0x%02x kr=0x%x
-",
+        merlinx_usb_log_line("[BTN-HID] rpt2 bits=0x%02x kr=0x%x\n",
             static_cast<unsigned>(combined), static_cast<unsigned>(result));
     }
 
@@ -391,7 +376,7 @@ class NativeHidInput : public IOHIDDevice {
             source->setTimeoutMS(1000);
             return;
         }
-        uint8_t nextHome = self->down ? 0x00U : 0x01U;
+        uint8_t nextHome = self->down ? 0x00U : static_cast<uint8_t>(MERLINX_BTN_HOME);
         uint8_t combined = static_cast<uint8_t>(self->lastSentButtons | nextHome);
         IOReturn result = self->dispatchConsumerReport(combined);
         native_hid_input_observed(self->down ? 5 : 4, result);
@@ -585,7 +570,7 @@ extern "C" void merlinx_hid_get_stats(
     if (outLastFlags) *outLastFlags = gHidLastFlags;
 }
 extern "C" void merlinx_hid_set_buttons(uint32_t mask) {
-    uint8_t hw = static_cast<uint8_t>(mask & 0x0EU);
+    uint8_t hw = static_cast<uint8_t>(mask & MERLINX_BTN_HW_MASK);
     __atomic_store_n(&gHidButtonMask, hw, __ATOMIC_RELEASE);
     __atomic_fetch_add(&gHidButtonSeq, 1U, __ATOMIC_RELEASE);
 }

@@ -22,6 +22,7 @@
 #include <sys/proc.h>
 #include <stdarg.h>
 #include <string.h>
+#include "MerlinxButtons.h"
 
 extern "C" {
 #include "FtsBoard.h"
@@ -50,7 +51,6 @@ IOService *native_hid_input_allocate(void);
 IOService *native_hid_touch_allocate(void);
 void merlinx_hid_inject_tap(uint16_t x, uint16_t y);
 void merlinx_hid_inject_swipe(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint32_t steps);
-void merlinx_hid_set_buttons(uint32_t mask);
 void merlinx_hid_get_stats(
     uint32_t *outStarted,
     uint32_t *outDispatched,
@@ -226,10 +226,6 @@ static IOMemoryMap    *gPwrapMap = nullptr;
 static volatile uint8_t *gPwrapBase = nullptr;
 static volatile uint32_t gPwrapLock = 0;
 
-static IODeviceMemory *gKpdMem = nullptr;
-static IOMemoryMap    *gKpdMap = nullptr;
-static volatile uint8_t *gKpdBase = nullptr;
-static bool gButtonsThreadStarted = false;
 
 static IODeviceMemory *gSpi0Mem = nullptr;
 static IOMemoryMap    *gSpi0Map = nullptr;
@@ -390,6 +386,14 @@ static bool merlinxPmicWrite(uint32_t reg, uint32_t val)
     }
     merlinxPwrapRelease();
     return ok;
+}
+
+extern "C" bool merlinx_pmic_read(uint32_t reg, uint32_t *outVal)
+{
+    if (!gPwrapBase) {
+        gPwrapBase = mapMmioWindow(kMtkPwrapPa, 0x1000ULL, &gPwrapMem, &gPwrapMap);
+    }
+    return merlinxPmicRead(reg, outVal);
 }
 
 static uint32_t merlinxPllMhz(uint32_t con1)
@@ -1455,94 +1459,6 @@ extern "C" bool native_hid_input_requested(void)
     return false;
 }
 
-static void merlinxButtonsThread(void *, wait_result_t)
-{
-    static constexpr uint64_t kMtkKpdPa = 0x10010000ULL;
-    static constexpr uint32_t kMtkKpMem1 = 0x0004U;
-    static constexpr uint32_t kMt6358TopStatus = 0x0028U;
-    static constexpr uint32_t kMt6358PwrkeyDeb = (1U << 1);
-    static constexpr uint32_t kMt6358HomekeyDeb = (1U << 3);
-    static constexpr uint32_t kHidBtnPower = (1U << 1);
-    static constexpr uint32_t kHidBtnVolUp = (1U << 2);
-    static constexpr uint32_t kHidBtnVolDown = (1U << 3);
-
-    uint32_t enabled = 1U;
-    PE_parse_boot_argn("merlinx-buttons", &enabled, sizeof(enabled));
-    if (enabled == 0U) {
-        merlinx_usb_log_line("[BTN] disabled by merlinx-buttons=0\n");
-        return;
-    }
-
-    if (!gKpdBase) {
-        gKpdBase = mapMmioWindow(kMtkKpdPa, 0x1000ULL, &gKpdMem, &gKpdMap);
-    }
-    if (!gPwrapBase) {
-        gPwrapBase = mapMmioWindow(kMtkPwrapPa, 0x1000ULL, &gPwrapMem, &gPwrapMap);
-    }
-    if (!gKpdBase && !gPwrapBase) {
-        merlinx_usb_log_line("[BTN] MMIO map failed (kpd=%p pwrap=%p)\n", gKpdBase, gPwrapBase);
-        return;
-    }
-
-    uint32_t initTop = 0xFFFFU;
-    bool initPmicOk = merlinxPmicRead(kMt6358TopStatus, &initTop);
-    uint32_t initMem1 = gKpdBase ? (mmioRead32(gKpdBase, kMtkKpMem1) & 0xFFFFU) : 0xFFFFU;
-    merlinx_usb_log_line("[BTN] started kpd=%d pwrap=%d top_ok=%d top=0x%04x mem1=0x%04x\n",
-        gKpdBase != nullptr ? 1 : 0,
-        gPwrapBase != nullptr ? 1 : 0,
-        initPmicOk ? 1 : 0,
-        initTop & 0xFFFFU,
-        initMem1);
-
-    bool down[3] = {false, false, false}; // [0]=Power, [1]=VolUp, [2]=VolDown
-    bool seen[3] = {false, false, false};
-    uint32_t lastMask = 0U;
-    uint32_t pmicErrors = 0U;
-
-    for (;;) {
-        uint32_t top = 0xFFFFU;
-        bool pmicOk = merlinxPmicRead(kMt6358TopStatus, &top);
-        uint32_t mem1 = gKpdBase ? (mmioRead32(gKpdBase, kMtkKpMem1) & 0xFFFFU) : 0xFFFFU;
-
-        if (pmicOk) {
-            pmicErrors = 0U;
-        } else if ((pmicErrors++ % 250U) == 0U) {
-            merlinx_usb_log_line("[BTN] PMIC TOPSTATUS read failed\n");
-        }
-
-        bool now[3];
-        now[0] = pmicOk ? ((top & kMt6358PwrkeyDeb) == 0U) : down[0];
-        now[1] = pmicOk ? ((top & kMt6358HomekeyDeb) == 0U) : down[1];
-        now[2] = gKpdBase ? ((mem1 & 1U) == 0U) : false;
-
-        for (unsigned i = 0; i < 3; ++i) {
-            if (now[i] == seen[i] && now[i] != down[i]) {
-                down[i] = now[i];
-            }
-            seen[i] = now[i];
-        }
-
-        uint32_t mask = 0U;
-        if (down[0]) mask |= kHidBtnPower;
-        if (down[1]) mask |= kHidBtnVolUp;
-        if (down[2]) mask |= kHidBtnVolDown;
-
-        if (mask != lastMask) {
-            lastMask = mask;
-            merlinx_hid_set_buttons(mask);
-            merlinx_usb_log_line("[BTN] mask=0x%x (pwr=%u vol+=%u vol-=%u) kpd=0x%04x top=0x%04x\n",
-                mask,
-                down[0] ? 1U : 0U,
-                down[1] ? 1U : 0U,
-                down[2] ? 1U : 0U,
-                mem1,
-                top & 0xFFFFU);
-        }
-
-        IOSleep(20);
-    }
-}
-
 static void merlinxStartHidAndTouchThread(void *, wait_result_t)
 {
     // Initialize SPI0 and start the FT8719 touch probe IMMEDIATELY (before
@@ -1583,13 +1499,7 @@ static void merlinxStartHidAndTouchThread(void *, wait_result_t)
             gActiveHidService = hid;
             decorateDigitizerHierarchy(hid, 4);
             merlinx_usb_log_line("[FTS-HID] Published NativeHidInput=%p on parent=%p\n", hid, parent);
-            if (!gButtonsThreadStarted) {
-                thread_t btnThread = THREAD_NULL;
-                if (kernel_thread_start(merlinxButtonsThread, nullptr, &btnThread) == KERN_SUCCESS) {
-                    gButtonsThreadStarted = true;
-                    thread_deallocate(btnThread);
-                }
-            }
+            merlinx_buttons_start();
         } else if (hid) {
             hid->release();
         }

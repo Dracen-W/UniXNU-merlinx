@@ -392,6 +392,7 @@ def compile_cxx_with_xnu_record(src_path: Path, dst_obj: Path, extra_flags=None)
 
 hid_obj = OUT / 'MerlinxHidInput.o'
 compile_cxx_with_xnu_record(ROOT / 'package/MerlinxHidInput.cpp', hid_obj)
+compile_cxx_with_xnu_record(ROOT / 'package/MerlinxButtons.cpp', OUT / 'MerlinxButtons.o')
 compile_cxx_with_xnu_record(ROOT / 'package/MerlinxLegacyDisplay.cpp', OUT / 'MerlinxLegacyDisplay.o', extra_flags=cflags_for('DISPLAY', DW_CFG))
 compile_cxx_with_xnu_record(FTS_DIR / 'FtsProbe.cpp', OUT / 'FtsProbe.o', extra_flags=cflags_for('FOCALTECH', DW_CFG))
 
@@ -476,6 +477,7 @@ run([
     late,
     hid_late,
     OUT / 'original-bindings.o',
+    OUT / 'MerlinxButtons.o',
     OUT / 'MerlinxLegacyDisplay.o',
     OUT / 'FtsProbe.o',
     OUT / 'FtsProtocol.o',
@@ -493,6 +495,8 @@ sources = [
     ROOT / 'drivers/FocalTechTouch/FtsTouchCore.c',
     ROOT / 'drivers/FocalTechTouch/FtsHid.c',
     ROOT / 'drivers/FocalTechTouch/FtsProbe.cpp',
+    ROOT / 'package/MerlinxButtons.h',
+    ROOT / 'package/MerlinxButtons.cpp',
     ROOT / 'package/MerlinxHidInput.cpp',
     ROOT / 'package/MerlinxLegacyDisplay.cpp',
     ROOT / 'scripts/data/merlinx-legacy-display-abi.json',
