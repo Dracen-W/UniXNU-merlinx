@@ -31,9 +31,11 @@ static const unsigned char kKeyboardDescriptor[] = {
     0x75, 0x08, 0x95, 0x01, 0x81, 0x03,
     0x19, 0x00, 0x29, 0x65, 0x15, 0x00, 0x25, 0x65,
     0x75, 0x08, 0x95, 0x06, 0x81, 0x00,
-    0x85, 0x02, 0x05, 0x0c, 0x09, 0x40, 0x15, 0x00, 0x25, 0x01,
-    0x75, 0x01, 0x95, 0x01, 0x81, 0x02,
-    0x75, 0x07, 0x95, 0x01, 0x81, 0x03, 0xc0
+    0x85, 0x02, 0x05, 0x0c,
+    0x09, 0x40, 0x09, 0x30, 0x09, 0xe9, 0x09, 0xea,
+    0x15, 0x00, 0x25, 0x01,
+    0x75, 0x01, 0x95, 0x04, 0x81, 0x02,
+    0x75, 0x04, 0x95, 0x01, 0x81, 0x03, 0xc0
 };
 
 // Report 3: ten-finger Touch Screen Digitizer collection:
@@ -67,6 +69,8 @@ static volatile uint16_t gHidLastX = 0;
 static volatile uint16_t gHidLastY = 0;
 static volatile uint8_t gHidLastContacts = 0;
 static volatile uint8_t gHidLastFlags = 0;
+static volatile uint8_t gHidButtonMask = 0;
+static volatile uint32_t gHidButtonSeq = 0;
 } // namespace
 
 class NativeHidInput : public IOHIDDevice {
@@ -75,7 +79,10 @@ class NativeHidInput : public IOHIDDevice {
     IOWorkLoop *inputLoop = nullptr;
     IOTimerEventSource *timer = nullptr;
     IOTimerEventSource *touchTimer = nullptr;
+    IOTimerEventSource *buttonTimer = nullptr;
     bool down = false;
+    uint32_t lastButtonSeq = 0;
+    uint8_t lastSentButtons = 0;
     bool touchEnabled = true;
     bool touchOnly = false;
     bool eventDriverFound = false;
@@ -84,7 +91,7 @@ class NativeHidInput : public IOHIDDevice {
     int prevX[TOUCH_FINGERS] = {};
     int prevY[TOUCH_FINGERS] = {};
 
-    static unsigned transformCoordinate(int value, int maximum, bool clampEdges) {
+    static unsigned transformCoordinateX(int value, int maximum) {
         if (maximum <= 1) {
             return 0;
         }
@@ -94,15 +101,33 @@ class NativeHidInput : public IOHIDDevice {
         if (value >= maximum) {
             value = maximum - 1;
         }
-        if (clampEdges) {
-            // Snap top 18px (~6pt @3x) to 0 for Notification/Control Center pull-down
-            if (value <= 18) {
-                return 0U;
-            }
-            // Snap bottom 32px (~10.6pt @3x) to 32767 for full-screen iPhone Home indicator swipe-up
-            if (value >= maximum - 32) {
-                return 32767U;
-            }
+        // Snap outer 12px (~4pt @3x) horizontal bezel to exact screen edges
+        if (value <= 12) {
+            return 0U;
+        }
+        if (value >= maximum - 12) {
+            return 32767U;
+        }
+        return static_cast<unsigned>((static_cast<long long>(value) * 32767LL) / (maximum - 1));
+    }
+
+    static unsigned transformCoordinateY(int value, int maximum) {
+        if (maximum <= 1) {
+            return 0;
+        }
+        if (value < 0) {
+            value = 0;
+        }
+        if (value >= maximum) {
+            value = maximum - 1;
+        }
+        // Snap top 18px (~6pt @3x) to 0 for Notification/Control Center pull-down
+        if (value <= 18) {
+            return 0U;
+        }
+        // Snap bottom 32px (~10.6pt @3x) to 32767 for full-screen iPhone Home indicator swipe-up
+        if (value >= maximum - 32) {
+            return 32767U;
         }
         return static_cast<unsigned>((static_cast<long long>(value) * 32767LL) / (maximum - 1));
     }
@@ -206,13 +231,23 @@ class NativeHidInput : public IOHIDDevice {
                 contactId = 1;
             }
             bool tipDown = (state.points[i].tip != 0);
-            unsigned x = transformCoordinate(state.points[i].x, xMax, false);
-            unsigned y = transformCoordinate(state.points[i].y, yMax, true);
-            // For a brand-new touchdown starting in the bottom 48px Home-bar zone (~16pt @3x),
-            // anchor the first contact at the exact bottom edge (32767) so iOS SBHomeGestureArbiter
-            // reliably classifies the gesture as a bottom-edge Home/unlock swipe.
-            if (tipDown && !self->wasActiveId(rawId) && state.points[i].y >= yMax - 48) {
-                y = 32767U;
+            unsigned x = transformCoordinateX(state.points[i].x, xMax);
+            unsigned y = transformCoordinateY(state.points[i].y, yMax);
+            // For a brand-new touchdown starting near any screen edge, anchor the initial
+            // contact at the exact edge (0 or 32767) so iOS UIKit / SpringBoard screen-edge
+            // pan recognizers reliably classify left/right back-swipes, top Notification/Control
+            // Center pull-downs, and bottom Home-indicator swipes across the glass bezel.
+            if (tipDown && !self->wasActiveId(rawId)) {
+                if (state.points[i].x <= 32) {
+                    x = 0U;
+                } else if (state.points[i].x >= xMax - 32) {
+                    x = 32767U;
+                }
+                if (state.points[i].y <= 28) {
+                    y = 0U;
+                } else if (state.points[i].y >= yMax - 48) {
+                    y = 32767U;
+                }
             }
 
             unsigned char *f = report + 1 + slot * 6;
@@ -301,6 +336,41 @@ class NativeHidInput : public IOHIDDevice {
         native_hid_input_observed(6, result);
     }
 
+    IOReturn dispatchConsumerReport(uint8_t bits) {
+        unsigned char report[2] = {2, static_cast<unsigned char>(bits & 0x0FU)};
+        IOBufferMemoryDescriptor *buffer = IOBufferMemoryDescriptor::withBytes(
+            report, sizeof(report), kIODirectionNone);
+        IOReturn result = buffer ? this->handleReport(buffer, 0, 0) : kIOReturnNoMemory;
+        OSSafeReleaseNULL(buffer);
+        return result;
+    }
+
+    static void buttonTick(OSObject *owner, IOTimerEventSource *source) {
+        NativeHidInput *self = OSDynamicCast(NativeHidInput, owner);
+        if (!self) {
+            return;
+        }
+        source->setTimeoutMS(15);
+        if (self->touchOnly || !self->hasEventDriverCached()) {
+            return;
+        }
+        uint32_t seq = __atomic_load_n(&gHidButtonSeq, __ATOMIC_ACQUIRE);
+        if (seq == self->lastButtonSeq) {
+            return;
+        }
+        uint8_t hwMask = static_cast<uint8_t>(__atomic_load_n(&gHidButtonMask, __ATOMIC_ACQUIRE) & 0x0EU);
+        self->lastButtonSeq = seq;
+        if (hwMask == self->lastSentButtons) {
+            return;
+        }
+        self->lastSentButtons = hwMask;
+        uint8_t combined = static_cast<uint8_t>(hwMask | (self->down ? 0x01U : 0x00U));
+        IOReturn result = self->dispatchConsumerReport(combined);
+        merlinx_usb_log_line("[BTN-HID] rpt2 bits=0x%02x kr=0x%x
+",
+            static_cast<unsigned>(combined), static_cast<unsigned>(result));
+    }
+
     static void tick(OSObject *owner, IOTimerEventSource *source) {
         NativeHidInput *self = OSDynamicCast(NativeHidInput, owner);
         if (!self) {
@@ -321,11 +391,9 @@ class NativeHidInput : public IOHIDDevice {
             source->setTimeoutMS(1000);
             return;
         }
-        unsigned char report[] = {2, static_cast<unsigned char>(self->down ? 0 : 1)};
-        IOBufferMemoryDescriptor *buffer = IOBufferMemoryDescriptor::withBytes(
-            report, sizeof(report), kIODirectionNone);
-        IOReturn result = buffer ? self->handleReport(buffer, 0, 0) : kIOReturnNoMemory;
-        OSSafeReleaseNULL(buffer);
+        uint8_t nextHome = self->down ? 0x00U : 0x01U;
+        uint8_t combined = static_cast<uint8_t>(self->lastSentButtons | nextHome);
+        IOReturn result = self->dispatchConsumerReport(combined);
         native_hid_input_observed(self->down ? 5 : 4, result);
         if (!self->down) {
             self->down = true;
@@ -385,6 +453,14 @@ public:
             IOHIDDevice::stop(provider);
             return false;
         }
+        if (!touchOnly) {
+            buttonTimer = IOTimerEventSource::timerEventSource(this, buttonTick);
+            if (buttonTimer && inputLoop->addEventSource(buttonTimer) == kIOReturnSuccess) {
+                buttonTimer->setTimeoutMS(50);
+            } else {
+                OSSafeReleaseNULL(buttonTimer);
+            }
+        }
         if (touchOnly || touchEnabled) {
             touchTimer = IOTimerEventSource::timerEventSource(this, touchTick);
             if (touchTimer && inputLoop->addEventSource(touchTimer) == kIOReturnSuccess) {
@@ -404,6 +480,11 @@ public:
     }
     void stop(IOService *provider) override {
         fts_hid_set_sink(nullptr, nullptr);
+        if (buttonTimer) {
+            buttonTimer->cancelTimeout();
+            inputLoop->removeEventSource(buttonTimer);
+            OSSafeReleaseNULL(buttonTimer);
+        }
         if (touchTimer) {
             touchTimer->cancelTimeout();
             inputLoop->removeEventSource(touchTimer);
@@ -502,4 +583,9 @@ extern "C" void merlinx_hid_get_stats(
     if (outLastY) *outLastY = gHidLastY;
     if (outLastContacts) *outLastContacts = gHidLastContacts;
     if (outLastFlags) *outLastFlags = gHidLastFlags;
+}
+extern "C" void merlinx_hid_set_buttons(uint32_t mask) {
+    uint8_t hw = static_cast<uint8_t>(mask & 0x0EU);
+    __atomic_store_n(&gHidButtonMask, hw, __ATOMIC_RELEASE);
+    __atomic_fetch_add(&gHidButtonSeq, 1U, __ATOMIC_RELEASE);
 }
