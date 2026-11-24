@@ -1,0 +1,19 @@
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -181,6 +181,7 @@ LEXT(reset_vector)
+ 	eret
+ L_mt6768_el1_entry:
+ 	mrs		x15, MPIDR_EL1						// Reload MPIDR_EL1 in EL1
++	dsb		sy
+ #if HAS_CLUSTER || defined(BCM2837)
+ 	and		x0, x15, #0xFFFF					// CPU number in Affinity0, cluster ID in Affinity1 (SM8550 numbers cores in Affinity1)
+ #else
+@@ -810,6 +811,7 @@ common_start:
+ 	mov		x0, #(CPACR_FPEN_ENABLE)
+ 	msr		CPACR_EL1, x0
+ #endif
++	dsb		sy
+ 
+ 	// Clear thread pointer
+ 	msr		TPIDR_EL1, xzr						// Set thread register
