@@ -1307,7 +1307,8 @@ extern "C" int fts_board_spi_transfer(
     bool skipMidChunkLog = (fts_touch_stage_done == 1U &&
                             chunkIdxInAttempt >= 2U &&
                             rc == FTS_OK);
-    if (gSpiModeLogBudget > 0U && !skipMidChunkLog) {
+    bool skipStage3OkLog = (fts_touch_stage_done >= 3U && rc == FTS_OK);
+    if (gSpiModeLogBudget > 0U && !skipMidChunkLog && !skipStage3OkLog) {
         gSpiModeLogBudget--;
         merlinx_usb_log_line(
             "[FTS-SPI] #%u stg=%u mode=%u len=%u dly=%u tx=%02x,%02x,%02x rx=%02x,%02x,%02x,%02x,%02x rc=%d\n",
@@ -1633,7 +1634,7 @@ volatile uint64_t native_legacy_prepare_wait_us;
 static uint64_t probeNowUs(void) {uint64_t ns;absolutetime_to_nanoseconds(mach_absolute_time(),&ns);return ns/1000;}
 bool native_legacy_prepare_scanout(void) {
     native_legacy_prepare_calls=native_legacy_prepare_calls+1;native_legacy_prepare_reason=0;native_legacy_prepare_attempts=0;
-    dline(29,"DISP PREP %u",native_legacy_prepare_calls);
+    if(native_legacy_prepare_calls<=12)dline(29,"DISP PREP %u",native_legacy_prepare_calls);
     if (ml_at_interrupt_context()) {native_legacy_prepare_reason=1;return false;}
     if (!ml_get_interrupts_enabled()) {native_legacy_prepare_reason=2;return false;}
     const uint64_t began=probeNowUs();
@@ -1770,7 +1771,7 @@ static void vsyncWatchFn(thread_call_param_t,thread_call_param_t) {
 void native_legacy_vsync_observed(unsigned event,unsigned hz) {
     if(event<6)vsyncEvents[event]=vsyncEvents[event]+1;
     vsyncHz=hz;
-    dline(31,"DISP VSYNC %u %u",event,hz);
+    if(event>=4 || (event<6 && vsyncEvents[event]<=4))dline(31,"DISP VSYNC %u %u",event,hz);
     if(event==4 && !vsyncWatch) {
         vsyncWatch=thread_call_allocate(vsyncWatchFn,nullptr);
         if(vsyncWatch)vsyncWatchFn(nullptr,nullptr);
@@ -1815,7 +1816,7 @@ __attribute__((noinline)) void native_legacy_transfer_observed(IOReturn status,c
     native_legacy_transfer_calls=native_legacy_transfer_calls+1;
     if(status==kIOReturnSuccess)native_legacy_swap_stage(2);
     native_legacy_transfer_status=status;native_legacy_transfer_request=(uintptr_t)request;native_legacy_transfer_bytes=bytes;
-    dline(30,"DISP COPY %x %llu",(unsigned)status,(unsigned long long)bytes);
+    if(native_legacy_transfer_calls<=6 || status!=kIOReturnSuccess)dline(30,"DISP COPY %x %llu",(unsigned)status,(unsigned long long)bytes);
     if(status!=kIOReturnSuccess) {
         char message[120];snprintf(message,sizeof(message),"DISPLAY COPY FAILED status=%08x prepare=%u tries=%u",
           (unsigned)status,native_legacy_prepare_reason,native_legacy_prepare_attempts);
@@ -1839,7 +1840,7 @@ __attribute__((noinline)) void native_legacy_retirement_observed(IOService *disp
     if (frames == 1) {
         merlinxFixupMtkOvl(true);
     }
-    dline(30,"DISP RET %u/%u F%u S%d:%.6s C%u/%d:%.6s",completed,presented,frames,
+    if(native_legacy_retirement_calls<=6)dline(30,"DISP RET %u/%u F%u S%d:%.6s C%u/%d:%.6s",completed,presented,frames,
         native_legacy_swap_pid,native_legacy_swap_name[0]?native_legacy_swap_name:"-",
         native_legacy_client_calls,native_legacy_client_pid,native_legacy_client_name[0]?native_legacy_client_name:"-");
     if (frames < 6 || gMerlinxGopOsdForce) {

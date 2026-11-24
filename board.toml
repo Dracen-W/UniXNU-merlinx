@@ -102,7 +102,7 @@ title = "UniXNU"
 dram_size = "0x100000000"
 panic_screen = true
 timeout = 3
-kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=3", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "sheng-vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "fts-touch=3", "sheng-touch-hid=1", "sheng-fb-diff=1", "smp=1", "cpus=8", "unentitled_ios_sim_launch=1", "wdt_test=no_user_checkin"]
+kernel_args = ["-v", "serial=3", "debug=0x14e", "-no_slto_panic", "validation_disables=0x10", "dk=0", "sheng-pmgr=2", "sheng-aks=1", "native-emmc-root=1", "offline-mobile-graphics-load=1", "offline-mobile-graphics-client=1", "offline-legacy-register=1", "offline-legacy-gop=1", "offline-legacy-unit-scale=3", "offline-legacy-pm=1", "offline-legacy-phase=4", "offline-legacy-transfer=1", "offline-legacy-validate=1", "offline-legacy-cpu-present=1", "vsync=60", "sheng-gpu-addon=1", "sheng-no-lc=1", "launchd_unsecure_cache=1", "ignition_level=1", "wdt=-1", "fts-touch=3", "sheng-touch-hid=1", "smp=1", "cpus=8", "unentitled_ios_sim_launch=1", "wdt_test=no_user_checkin"]
 # 21H461 text_fixups cleared; populate only if 20H392 dyld_shared_cache needs fixups
 text_fixups = []
 trust_cache_sha256 = [

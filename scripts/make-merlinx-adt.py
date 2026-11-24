@@ -144,13 +144,15 @@ def main():
         node('chosen', [('random-seed', os.urandom(64)),
                         # Without these XNU never publishes IOPlatformUUID and gethostuuid() blocks forever
                         # for callers (configd) that pass a zero timeout.
-                        *([('unique-chip-id', struct.pack('<Q', args.unique_chip_id)), ('chip-id', struct.pack('<I', args.chip_id)),
-                           ('mac-address-wifi0', bytes([0x02, 0x00, (args.unique_chip_id >> 24) & 0xff, (args.unique_chip_id >> 16) & 0xff, (args.unique_chip_id >> 8) & 0xff, args.unique_chip_id & 0xfe])),
-                           ('mac-address-bluetooth0', bytes([0x02, 0x00, (args.unique_chip_id >> 24) & 0xff, (args.unique_chip_id >> 16) & 0xff, (args.unique_chip_id >> 8) & 0xff, (args.unique_chip_id & 0xfe) | 0x01]))]
+                        *([('unique-chip-id', struct.pack('<Q', args.unique_chip_id)), ('chip-id', struct.pack('<I', args.chip_id))]
                           if args.unique_chip_id is not None else []),
                         # This boots the normal target OS. Volatile Data is
                         # described separately by ephemeral-storage below.
                         ('osenvironment', b'main\0'),
+                        # Deterministic locally-administered MACs prevent libMobileGestalt (iPhone10,6 legacy
+                        # 40-char UDID path) from waiting forever on IONetworkController in lsd.
+                        ('mac-address-wifi0', bytes.fromhex('02009abcdef0')),
+                        ('mac-address-bluetooth0', bytes.fromhex('02009abcdef1')),
                         # Security status as on a dev-fused, undemoted board (tuple 0,0,1,1), as read by MobileGestalt: mobileactivationd's
                         # DeviceType then takes its native "Hactivation" branch (Activated without an activation record; no SEP or
                         # baseband). Values established on hardware by github.com/dipa-studio/ios-sweet (tools/mkadt.py).
