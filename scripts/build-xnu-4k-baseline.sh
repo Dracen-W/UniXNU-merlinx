@@ -588,24 +588,18 @@ if [ "$(cat "$NATIVE_TIMER_STAMP" 2>/dev/null || echo 0)" != "$NATIVE_ARCH_TIMER
 fi
 EXTRA_CFLAGS="$EXTRA_CFLAGS -DXNU_NATIVE_PAN=$NATIVE_PAN"
 if [ "$NATIVE_PAN" = 1 ]; then
+  # Pass -march=armv8.1-a globally via EXTRA_CFLAGS (forwarded to both CFLAGS_EXTRA and
+  # RC_NONARCH_CFLAGS) so xnu-8796 C files (arm_init.c, pmap.c, copyio.c, pcb.c) and
+  # assembly files (machine_routines_asm.s, locore.s, start.s, cswitch.s) all see
+  # __ARM_PAN_AVAILABLE__=1 without overriding Makefile.arm64 per-file SFLAGS_ADD.
+  EXTRA_CFLAGS="$EXTRA_CFLAGS -march=armv8.1-a"
   EXTRA_MAKE_ARGS+=("copyio.o_CFLAGS_ADD=-march=armv8.1-a")
   EXTRA_MAKE_ARGS+=("pcb.o_CFLAGS_ADD=-march=armv8.1-a")
   EXTRA_MAKE_ARGS+=("platform_tests.o_CFLAGS_ADD=-march=armv8.1-a")
-  # __bcopyin/__bcopyout/__bcopyinstr/__copyin_atomic32* live in osfmk/arm64/machine_routines_asm.s
-  EXTRA_MAKE_ARGS+=("machine_routines_asm.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
-  EXTRA_MAKE_ARGS+=("bcopy.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
-  EXTRA_MAKE_ARGS+=("copyio.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
-  EXTRA_MAKE_ARGS+=("locore.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
-  EXTRA_MAKE_ARGS+=("cswitch.o_SFLAGS_ADD=-DXNU_NATIVE_PAN=1 -march=armv8.1-a")
 else
   EXTRA_MAKE_ARGS+=("copyio.o_CFLAGS_ADD=")
   EXTRA_MAKE_ARGS+=("pcb.o_CFLAGS_ADD=")
   EXTRA_MAKE_ARGS+=("platform_tests.o_CFLAGS_ADD=")
-  EXTRA_MAKE_ARGS+=("machine_routines_asm.o_SFLAGS_ADD=")
-  EXTRA_MAKE_ARGS+=("bcopy.o_SFLAGS_ADD=")
-  EXTRA_MAKE_ARGS+=("copyio.o_SFLAGS_ADD=")
-  EXTRA_MAKE_ARGS+=("locore.o_SFLAGS_ADD=")
-  EXTRA_MAKE_ARGS+=("cswitch.o_SFLAGS_ADD=")
 fi
 NATIVE_PAN_STAMP=$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/.native-pan-asm-mode
 if [ "$(cat "$NATIVE_PAN_STAMP" 2>/dev/null || echo none)" != "mra:$NATIVE_PAN" ]; then
@@ -859,7 +853,7 @@ make -C .cache/xnu-work "${XNU_BUILD_TARGET:-build}" SDKROOT="${XNU_SDKROOT:-iph
   DEPLOYMENT_LINKER_FLAGS="-Wl,-ios_version_min,$IOS_VERSION" \
   RC_DARWIN_KERNEL_VERSION="$XNU_DARWIN" RC_ProjectSourceVersion="$XNU_VERSION" \
   BUILD_LTO=0 BOUND_CHECKS=0 BUILD_WERROR="${XNU_BUILD_WERROR:-0}" MAKEJOBS=-j"${JOBS:-4}" \
-  CFLAGS_EXTRA="$EXTRA_CFLAGS" "${EXTRA_MAKE_ARGS[@]}" ${XNU_HOST_MAKE_ARGS[@]+"${XNU_HOST_MAKE_ARGS[@]}"} \
+  CFLAGS_EXTRA="$EXTRA_CFLAGS" RC_NONARCH_CFLAGS="$EXTRA_CFLAGS" "${EXTRA_MAKE_ARGS[@]}" ${XNU_HOST_MAKE_ARGS[@]+"${XNU_HOST_MAKE_ARGS[@]}"} \
   OBJROOT="$ROOT/build/xnu/ios-obj" SYMROOT="$ROOT/build/xnu/ios-sym" DSTROOT="$ROOT/build/xnu/ios-dst"
 if [ "$NATIVE_PAN" = 1 ] && [ -f "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped" ]; then
   python3 - "$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped" <<'PY_PAN_CHECK'
@@ -867,9 +861,11 @@ import struct, sys
 data = open(sys.argv[1], 'rb').read()
 pan0 = data.count(struct.pack('<I', 0xd500409f))
 pan1 = data.count(struct.pack('<I', 0xd500419f))
-print(f'PAN instruction audit: msr PAN,#0={pan0}, msr PAN,#1={pan1}')
-if pan0 < 3:
-    raise SystemExit(f'ERROR: XNU_NATIVE_PAN=1 but only {pan0} msr PAN,#0 instructions found (machine_routines_asm.o missed PAN)!')
+insns = struct.unpack(f'<{len(data)//4}I', data[:(len(data)//4)*4])
+wsr_pan = sum(1 for w in insns if (w & 0xFFFFFFE0) == 0xd5184260)
+print(f'PAN instruction audit: msr PAN,#0={pan0}, msr PAN,#1={pan1}, msr S3_0_c4_c2_3={wsr_pan}')
+if pan0 + wsr_pan < 3:
+    raise SystemExit(f'ERROR: XNU_NATIVE_PAN=1 but only pan0={pan0}, wsr_pan={wsr_pan} found!')
 PY_PAN_CHECK
 fi
 if [ "${XNU_SOURCE_CORECRYPTO14:-0}" = 1 ] && [ "$CRYPTO_BOOTSTRAP_MODE" = source ]; then
